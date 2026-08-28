@@ -1,11 +1,10 @@
 [package]
-name = "worldline-demo"
+name = "worldline-reference"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Worldline S0 kernel-composition proving slice"
+description = "Reference browser-like, agent-like, and UI-like plugins for Worldline boundary proofs"
 
 [dependencies]
 worldline-kernel = { path = "../worldline-kernel" }
-worldline-reference = { path = "../worldline-reference" }

@@ -5,6 +5,16 @@
 Единица планирования: проверяемый архитектурный или продуктовый рубеж, а не
 календарная дата
 
+## Текущий статус рубежей
+
+- **M0.1 — Done.** State hardening закрыт revision/CAS, runtime leases,
+  recovery errors и installation authority retirement.
+- **M0.2 — Done.** Это был active gate текущего boundary review; он закрыт
+  [ADR-KERNEL-BOUNDARY-V1](docs/adr/ADR-KERNEL-BOUNDARY-V1.md), тремя
+  reference families и постоянным S0 proving slice.
+- **M0.3 — Next.** Следующий implementation milestone — Plugin Runtime v1:
+  настоящий `RuntimeId`, multi-install runtime и async lifecycle.
+
 ## 1. Куда идёт Worldline
 
 **Worldline is a userland operating environment for the Internet.**
@@ -306,7 +316,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 компоновать trusted native и untrusted third-party plugins без скрытого общего
 состояния и неявной authority.
 
-### M0.1 — State hardening
+### M0.1 — State hardening — Done
 
 Довести `STATE-HARDENING-1` до зелёного acceptance gate:
 
@@ -327,7 +337,7 @@ Exit criterion: два конкурентных stale writers не могут п
 неуспешная migration или uninstall оставляет систему в явно восстанавливаемом
 состоянии.
 
-### M0.2 — Kernel boundary decision
+### M0.2 — Kernel boundary decision — Done
 
 До стабилизации external API провести отдельный boundary review:
 
@@ -341,9 +351,10 @@ Exit criterion: два конкурентных stale writers не могут п
 - оформить ADR с rejected alternatives и условиями пересмотра.
 
 Exit criterion: содержимое kernel объясняется необходимым инвариантом, а не
-удобством текущей реализации или ранней блок-схемой.
+удобством текущей реализации или ранней блок-схемой. Evidence: ADR boundary
+classification, `worldline-reference` acceptance suite и S0 restart proof.
 
-### M0.3 — Plugin Runtime v1
+### M0.3 — Plugin Runtime v1 — Next
 
 - ввести настоящий `RuntimeId`, не представленный через `PluginId`;
 - завершить модель

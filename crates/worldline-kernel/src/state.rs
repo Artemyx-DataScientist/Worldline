@@ -218,6 +218,7 @@ pub struct InstallationRecord {
     state_schema_version: StateSchemaVersion,
     status: InstallationStatus,
     revision: StateRevision,
+    runtime_generation: u64,
 }
 
 impl InstallationRecord {
@@ -241,6 +242,14 @@ impl InstallationRecord {
         self.revision
     }
 
+    /// Monotonic incarnation epoch for runtimes bound to this installation.
+    ///
+    /// This is a transitional identity seed for the pre-M0.3 runtime model,
+    /// not the final public `RuntimeId`.
+    pub const fn runtime_generation(&self) -> u64 {
+        self.runtime_generation
+    }
+
     pub(crate) fn new(
         installation_id: InstallationId,
         plugin_id: PluginId,
@@ -253,6 +262,7 @@ impl InstallationRecord {
             state_schema_version,
             status,
             revision: StateRevision::default(),
+            runtime_generation: 0,
         }
     }
 
@@ -269,6 +279,7 @@ impl InstallationRecord {
             state_schema_version: self.state_schema_version,
             status,
             revision: self.revision,
+            runtime_generation: self.runtime_generation,
         }
     }
 
@@ -283,6 +294,18 @@ impl InstallationRecord {
             state_schema_version,
             status,
             revision: self.revision,
+            runtime_generation: self.runtime_generation,
+        }
+    }
+
+    fn with_runtime_generation(&self, runtime_generation: u64) -> Self {
+        Self {
+            installation_id: self.installation_id.clone(),
+            plugin_id: self.plugin_id.clone(),
+            state_schema_version: self.state_schema_version,
+            status: self.status,
+            revision: self.revision,
+            runtime_generation,
         }
     }
 }
@@ -1510,6 +1533,35 @@ impl StateStore {
             store: Arc::clone(self),
             installation: installation.clone(),
         })
+    }
+
+    /// Allocates a persisted incarnation epoch before a runtime is activated.
+    ///
+    /// The epoch lets the transitional runtime-principal format distinguish
+    /// host restarts while the final `RuntimeId` registry remains an M0.3
+    /// concern.
+    pub(crate) fn allocate_runtime_generation(
+        &self,
+        installation: &InstallationId,
+    ) -> Result<u64, StateError> {
+        let record = self.backend.snapshot(installation)?.record.clone();
+        if record.status != InstallationStatus::Ready {
+            return Err(StateError::InstallationNotReady {
+                installation: installation.clone(),
+                status: record.status,
+            });
+        }
+        self.cache_record(record.clone());
+        let generation =
+            record
+                .runtime_generation
+                .checked_add(1)
+                .ok_or_else(|| StateError::BackendFailure {
+                    operation: "allocate_runtime_generation",
+                    message: "runtime generation counter exhausted".to_owned(),
+                })?;
+        let updated = self.replace_record(&record.with_runtime_generation(generation))?;
+        Ok(updated.runtime_generation)
     }
 
     pub(crate) fn runtime_handle(

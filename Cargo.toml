@@ -2,6 +2,7 @@
 members = [
     "crates/worldline-kernel",
     "crates/worldline-demo",
+    "crates/worldline-reference",
 ]
 resolver = "3"
 

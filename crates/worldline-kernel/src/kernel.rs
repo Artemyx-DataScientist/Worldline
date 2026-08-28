@@ -769,8 +769,26 @@ impl Kernel {
         };
         self.trajectory
             .push(id.clone(), TrajectoryEventKind::ActivationStarted);
+        let runtime_generation = match self.state.allocate_runtime_generation(&installation) {
+            Ok(generation) => generation,
+            Err(error) => {
+                self.trajectory.push(
+                    id.clone(),
+                    TrajectoryEventKind::PluginFailure {
+                        phase: LifecyclePhase::Activation,
+                        message: error.to_string(),
+                    },
+                );
+                if let Some(record) = self.plugins.get_mut(id) {
+                    record.state = RuntimeState::Failed;
+                }
+                return ActivationOutcome::Failed;
+            }
+        };
         let scope_id = self.security.allocate_scope();
-        let runtime_principal = self.security.allocate_runtime_principal(id.as_str());
+        let runtime_principal = self
+            .security
+            .allocate_runtime_principal(id.as_str(), runtime_generation);
         let state_lease = RuntimeStateLease::new();
         self.trajectory
             .push_security(TrajectoryEventKind::PrincipalRegistered {

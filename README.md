@@ -21,9 +21,19 @@ engine, LLM, UI, истории, вкладках или конкретном ag
   dependency resolution, lifecycle scopes, owned effects, principals, in-memory
   grants, resource attenuation, revocation, invocation broker и append-only
   trajectory;
-- `worldline-demo` — consumer, показывающий разницу между capability
-  availability и authorization, включая grant/revoke и compatible provider
-  replacement.
+- `worldline-demo` — host-level S0 proving slice, показывающий разницу между
+  capability availability и authorization, independent observation, restart
+  continuity и compatible provider replacement.
+- `worldline-reference` — browser-like, agent-like и UI-like reference
+  families, host-local observation fixture и постоянный S0 proving slice.
+
+Boundary decisions M0.2 зафиксированы в
+[ADR-KERNEL-BOUNDARY-V1](docs/adr/ADR-KERNEL-BOUNDARY-V1.md). Reference
+families используют только generic plugin/capability/state contracts; в
+`worldline-kernel` нет family discriminator или product-specific domain types.
+`worldline-demo` запускает S0 через два `Kernel` над общим backend: RPC result
+и observation идут разными путями, installation state продолжается через
+restart, а runtime identity и authority — нет.
 
 `CapabilityHandle` является broker proxy. Наличие resolved dependency или
 активного provider не создаёт grant: вызов проходит только при наличии
@@ -60,12 +70,21 @@ in-flight вызов; он блокирует последующие admissions.
 ограничены максимальной глубиной, а `ProviderSelf` доступен только текущему
 provider runtime и использует только его собственные grants.
 
+Observation bus из reference crate — это намеренно минимальный host-local
+fixture, а не production EventBus: observation имеет собственную identity и
+producer identity, subscriber не участвует в provider resolution и не может
+подменить RPC result. Production event transport, scheduler, blob persistence,
+CEF/wgpu composition и настоящий `RuntimeId` остаются следующими отдельными
+рубежами.
+
 ## Проверка
 
 ```text
 cargo fmt --all -- --check
 cargo test --workspace
 cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo doc --workspace --no-deps
+cargo tree -p worldline-kernel
 cargo run -p worldline-demo
 ```
 

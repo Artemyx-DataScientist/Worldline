@@ -7,8 +7,16 @@ name = "worldline-demo"
 version = "0.1.0"
 dependencies = [
  "worldline-kernel",
+ "worldline-reference",
 ]
 
 [[package]]
 name = "worldline-kernel"
 version = "0.1.0"
+
+[[package]]
+name = "worldline-reference"
+version = "0.1.0"
+dependencies = [
+ "worldline-kernel",
+]

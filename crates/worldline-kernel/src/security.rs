@@ -38,8 +38,14 @@ impl PrincipalId {
         Self::new(format!("plugin-installation:{installation_id}"))
     }
 
-    pub(crate) fn plugin_runtime(plugin_id: &str, runtime_number: u64) -> Self {
-        Self::new(format!("plugin-runtime:{plugin_id}:{runtime_number}"))
+    pub(crate) fn plugin_runtime(
+        plugin_id: &str,
+        runtime_number: u64,
+        runtime_generation: u64,
+    ) -> Self {
+        Self::new(format!(
+            "plugin-runtime:{plugin_id}:{runtime_number}@{runtime_generation}"
+        ))
     }
 }
 
@@ -919,14 +925,18 @@ impl SecurityStore {
         InvocationId::new(format!("invocation-{}", state.next_invocation))
     }
 
-    pub(crate) fn allocate_runtime_principal(&self, plugin_id: &str) -> Principal {
+    pub(crate) fn allocate_runtime_principal(
+        &self,
+        plugin_id: &str,
+        runtime_generation: u64,
+    ) -> Principal {
         let mut state = self
             .state
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         state.next_runtime += 1;
         let principal = Principal::new(
-            PrincipalId::plugin_runtime(plugin_id, state.next_runtime),
+            PrincipalId::plugin_runtime(plugin_id, state.next_runtime, runtime_generation),
             PrincipalKind::PluginRuntime,
         );
         state
