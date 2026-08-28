@@ -4,6 +4,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use crate::rpc::{ProviderLimits, RpcOperationContract};
+use crate::security::OperationId;
 use crate::{InstallationId, RuntimeId};
 use crate::{PluginId, PrincipalId};
 
@@ -130,6 +132,12 @@ impl CapabilityDependency {
 pub trait CapabilityService: Send + Sync {
     fn invoke(&self, operation: &str, payload: &[u8]) -> Result<Vec<u8>, String>;
 
+    /// Provider-owned retry contract.  The broker never grants callers more
+    /// retry power than this declaration.
+    fn rpc_operation_contract(&self, operation: &OperationId) -> RpcOperationContract {
+        RpcOperationContract::never_retry(operation.clone())
+    }
+
     fn invoke_with_context(
         &self,
         context: &crate::InvocationContext,
@@ -142,6 +150,7 @@ pub trait CapabilityService: Send + Sync {
 pub(crate) struct CapabilityPublication {
     pub(crate) id: CapabilityId,
     pub(crate) service: Arc<dyn CapabilityService>,
+    pub(crate) limits: ProviderLimits,
 }
 
 /// Describes one currently published provider without exposing its service

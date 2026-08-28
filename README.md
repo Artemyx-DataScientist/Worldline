@@ -11,9 +11,10 @@ isolated plugins behind capability-based authorization.
 Текущее продуктовое направление, архитектурные гипотезы, milestones и
 проверяемые критерии выхода описаны в [Worldline Roadmap](ROADMAP.md).
 
-Это Rust workspace для Grace Changes `C-KERNEL-PLUGIN-RUNTIME-BOOTSTRAP-20260827`
-и `C-KERNEL-CAPABILITY-SECURITY-20260828`. Ядро намеренно не знает о browser
-engine, LLM, UI, истории, вкладках или конкретном agent runtime.
+Это Rust workspace для Grace Changes `C-KERNEL-PLUGIN-RUNTIME-BOOTSTRAP-20260827`,
+`C-KERNEL-CAPABILITY-SECURITY-20260828` и
+`C-KERNEL-CAPABILITY-RPC-EVENT-TRANSPORT-20260828`. Ядро намеренно не знает о
+browser engine, LLM, UI, истории, вкладках или конкретном agent runtime.
 
 В workspace входят:
 
@@ -21,11 +22,12 @@ engine, LLM, UI, истории, вкладках или конкретном ag
   dependency resolution, installation-scoped runtime lifecycle, opaque
   `RuntimeId`, split-phase activation/deactivation, lifecycle recovery,
   capability discovery/selection, lifecycle scopes, owned effects, principals,
-  in-memory grants, resource attenuation, revocation, invocation broker и
-  append-only trajectory;
-- `worldline-demo` — host-level S0 proving slice, показывающий разницу между
-  capability availability и authorization, independent observation, restart
-  continuity и compatible provider replacement.
+  in-memory grants, resource attenuation, revocation, bounded capability RPC,
+  typed event transport, logical event journal, invocation broker и append-only
+  trajectory;
+- `worldline-demo` — host-level S0/S1 proving slices, показывающие разницу
+  между capability availability и authorization, independent observation,
+  restart continuity и compatible provider replacement.
 - `worldline-reference` — browser-like, agent-like и UI-like reference
   families, host-local observation fixture и постоянный S0 proving slice.
 
@@ -39,9 +41,23 @@ restart, а runtime identity и authority — нет.
 
 `CapabilityHandle` является broker proxy. Наличие resolved dependency или
 активного provider не создаёт grant: вызов проходит только при наличии
-подходящего active grant. Provider получает `InvocationContext` и может явно
-выбрать delegated authority либо собственную authority; delegated invocation
-не имеет automatic self-authority fallback.
+подходящего active grant. RPC имеет отдельные logical `RpcRequestId` и
+per-attempt `InvocationId`, bounded provider flow control, monotonic deadline,
+cooperative cancellation и provider-owned retry/idempotency contract. Provider
+получает `InvocationContext` и может явно выбрать delegated authority либо
+собственную authority; delegated invocation не имеет automatic self-authority
+fallback.
+
+Typed Event Transport — отдельный publish/subscribe plane. `EventContract` и
+`EventEnvelope` ABI-neutral, producer metadata kernel-stamped, Publish/Subscribe
+default-deny, а каждая live subscription получает finite pull mailbox с явным
+`RejectForSubscriber`/`DropNewest`/`DropOldest` QoS. События могут быть
+`Ephemeral` либо логически `Durable` через абстрактный `EventJournal`; текущий
+`InMemoryEventJournal` предназначен для acceptance tests и не является
+production crash-safe persistence. Event observation не является RPC reply,
+не участвует в provider resolution и не передаёт subscriber producer
+authority. S1 proving slice показывает независимые RPC result, observation,
+follow-up RPC под authority observer-а и state continuity после restart.
 
 Persistent state принадлежит `InstallationId`, а не `PluginId` и не
 эфемерному runtime principal. Runtime получает только kernel-bound
@@ -72,14 +88,14 @@ in-flight вызов; он блокирует последующие admissions.
 ограничены максимальной глубиной, а `ProviderSelf` доступен только текущему
 provider runtime и использует только его собственные grants.
 
-Observation bus из reference crate — это намеренно минимальный host-local
-fixture, а не production EventBus: observation имеет собственную identity и
-producer identity, subscriber не участвует в provider resolution и не может
-подменить RPC result. M0.3 добавляет runtime lifecycle primitives, но не
-притворяется production scheduler: для native in-process plugin cancellation
+Observation bus из reference crate остаётся минимальным host-local fixture для
+старого S0; kernel Event Transport теперь покрывает M0.4 и не смешивается с
+trajectory или persistence. M0.3 runtime lifecycle primitives не
+притворяются production scheduler: для native in-process plugin cancellation
 остаётся cooperative, а `Hung` изолирует authority и publication логически,
-не убивая произвольный thread. Production event transport, scheduler, blob
-persistence и CEF/wgpu composition остаются следующими отдельными рубежами.
+не убивая произвольный thread. Production crash-safe event persistence,
+transactional outbox, scheduler, blob persistence и CEF/wgpu composition
+остаются следующими отдельными рубежами.
 
 ## Проверка
 

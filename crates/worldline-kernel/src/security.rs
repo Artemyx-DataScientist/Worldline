@@ -2,9 +2,13 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
     sync::RwLock,
+    time::Duration,
 };
 
-use crate::{CapabilityId, RuntimeId};
+use crate::{
+    CapabilityId, CorrelationId, DEFAULT_RPC_DEADLINE, RpcCancellationToken, RpcRequestId,
+    RpcRetryClass, RuntimeId, TraceContext,
+};
 
 /// The category of a subject in the kernel security model.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -517,6 +521,13 @@ pub struct InvocationRequest {
     causal_parent: Option<InvocationId>,
     nested_depth: usize,
     provider_runtime: Option<RuntimeId>,
+    rpc_request_id: Option<RpcRequestId>,
+    deadline: Option<Duration>,
+    cancellation: RpcCancellationToken,
+    retry_class: RpcRetryClass,
+    retry: bool,
+    idempotency_key: Option<String>,
+    trace_context: Option<TraceContext>,
 }
 
 impl InvocationRequest {
@@ -540,6 +551,13 @@ impl InvocationRequest {
             causal_parent: None,
             nested_depth: 0,
             provider_runtime: None,
+            rpc_request_id: None,
+            deadline: Some(DEFAULT_RPC_DEADLINE),
+            cancellation: RpcCancellationToken::new(),
+            retry_class: RpcRetryClass::NeverRetry,
+            retry: false,
+            idempotency_key: None,
+            trace_context: None,
         }
     }
 
@@ -571,13 +589,100 @@ impl InvocationRequest {
         self.causal_parent.as_ref()
     }
 
+    pub fn rpc_request_id(&self) -> Option<&RpcRequestId> {
+        self.rpc_request_id.as_ref()
+    }
+
+    pub fn request_id(&self) -> Option<&RpcRequestId> {
+        self.rpc_request_id()
+    }
+
+    pub const fn deadline(&self) -> Option<Duration> {
+        self.deadline
+    }
+
+    pub fn cancellation(&self) -> RpcCancellationToken {
+        self.cancellation.clone()
+    }
+
+    pub const fn retry_classification(&self) -> RpcRetryClass {
+        self.retry_class
+    }
+
+    pub const fn is_retry(&self) -> bool {
+        self.retry
+    }
+
+    pub fn idempotency_key(&self) -> Option<&str> {
+        self.idempotency_key.as_deref()
+    }
+
+    pub fn trace_context(&self) -> Option<&TraceContext> {
+        self.trace_context.as_ref()
+    }
+
     pub fn with_authority(mut self, authority: AuthoritySource) -> Self {
         self.authority = authority;
         self
     }
 
     pub fn with_causal_parent(mut self, parent: InvocationId) -> Self {
+        if let Some(trace) = self.trace_context.as_mut() {
+            let correlation = trace.correlation_id().clone();
+            self.trace_context = Some(
+                TraceContext::new(correlation)
+                    .with_causation(crate::CausationRef::Invocation(parent.clone())),
+            );
+        }
         self.causal_parent = Some(parent);
+        self
+    }
+
+    pub fn with_rpc_request_id(mut self, request_id: impl Into<RpcRequestId>) -> Self {
+        self.rpc_request_id = Some(request_id.into());
+        self
+    }
+
+    pub fn with_request_id(self, request_id: impl Into<RpcRequestId>) -> Self {
+        self.with_rpc_request_id(request_id)
+    }
+
+    pub fn with_deadline(mut self, deadline: Duration) -> Self {
+        self.deadline = Some(deadline);
+        self
+    }
+
+    pub fn with_no_deadline(mut self) -> Self {
+        self.deadline = None;
+        self
+    }
+
+    pub fn with_cancellation(mut self, cancellation: RpcCancellationToken) -> Self {
+        self.cancellation = cancellation;
+        self
+    }
+
+    pub fn with_retry_classification(mut self, retry_class: RpcRetryClass) -> Self {
+        self.retry_class = retry_class;
+        self
+    }
+
+    pub fn with_retry(mut self) -> Self {
+        self.retry = true;
+        self
+    }
+
+    pub fn with_idempotency_key(mut self, key: impl Into<String>) -> Self {
+        self.idempotency_key = Some(key.into());
+        self
+    }
+
+    pub fn with_trace_context(mut self, trace_context: TraceContext) -> Self {
+        self.causal_parent = match trace_context.causation() {
+            Some(crate::CausationRef::Invocation(invocation)) => Some(invocation.clone()),
+            _ => None,
+        };
+        self.trace_context = Some(trace_context);
         self
     }
 
@@ -588,6 +693,16 @@ impl InvocationRequest {
 
     pub(crate) fn with_provider_runtime(mut self, runtime_id: RuntimeId) -> Self {
         self.provider_runtime = Some(runtime_id);
+        self
+    }
+
+    pub(crate) fn with_handle_identity(
+        mut self,
+        caller: PrincipalId,
+        capability: CapabilityId,
+    ) -> Self {
+        self.caller = caller;
+        self.capability = capability;
         self
     }
 
@@ -604,6 +719,13 @@ impl InvocationRequest {
         Option<InvocationId>,
         usize,
         Option<RuntimeId>,
+        Option<RpcRequestId>,
+        Option<Duration>,
+        RpcCancellationToken,
+        RpcRetryClass,
+        bool,
+        Option<String>,
+        Option<TraceContext>,
     ) {
         (
             self.caller,
@@ -615,6 +737,13 @@ impl InvocationRequest {
             self.causal_parent,
             self.nested_depth,
             self.provider_runtime,
+            self.rpc_request_id,
+            self.deadline,
+            self.cancellation,
+            self.retry_class,
+            self.retry,
+            self.idempotency_key,
+            self.trace_context,
         )
     }
 }
@@ -829,6 +958,8 @@ struct SecurityState {
     active_scopes: BTreeSet<LifecycleScopeId>,
     next_grant: u64,
     next_invocation: u64,
+    next_rpc_request: u64,
+    next_correlation: u64,
     next_scope: u64,
 }
 
@@ -932,6 +1063,24 @@ impl SecurityStore {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         state.next_invocation += 1;
         InvocationId::new(format!("invocation-{}", state.next_invocation))
+    }
+
+    pub(crate) fn allocate_rpc_request(&self) -> RpcRequestId {
+        let mut state = self
+            .state
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.next_rpc_request += 1;
+        RpcRequestId::new(format!("rpc-request-{}", state.next_rpc_request))
+    }
+
+    pub(crate) fn allocate_correlation(&self) -> CorrelationId {
+        let mut state = self
+            .state
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.next_correlation += 1;
+        CorrelationId::new(format!("correlation-{}", state.next_correlation))
     }
 
     pub(crate) fn allocate_runtime_principal(
@@ -1330,6 +1479,24 @@ impl SecurityStore {
             return Err(DenialReason::OperationNotAllowed);
         }
         Err(DenialReason::ResourceOutOfScope)
+    }
+
+    pub(crate) fn authorize_event(
+        &self,
+        subject: &PrincipalId,
+        capability: &CapabilityId,
+        operation: &OperationId,
+    ) -> Result<AuthoritySet, DenialReason> {
+        self.authorize(
+            subject,
+            capability,
+            operation,
+            &ResourceId::root(capability.namespace()),
+            &AuthoritySource::Caller,
+            None,
+            None,
+            None,
+        )
     }
 
     fn grant_is_active(state: &SecurityState, id: &GrantId) -> bool {

@@ -16,6 +16,10 @@ use crate::{
     },
     effect::LifecycleScope,
     error::panic_message,
+    events::{
+        EventContract, EventError, EventJournal, EventPublishOptions, EventTransport,
+        PublishReport, SubscriptionHandle, SubscriptionOptions,
+    },
     invocation::{CapabilityHandle, InvocationBroker},
     plugin::{ActivationContext, Plugin, PluginDefinition, PluginId, PluginRuntime},
     runtime::{
@@ -227,6 +231,7 @@ pub struct Kernel {
     registry: Arc<CapabilityRegistry>,
     security: Arc<crate::security::SecurityStore>,
     broker: Arc<InvocationBroker>,
+    events: EventTransport,
     state: Arc<StateStore>,
     /// Registration cardinality is installation-scoped. A definition may
     /// therefore have many records without overwriting another runtime.
@@ -290,11 +295,14 @@ impl Kernel {
         let trajectory = Trajectory::default();
         let registry = Arc::new(CapabilityRegistry::default());
         let security = Arc::new(crate::security::SecurityStore::new());
+        let events = EventTransport::new(Arc::clone(&security), trajectory.clone());
         let broker = Arc::new(InvocationBroker::new(
             Arc::clone(&registry),
             Arc::clone(&security),
             trajectory.clone(),
+            events.clone(),
         ));
+        events.attach_broker(Arc::downgrade(&broker));
         trajectory.push_security(TrajectoryEventKind::PrincipalRegistered {
             principal: security.system_principal(),
             kind: PrincipalKind::System,
@@ -320,6 +328,7 @@ impl Kernel {
             registry,
             security,
             broker,
+            events,
             state,
             plugins: BTreeMap::new(),
             default_installations,
@@ -1182,6 +1191,109 @@ impl Kernel {
         self.broker.invoke(request)
     }
 
+    /// Configures the logical durable journal used by subsequent Durable
+    /// publications.  The in-memory implementation is suitable for tests;
+    /// this API makes no crash-safety claim.
+    pub fn set_event_journal(&self, journal: Arc<dyn EventJournal>) {
+        self.events.set_journal(Some(journal));
+    }
+
+    pub fn clear_event_journal(&self) {
+        self.events.set_journal(None);
+    }
+
+    /// Builder convenience for a kernel whose event journal is known at
+    /// construction time.
+    pub fn with_event_journal(self, journal: Arc<dyn EventJournal>) -> Self {
+        self.set_event_journal(journal);
+        self
+    }
+
+    /// Publishes a generic event under the supplied principal's explicit
+    /// Publish grant.  Producer metadata is stamped by the kernel.
+    pub fn publish_event(
+        &self,
+        producer: impl Into<PrincipalId>,
+        contract: EventContract,
+        payload: &[u8],
+        options: EventPublishOptions,
+    ) -> Result<PublishReport, EventError> {
+        let producer = producer.into();
+        if self
+            .security
+            .principal(&producer)
+            .is_some_and(|principal| principal.kind() == PrincipalKind::PluginRuntime)
+        {
+            return Err(EventError::EventPublishDenied);
+        }
+        self.events
+            .publish(producer, None, contract, payload, options, false)
+    }
+
+    /// Runtime-scoped publishing uses the exact live runtime principal and
+    /// runtime identity, so a payload cannot impersonate another provider.
+    pub fn publish_event_for_runtime(
+        &self,
+        runtime_id: RuntimeId,
+        contract: EventContract,
+        payload: &[u8],
+        options: EventPublishOptions,
+    ) -> Result<PublishReport, EventError> {
+        let Some(runtime) = self.runtimes.get(&runtime_id) else {
+            return Err(EventError::EventPublishDenied);
+        };
+        if runtime.metadata.state != RuntimeState::Active {
+            return Err(EventError::EventPublishDenied);
+        }
+        self.events.publish(
+            runtime.metadata.principal.clone(),
+            Some(runtime_id),
+            contract,
+            payload,
+            options,
+            false,
+        )
+    }
+
+    /// Creates a live pull subscription after checking the subscriber's
+    /// explicit Subscribe grant.
+    pub fn subscribe(
+        &self,
+        subscriber: impl Into<PrincipalId>,
+        contract: EventContract,
+        options: SubscriptionOptions,
+    ) -> Result<SubscriptionHandle, EventError> {
+        let subscriber = subscriber.into();
+        if self
+            .security
+            .principal(&subscriber)
+            .is_some_and(|principal| principal.kind() == PrincipalKind::PluginRuntime)
+        {
+            return Err(EventError::EventSubscribeDenied);
+        }
+        self.events.subscribe(subscriber, None, contract, options)
+    }
+
+    pub fn subscribe_for_runtime(
+        &self,
+        runtime_id: RuntimeId,
+        contract: EventContract,
+        options: SubscriptionOptions,
+    ) -> Result<SubscriptionHandle, EventError> {
+        let Some(runtime) = self.runtimes.get(&runtime_id) else {
+            return Err(EventError::EventSubscribeDenied);
+        };
+        if runtime.metadata.state != RuntimeState::Active {
+            return Err(EventError::EventSubscribeDenied);
+        }
+        self.events.subscribe(
+            runtime.metadata.principal.clone(),
+            Some(runtime_id),
+            contract,
+            options,
+        )
+    }
+
     /// Selects a compatible active provider and records the policy rationale.
     /// Selection never issues or widens caller authority.
     pub fn select_provider(
@@ -1457,6 +1569,8 @@ impl Kernel {
                 instance,
             )
         };
+        self.events.close_runtime(runtime_id);
+        self.broker.unregister_provider(runtime_id);
         for publication in &instance.publications {
             self.registry.unpublish(&runtime_id, &publication.id);
         }
@@ -2078,6 +2192,11 @@ impl Kernel {
                     .principal
                     .clone();
                 for publication in &publications {
+                    self.broker.register_provider(
+                        runtime_id,
+                        publication.id.clone(),
+                        publication.limits,
+                    );
                     self.registry.publish(
                         plugin_id.clone(),
                         installation_id.clone(),
@@ -2341,6 +2460,8 @@ impl Kernel {
         else {
             return;
         };
+        self.events.close_runtime(runtime_id);
+        self.broker.unregister_provider(runtime_id);
         for publication in &instance.publications {
             self.registry.unpublish(&runtime_id, &publication.id);
         }
@@ -2586,6 +2707,8 @@ impl Kernel {
     }
 
     fn revoke_runtime_if_needed(&self, runtime_id: RuntimeId) {
+        self.events.close_runtime(runtime_id);
+        self.broker.unregister_provider(runtime_id);
         if let Some(principal) = self
             .runtimes
             .get(&runtime_id)
@@ -2653,6 +2776,8 @@ impl Kernel {
         state: RuntimeState,
         failure: Option<RuntimeFailureClass>,
     ) {
+        self.events.close_runtime(runtime_id);
+        self.broker.unregister_provider(runtime_id);
         let installation = if let Some(runtime) = self.runtimes.get_mut(&runtime_id) {
             runtime.metadata.state = state;
             runtime.metadata.last_failure = failure;
@@ -3145,6 +3270,8 @@ impl Kernel {
         if let Some(runtime) = self.runtimes.get_mut(&runtime_id)
             && let Some(instance) = runtime.instance.take()
         {
+            self.events.close_runtime(runtime_id);
+            self.broker.unregister_provider(runtime_id);
             for publication in &instance.publications {
                 self.registry.unpublish(&runtime_id, &publication.id);
             }

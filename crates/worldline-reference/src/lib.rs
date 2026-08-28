@@ -14,6 +14,7 @@ pub mod agent_like;
 pub mod browser_like;
 pub mod observation;
 pub mod s0;
+pub mod s1;
 pub mod ui_like;
 
 pub use observation::{

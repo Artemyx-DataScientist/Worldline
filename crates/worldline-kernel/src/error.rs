@@ -2,7 +2,8 @@ use std::{any::Any, error::Error, fmt};
 
 use crate::{
     CapabilityId, DenialReason, InstallationId, InvocationId, LifecycleOperationId, OperationId,
-    PluginId, PrincipalId, ResourceId, RuntimeId, RuntimeLifecycleState, SecurityError, StateError,
+    PluginId, PrincipalId, ResourceId, RpcRequestId, RpcRetryClass, RuntimeId,
+    RuntimeLifecycleState, SecurityError, StateError,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -51,6 +52,11 @@ pub enum CapabilityError {
     Unavailable {
         capability: CapabilityId,
     },
+    NoCompatibleProvider {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+        capability: CapabilityId,
+    },
     PrincipalUnavailable {
         principal: PrincipalId,
     },
@@ -65,6 +71,43 @@ pub enum CapabilityError {
     InvocationFailed {
         capability: CapabilityId,
         message: String,
+    },
+    RpcDeadlineExceeded {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+    },
+    RpcCancelled {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+    },
+    RpcProviderBusy {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+        runtime: RuntimeId,
+    },
+    RpcQueueFull {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+        runtime: RuntimeId,
+    },
+    RpcRuntimeUnavailable {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+        runtime: RuntimeId,
+    },
+    RpcInvalidRetry {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+        requested: RpcRetryClass,
+        declared: RpcRetryClass,
+    },
+    RpcMissingIdempotencyKey {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+    },
+    RpcStaleCompletion {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
     },
 }
 
@@ -92,12 +135,50 @@ impl CapabilityError {
 
     pub fn capability(&self) -> Option<&CapabilityId> {
         match self {
-            Self::Unavailable { capability } | Self::InvocationFailed { capability, .. } => {
-                Some(capability)
-            }
+            Self::Unavailable { capability }
+            | Self::NoCompatibleProvider { capability, .. }
+            | Self::InvocationFailed { capability, .. } => Some(capability),
             Self::Denied { capability, .. } => Some(capability),
             Self::UndeclaredDependency { capability, .. } => Some(capability),
             Self::PrincipalUnavailable { .. } => None,
+            Self::RpcDeadlineExceeded { .. }
+            | Self::RpcCancelled { .. }
+            | Self::RpcProviderBusy { .. }
+            | Self::RpcQueueFull { .. }
+            | Self::RpcRuntimeUnavailable { .. }
+            | Self::RpcInvalidRetry { .. }
+            | Self::RpcMissingIdempotencyKey { .. }
+            | Self::RpcStaleCompletion { .. } => None,
+        }
+    }
+
+    pub fn request_id(&self) -> Option<&RpcRequestId> {
+        match self {
+            Self::NoCompatibleProvider { request_id, .. }
+            | Self::RpcDeadlineExceeded { request_id, .. }
+            | Self::RpcCancelled { request_id, .. }
+            | Self::RpcProviderBusy { request_id, .. }
+            | Self::RpcQueueFull { request_id, .. }
+            | Self::RpcInvalidRetry { request_id, .. }
+            | Self::RpcMissingIdempotencyKey { request_id, .. }
+            | Self::RpcStaleCompletion { request_id, .. } => Some(request_id),
+            _ => None,
+        }
+    }
+
+    pub fn attempt_id(&self) -> Option<&InvocationId> {
+        match self {
+            Self::Denied { invocation, .. }
+            | Self::NoCompatibleProvider { invocation, .. }
+            | Self::RpcDeadlineExceeded { invocation, .. }
+            | Self::RpcCancelled { invocation, .. }
+            | Self::RpcProviderBusy { invocation, .. }
+            | Self::RpcQueueFull { invocation, .. }
+            | Self::RpcRuntimeUnavailable { invocation, .. }
+            | Self::RpcInvalidRetry { invocation, .. }
+            | Self::RpcMissingIdempotencyKey { invocation, .. }
+            | Self::RpcStaleCompletion { invocation, .. } => Some(invocation),
+            _ => None,
         }
     }
 }
@@ -115,6 +196,14 @@ impl fmt::Display for CapabilityError {
             Self::Unavailable { capability } => {
                 write!(formatter, "capability '{capability}' is unavailable")
             }
+            Self::NoCompatibleProvider {
+                request_id,
+                invocation,
+                capability,
+            } => write!(
+                formatter,
+                "RPC request '{request_id}' invocation '{invocation}' has no compatible provider for capability '{capability}'"
+            ),
             Self::PrincipalUnavailable { principal } => {
                 write!(formatter, "principal '{principal}' is unavailable")
             }
@@ -135,6 +224,67 @@ impl fmt::Display for CapabilityError {
             } => write!(
                 formatter,
                 "capability '{capability}' invocation failed: {message}"
+            ),
+            Self::RpcDeadlineExceeded {
+                request_id,
+                invocation,
+            } => write!(
+                formatter,
+                "RPC request '{request_id}' invocation '{invocation}' exceeded its deadline"
+            ),
+            Self::RpcCancelled {
+                request_id,
+                invocation,
+            } => write!(
+                formatter,
+                "RPC request '{request_id}' invocation '{invocation}' was cancelled"
+            ),
+            Self::RpcProviderBusy {
+                request_id,
+                invocation,
+                runtime,
+            } => write!(
+                formatter,
+                "RPC request '{request_id}' invocation '{invocation}' provider runtime '{runtime}' is busy"
+            ),
+            Self::RpcQueueFull {
+                request_id,
+                invocation,
+                runtime,
+            } => write!(
+                formatter,
+                "RPC request '{request_id}' invocation '{invocation}' provider runtime '{runtime}' queue is full"
+            ),
+            Self::RpcRuntimeUnavailable {
+                request_id,
+                invocation,
+                runtime,
+            } => write!(
+                formatter,
+                "RPC request '{request_id}' invocation '{invocation}' provider runtime '{runtime}' is unavailable"
+            ),
+            Self::RpcInvalidRetry {
+                request_id,
+                invocation,
+                requested,
+                declared,
+            } => write!(
+                formatter,
+                "RPC request '{request_id}' invocation '{invocation}' requested retry class '{requested}' above provider contract '{declared}'"
+            ),
+            Self::RpcMissingIdempotencyKey {
+                request_id,
+                invocation,
+            } => write!(
+                formatter,
+                "RPC request '{request_id}' invocation '{invocation}' requires an idempotency key"
+            ),
+            Self::RpcStaleCompletion {
+                request_id,
+                invocation,
+            } => write!(
+                formatter,
+                "RPC request '{request_id}' invocation '{invocation}' completed after its caller-visible outcome was closed"
             ),
         }
     }

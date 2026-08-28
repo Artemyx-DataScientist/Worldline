@@ -9,6 +9,7 @@ use crate::{
     capability::{CapabilityId, CapabilityPublication, CapabilityService, DependencyKind},
     effect::{LifecycleScope, OwnedEffect},
     invocation::{CapabilityHandle, InvocationBroker},
+    rpc::ProviderLimits,
     runtime::{ActivationReason, LifecycleCancellationToken, LifecycleContext, RuntimeId},
     security::{LifecycleScopeId, PrincipalId},
     state::{
@@ -303,6 +304,18 @@ impl ActivationContext {
         capability: CapabilityId,
         service: Arc<dyn CapabilityService>,
     ) -> Result<(), PluginError> {
+        self.publish_capability_with_limits(capability, service, ProviderLimits::default())
+    }
+
+    /// Publishes a capability with finite runtime-local concurrency and queue
+    /// limits.  The limits belong to this concrete runtime publication, not
+    /// to the logical plugin definition.
+    pub fn publish_capability_with_limits(
+        &mut self,
+        capability: CapabilityId,
+        service: Arc<dyn CapabilityService>,
+        limits: ProviderLimits,
+    ) -> Result<(), PluginError> {
         if !self.declared_capabilities.contains(&capability) {
             return Err(PluginError::new(format!(
                 "plugin '{}' attempted to publish undeclared capability '{}'",
@@ -319,9 +332,16 @@ impl ActivationContext {
                 self.plugin_id, capability
             )));
         }
+        if !limits.is_valid() {
+            return Err(PluginError::new(format!(
+                "plugin '{}' published capability '{}' with invalid max_in_flight limit",
+                self.plugin_id, capability
+            )));
+        }
         self.publications.push(CapabilityPublication {
             id: capability,
             service,
+            limits,
         });
         Ok(())
     }

@@ -1,9 +1,11 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    CapabilityContract, CapabilityId, GrantId, GrantLifetime, InvocationId, LifecycleScopeId,
-    OperationId, PluginId, PrincipalId, PrincipalKind, ResourceId, ResourceScope,
-    runtime::{ActivationReason, LifecycleOperationId, RuntimeFailureClass, RuntimeId},
+    CapabilityContract, CapabilityId, CausationRef, CorrelationId, DeliveryMode, EventContract,
+    EventId, GrantId, GrantLifetime, InvocationId, LifecycleScopeId, OperationId, PluginId,
+    PrincipalId, PrincipalKind, ResourceId, ResourceScope, RpcOutcomeClass, RpcRequestId,
+    RpcRetryClass, RuntimeId, SubscriptionId,
+    runtime::{ActivationReason, LifecycleOperationId, RuntimeFailureClass},
     security::AuthoritySet,
     state::{InstallationId, MigrationId, StateSchemaVersion, StateTransactionId},
 };
@@ -279,6 +281,80 @@ pub enum TrajectoryEventKind {
     InvocationFailed {
         invocation: InvocationId,
         causal_parent: Option<InvocationId>,
+    },
+    RpcRequestCreated {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+        caller: PrincipalId,
+        capability: CapabilityContract,
+        operation: OperationId,
+        correlation_id: CorrelationId,
+        causation: Option<CausationRef>,
+        retry_class: RpcRetryClass,
+    },
+    RpcQueued {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+        runtime_id: RuntimeId,
+        queue_depth: usize,
+    },
+    RpcDispatched {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+        runtime_id: RuntimeId,
+    },
+    RpcCompleted {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+        runtime_id: Option<RuntimeId>,
+        outcome: RpcOutcomeClass,
+    },
+    RpcCancelled {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+    },
+    RpcDeadlineExceeded {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+    },
+    RpcBackpressured {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+        runtime_id: RuntimeId,
+        outcome: RpcOutcomeClass,
+    },
+    EventPublished {
+        event_id: EventId,
+        contract: EventContract,
+        producer: PrincipalId,
+        producer_runtime_id: Option<RuntimeId>,
+        sequence: u64,
+        correlation_id: CorrelationId,
+        causation: Option<CausationRef>,
+        delivery_mode: DeliveryMode,
+    },
+    EventDeliveryEnqueued {
+        subscription: SubscriptionId,
+        event_id: EventId,
+    },
+    EventDropped {
+        subscription: SubscriptionId,
+        event_id: EventId,
+    },
+    EventBackpressured {
+        subscription: SubscriptionId,
+        event_id: EventId,
+    },
+    SubscriptionCreated {
+        subscription: SubscriptionId,
+        subscriber: PrincipalId,
+        runtime_id: Option<RuntimeId>,
+        contract: EventContract,
+    },
+    SubscriptionClosed {
+        subscription: SubscriptionId,
+        subscriber: PrincipalId,
+        runtime_id: Option<RuntimeId>,
     },
 }
 

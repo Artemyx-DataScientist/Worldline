@@ -9,7 +9,7 @@ use worldline_reference::{
     browser_like::{
         BrowserLikeConsumer, BrowserLikeProvider, capability_from_slot, navigate_capability,
     },
-    s0,
+    s0, s1,
     ui_like::{UiLikeConsumer, UiLikeProvider, surface_capability},
 };
 
@@ -239,6 +239,21 @@ fn s0_proves_state_continuity_and_runtime_authority_discontinuity() {
     assert_eq!(report.observations, 2);
     assert!(report.old_runtime_grant_revoked);
     assert!(report.new_runtime_did_not_inherit_authority);
+}
+
+#[test]
+fn s1_proves_rpc_event_and_restart_composition() {
+    let report = s1::run().expect("S1 proving slice must pass");
+    assert_ne!(report.old_runtime_id, report.new_runtime_id);
+    assert_eq!(report.state_before_restart, "1");
+    assert_eq!(report.state_after_restart, "2");
+    assert_eq!(report.first_result, "stateful:1:first");
+    assert_eq!(report.restarted_result, "stateful:2:restarted");
+    assert_eq!(report.follow_up_result, "follow-up:observer-action");
+    assert_eq!(report.observed_events, 2);
+    assert!(report.control_observation_was_metadata_only);
+    assert!(report.old_runtime_authority_revoked);
+    assert!(report.new_runtime_required_explicit_authority);
 }
 
 #[test]

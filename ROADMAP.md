@@ -15,8 +15,11 @@
 - **M0.3 — Done.** Plugin Runtime v1 закрыт явным runtime identity,
   multi-install cardinality, split-phase lifecycle, recovery policy,
   discovery и deterministic provider selection.
-- **M0.4 — Next.** Следующий implementation milestone — Capability RPC and
-  event transport.
+- **M0.4 — Done.** Capability RPC and typed event transport закрыты bounded
+  RPC, default-deny event authority, runtime-scoped subscriptions, logical
+  durable delivery и S1 proving slice.
+- **M0.5 — Next.** Следующий implementation milestone — Persistence and
+  Recovery Model.
 
 ## 1. Куда идёт Worldline
 
@@ -108,7 +111,7 @@ composition профиля.
 | --- | --- | --- |
 | Rust microkernel — минимальная несменяемая основа | Направление | Boundary review: в kernel остаётся только то, без чего нельзя обеспечить инварианты всех plugins |
 | Browser, agent и UI образуют равноправные plugin families | Направление | Три reference plugins проходят один lifecycle/capability contract без специальных kernel APIs |
-| Typed event transport нужен в kernel | Открытый вопрос | Prototype доказывает bounded publish/subscribe и isolation; transport не получает RPC или storage semantics |
+| Typed event transport нужен в kernel | Подтверждено в M0.4 | Acceptance/S1 доказывают bounded publish/subscribe и isolation; transport не получает RPC или storage semantics |
 | Scheduler и persistence являются kernel primitives | Открытый вопрос | Crash/restart и authority tests определяют минимально необходимую часть |
 | UI composition host относится к kernel | Открытый вопрос | UI spike проверяет, можно ли оставить в host только bootstrap/window handles, а composition вынести в plugins |
 | CEF — первый browser engine provider | Кандидат | Engine spike по embedding, isolation, semantics, packaging, licensing и upgrade cost |
@@ -278,7 +281,7 @@ Browser, agent и UI plugins используют один runtime; браузе
 ## 5. Текущая точка
 
 В репозитории уже реализован bootstrap `worldline-kernel` и acceptance-набор,
-который описывает значительную часть M0:
+который описывает текущую часть M0:
 
 - plugin definitions, dependencies, activation/deactivation и deterministic
   reconciliation;
@@ -290,17 +293,24 @@ Browser, agent и UI plugins используют один runtime; браузе
 - отдельная installation identity, installation-owned state, atomic
   transactions, directed migrations и explicit uninstall;
 - append-only trajectory без записи raw payload/state values.
+- bounded capability RPC с logical request/attempt identity, deadline,
+  cooperative cancellation и operation-owned retry classification;
+- отдельный typed event transport с kernel-stamped envelope, bounded
+  subscriber mailboxes, explicit QoS/backpressure и Ephemeral/Durable modes;
+- S1 proving slice, который связывает RPC result, независимое event
+  observation и state continuity после host restart.
 
-`worldline-demo` уже является зачатком S0: показывает availability,
-authorization, grant/revoke и provider replacement. Следующий proving change
-должен расширить этот путь до host boot/restart и независимого observation, а
-не заменить его новым изолированным subsystem demo.
+`worldline-demo` сохраняет S0 и теперь запускает S1: показывает availability,
+authorization, grant/revoke, provider replacement, независимое typed event
+observation и state continuity после host restart. Следующий proving change
+должен расширить этот путь вместе с M0.5 persistence/recovery, а не заменить
+его новым изолированным subsystem demo.
 
-Это ещё не завершённый M0. Ближайший активный change — `STATE-HARDENING-1`:
-revision/CAS, защита от stale commits, разделение regular и migration
-transactions, revocable runtime state handles и очистка installation authority.
-После него остаются самостоятельные gates runtime identity, async lifecycle,
-production persistence и WASM boundary.
+M0.1–M0.4 закрыты своими acceptance gates. Текущий активный gate — M0.5:
+production persistence/recovery, transactional outbox boundary и доказуемая
+crash/restart семантика для выбранных bounded domains. Логический
+`InMemoryEventJournal` из M0.4 намеренно не является crash-safe persistence и
+не заменяет M0.5.
 
 Статус **Done** разрешено ставить только когда соответствующий exit criterion
 покрыт acceptance-тестами и весь workspace проходит:
@@ -387,7 +397,7 @@ Exit criterion: lifecycle, identity и replacement semantics стабильны 
 [ADR-PLUGIN-RUNTIME-V1](docs/adr/ADR-PLUGIN-RUNTIME-V1.md), 20 новых runtime-v1
 acceptance tests, сохранённые M0.1/M0.2 suites и S0 proving slice.
 
-### M0.4 — Capability RPC and event transport
+### M0.4 — Capability RPC and event transport — Done
 
 Capability invocation plane:
 
@@ -410,6 +420,18 @@ Event plane:
 - follow-up action subscriber выполняет отдельным capability RPC под собственной
   authority.
 
+Дополнительные границы M0.4:
+
+- RPC queue и subscriber mailbox конечны; saturation одного provider или
+  subscriber не создаёт unbounded memory growth и не блокирует unrelated RPC;
+- authorization остаётся admission-time: revoke блокирует новые admissions,
+  но не отменяет уже admitted in-flight invocation;
+- Durable — это logical journal contract. Kernel поставляет только
+  deterministic `InMemoryEventJournal` для tests и не делает production
+  crash-safety claim;
+- metadata-only `InvocationCompleted` observation публикуется независимо от
+  уже установленного `RpcOutcome`; event delivery не является reply channel.
+
 Kill tests:
 
 - RPC возвращает result при нуле event subscribers;
@@ -420,7 +442,8 @@ Kill tests:
 
 Exit criterion: invocation и event transport используют общую identity и
 causality vocabulary, но имеют разные APIs, delivery contracts, failure modes и
-acceptance suites.
+acceptance suites. Evidence: RPC/event acceptance tests, S1 restart proof,
+`ADR-CAPABILITY-RPC-EVENT-TRANSPORT-V1` и полный workspace verification.
 
 ### M0.5 — Persistence and recovery model
 
