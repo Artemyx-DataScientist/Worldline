@@ -1,0 +1,57 @@
+name: Worldline pull request CI
+
+on:
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: worldline-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  RUSTUP_TOOLCHAIN: 1.98.0
+
+jobs:
+  source:
+    name: Source
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Run Source suite
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source
+
+  correctness:
+    name: Correctness
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Run Correctness suite
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness
+
+  architecture-security:
+    name: Architecture-Security
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Run Architecture-Security suite
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity
+
+  proving-slice:
+    name: Proving-Slice
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Run Proving-Slice suite
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice

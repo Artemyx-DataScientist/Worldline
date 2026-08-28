@@ -111,6 +111,34 @@ cargo run -p worldline-demo
 Toolchain проекта закреплён на последнем доступном стабильном Rust `1.98.0`,
 edition — `2024`.
 
+## Repository-owned CI
+
+Все обязательные suites запускаются одинаково локально и в GitHub Actions через
+repository-owned entrypoint:
+
+```powershell
+pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All
+```
+
+Стабильные required check names для pull request и `master`:
+
+- `Source`
+- `Correctness`
+- `Architecture-Security`
+- `Proving-Slice`
+
+`Architecture-Security` проверяет GRACE layout, направление зависимостей kernel
+и acceptance evidence ядра. `Proving-Slice` сохраняет постоянные S0/S1 gates.
+Workflow-файлы `.github/workflows/pr.yml` и `.github/workflows/master.yml`
+остаются тонкой GitHub Actions orchestration; verification logic принадлежит
+локальному PowerShell runner.
+
+Успешный локальный запуск — только local evidence. Hosted CI считается
+подтверждённым только по именованному GitHub Actions run; branch-protection
+settings этим change не изменяются. Политика описана в
+[docs/CI-CD.md](docs/CI-CD.md), а GRACE workflow — в
+[docs/grace/README.md](docs/grace/README.md).
+
 ## Лицензия
 
 Worldline распространяется на условиях двойной лицензии `MIT OR Apache-2.0`.
