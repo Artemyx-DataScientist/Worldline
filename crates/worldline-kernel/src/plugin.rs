@@ -10,6 +10,7 @@ use crate::{
     effect::{LifecycleScope, OwnedEffect},
     invocation::{CapabilityHandle, InvocationBroker},
     security::{LifecycleScopeId, PrincipalId},
+    state::{InstallationId, StateHandle, StateMigration, StateSchemaVersion},
 };
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -48,6 +49,8 @@ pub struct PluginDefinition {
     id: PluginId,
     provides: BTreeSet<CapabilityId>,
     dependencies: BTreeMap<CapabilityId, DependencyKind>,
+    state_schema_version: StateSchemaVersion,
+    state_migrations: Vec<StateMigration>,
 }
 
 impl PluginDefinition {
@@ -56,6 +59,8 @@ impl PluginDefinition {
             id: id.into(),
             provides: BTreeSet::new(),
             dependencies: BTreeMap::new(),
+            state_schema_version: StateSchemaVersion::default(),
+            state_migrations: Vec::new(),
         }
     }
 
@@ -89,6 +94,24 @@ impl PluginDefinition {
         &self.dependencies
     }
 
+    pub fn with_state_schema_version(mut self, version: StateSchemaVersion) -> Self {
+        self.state_schema_version = version;
+        self
+    }
+
+    pub const fn state_schema_version(&self) -> StateSchemaVersion {
+        self.state_schema_version
+    }
+
+    pub fn with_state_migration(mut self, migration: StateMigration) -> Self {
+        self.state_migrations.push(migration);
+        self
+    }
+
+    pub fn state_migrations(&self) -> &[StateMigration] {
+        &self.state_migrations
+    }
+
     pub(crate) fn validate(&self) -> Result<(), String> {
         if self.id.as_str().trim().is_empty() {
             return Err("plugin id must not be empty".to_owned());
@@ -106,6 +129,29 @@ impl PluginDefinition {
             .any(|capability| !capability.is_well_formed())
         {
             return Err("dependency capability identity must have namespace and name".to_owned());
+        }
+        let mut edges = BTreeSet::new();
+        let mut migration_ids = BTreeSet::new();
+        for migration in &self.state_migrations {
+            if migration.from_schema() == migration.to_schema() {
+                return Err(format!(
+                    "migration '{}' must change the state schema",
+                    migration.migration_id()
+                ));
+            }
+            if !edges.insert((migration.from_schema(), migration.to_schema())) {
+                return Err(format!(
+                    "duplicate state migration edge {} -> {}",
+                    migration.from_schema(),
+                    migration.to_schema()
+                ));
+            }
+            if !migration_ids.insert(migration.migration_id().clone()) {
+                return Err(format!(
+                    "duplicate state migration id '{}'",
+                    migration.migration_id()
+                ));
+            }
         }
         Ok(())
     }
@@ -135,10 +181,12 @@ impl PluginRuntime for NoopRuntime {
 pub struct ActivationContext {
     plugin_id: PluginId,
     principal: PrincipalId,
+    installation_id: InstallationId,
     scope_id: LifecycleScopeId,
     dependencies: BTreeMap<CapabilityId, DependencyKind>,
     declared_capabilities: BTreeSet<CapabilityId>,
     broker: Arc<InvocationBroker>,
+    state: StateHandle,
     effects: Vec<OwnedEffect>,
     publications: Vec<CapabilityPublication>,
 }
@@ -147,16 +195,20 @@ impl ActivationContext {
     pub(crate) fn new(
         definition: &PluginDefinition,
         principal: PrincipalId,
+        installation_id: InstallationId,
         scope_id: LifecycleScopeId,
+        state: StateHandle,
         broker: Arc<InvocationBroker>,
     ) -> Self {
         Self {
             plugin_id: definition.id.clone(),
             principal,
+            installation_id,
             scope_id,
             dependencies: definition.dependencies.clone(),
             declared_capabilities: definition.provides.clone(),
             broker,
+            state,
             effects: Vec::new(),
             publications: Vec::new(),
         }
@@ -168,6 +220,14 @@ impl ActivationContext {
 
     pub fn principal(&self) -> &PrincipalId {
         &self.principal
+    }
+
+    pub fn installation_id(&self) -> &InstallationId {
+        &self.installation_id
+    }
+
+    pub fn state(&self) -> &StateHandle {
+        &self.state
     }
 
     pub fn lifecycle_scope_id(&self) -> LifecycleScopeId {

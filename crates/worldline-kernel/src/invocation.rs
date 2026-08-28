@@ -368,7 +368,7 @@ impl InvocationBroker {
                 causal_parent: causal_parent.clone(),
             });
 
-        let Some((_, provider_plugin, service)) =
+        let Some((_, _provider_plugin, provider, service)) =
             self.registry.resolve(&capability, &BTreeSet::new())
         else {
             self.trajectory
@@ -378,7 +378,6 @@ impl InvocationBroker {
                 });
             return Err(CapabilityError::Unavailable { capability });
         };
-        let provider = PrincipalId::plugin_runtime(provider_plugin.as_str());
         let context = InvocationContext::new(
             invocation.clone(),
             caller.clone(),

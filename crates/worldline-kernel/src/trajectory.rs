@@ -2,7 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     CapabilityContract, CapabilityId, GrantId, GrantLifetime, InvocationId, OperationId, PluginId,
-    PrincipalId, PrincipalKind, ResourceId, ResourceScope, security::AuthoritySet,
+    PrincipalId, PrincipalKind, ResourceId, ResourceScope,
+    security::AuthoritySet,
+    state::{InstallationId, MigrationId, StateSchemaVersion, StateTransactionId},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -15,6 +17,76 @@ pub enum LifecyclePhase {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TrajectoryEventKind {
     Registered,
+    InstallationCreated {
+        installation: InstallationId,
+        plugin: PluginId,
+        schema: StateSchemaVersion,
+    },
+    InstallationReady {
+        installation: InstallationId,
+        schema: StateSchemaVersion,
+    },
+    RuntimeBoundToInstallation {
+        installation: InstallationId,
+        runtime: PrincipalId,
+    },
+    StateTransactionStarted {
+        installation: InstallationId,
+        transaction: StateTransactionId,
+    },
+    StateTransactionCommitted {
+        installation: InstallationId,
+        transaction: StateTransactionId,
+        changed_key_count: usize,
+        schema: StateSchemaVersion,
+    },
+    StateTransactionRolledBack {
+        installation: InstallationId,
+        transaction: StateTransactionId,
+    },
+    MigrationPlanned {
+        installation: InstallationId,
+        from_schema: StateSchemaVersion,
+        to_schema: StateSchemaVersion,
+        migrations: Vec<MigrationId>,
+    },
+    MigrationStarted {
+        installation: InstallationId,
+        from_schema: StateSchemaVersion,
+        to_schema: StateSchemaVersion,
+    },
+    MigrationStepStarted {
+        installation: InstallationId,
+        migration: MigrationId,
+        from_schema: StateSchemaVersion,
+        to_schema: StateSchemaVersion,
+    },
+    MigrationStepCompleted {
+        installation: InstallationId,
+        migration: MigrationId,
+        from_schema: StateSchemaVersion,
+        to_schema: StateSchemaVersion,
+    },
+    MigrationCommitted {
+        installation: InstallationId,
+        from_schema: StateSchemaVersion,
+        to_schema: StateSchemaVersion,
+    },
+    MigrationFailed {
+        installation: InstallationId,
+        from_schema: StateSchemaVersion,
+        to_schema: StateSchemaVersion,
+        migration: Option<MigrationId>,
+    },
+    InstallationUninstallStarted {
+        installation: InstallationId,
+    },
+    InstallationUninstalled {
+        installation: InstallationId,
+    },
+    InstallationUninstallFailed {
+        installation: InstallationId,
+    },
     PrincipalRegistered {
         principal: PrincipalId,
         kind: PrincipalKind,

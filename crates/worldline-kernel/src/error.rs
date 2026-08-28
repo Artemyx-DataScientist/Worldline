@@ -2,7 +2,7 @@ use std::{any::Any, error::Error, fmt};
 
 use crate::{
     CapabilityId, DenialReason, InvocationId, OperationId, PluginId, PrincipalId, ResourceId,
-    SecurityError,
+    SecurityError, StateError,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -186,6 +186,7 @@ pub enum KernelError {
     InvalidDefinition { id: PluginId, reason: String },
     PluginDefinitionPanicked { message: String },
     Security(SecurityError),
+    State(StateError),
 }
 
 impl fmt::Display for KernelError {
@@ -202,6 +203,7 @@ impl fmt::Display for KernelError {
                 write!(formatter, "plugin definition panicked: {message}")
             }
             Self::Security(error) => error.fmt(formatter),
+            Self::State(error) => error.fmt(formatter),
         }
     }
 }
@@ -211,6 +213,12 @@ impl Error for KernelError {}
 impl From<SecurityError> for KernelError {
     fn from(error: SecurityError) -> Self {
         Self::Security(error)
+    }
+}
+
+impl From<StateError> for KernelError {
+    fn from(error: StateError) -> Self {
+        Self::State(error)
     }
 }
 

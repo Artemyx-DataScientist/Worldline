@@ -14,6 +14,7 @@ mod invocation;
 mod kernel;
 mod plugin;
 mod security;
+mod state;
 mod trajectory;
 
 pub use capability::{
@@ -30,5 +31,11 @@ pub use security::{
     AuthoritySet, AuthoritySource, CapabilityContract, CapabilityGrant, DenialReason, GrantId,
     GrantLifetime, GrantRequest, GrantStatus, InvocationId, InvocationRequest, LifecycleScopeId,
     OperationId, Principal, PrincipalId, PrincipalKind, ResourceId, ResourceScope, SecurityError,
+};
+pub use state::{
+    BackendState, InMemoryStateBackend, InstallationId, InstallationRecord, InstallationStatus,
+    MigrationContext, MigrationError, MigrationId, MigrationPlan, StateBackend, StateError,
+    StateHandle, StateKey, StateMigration, StateSchemaVersion, StateTransaction,
+    StateTransactionId, StateValue,
 };
 pub use trajectory::{LifecyclePhase, TrajectoryEvent, TrajectoryEventKind};

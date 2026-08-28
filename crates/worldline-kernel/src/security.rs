@@ -11,6 +11,7 @@ use crate::CapabilityId;
 pub enum PrincipalKind {
     System,
     User,
+    PluginInstallation,
     PluginRuntime,
     Agent,
     Workspace,
@@ -33,8 +34,12 @@ impl PrincipalId {
         !self.0.trim().is_empty()
     }
 
-    pub(crate) fn plugin_runtime(plugin_id: &str) -> Self {
-        Self::new(format!("plugin-runtime:{plugin_id}"))
+    pub(crate) fn plugin_installation(installation_id: &str) -> Self {
+        Self::new(format!("plugin-installation:{installation_id}"))
+    }
+
+    pub(crate) fn plugin_runtime(plugin_id: &str, runtime_number: u64) -> Self {
+        Self::new(format!("plugin-runtime:{plugin_id}:{runtime_number}"))
     }
 }
 
@@ -809,6 +814,7 @@ struct SecurityState {
     next_grant: u64,
     next_invocation: u64,
     next_scope: u64,
+    next_runtime: u64,
 }
 
 /// In-memory security authority shared by kernel handles and the invocation
@@ -911,6 +917,22 @@ impl SecurityStore {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         state.next_invocation += 1;
         InvocationId::new(format!("invocation-{}", state.next_invocation))
+    }
+
+    pub(crate) fn allocate_runtime_principal(&self, plugin_id: &str) -> Principal {
+        let mut state = self
+            .state
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.next_runtime += 1;
+        let principal = Principal::new(
+            PrincipalId::plugin_runtime(plugin_id, state.next_runtime),
+            PrincipalKind::PluginRuntime,
+        );
+        state
+            .principals
+            .insert(principal.id.clone(), principal.clone());
+        principal
     }
 
     pub(crate) fn issue(&self, request: GrantRequest) -> Result<CapabilityGrant, SecurityError> {
@@ -1178,6 +1200,15 @@ impl SecurityStore {
         };
 
         if candidates.is_empty() {
+            if matches!(source, AuthoritySource::ProviderSelf(_))
+                && state.grants.values().any(|grant| {
+                    grant.status == GrantStatus::Revoked
+                        && grant.capability_contract == contract
+                        && same_runtime_lineage(&grant.subject, caller)
+                })
+            {
+                return Err(DenialReason::GrantRevoked);
+            }
             return Err(DenialReason::NoGrant);
         }
 
@@ -1236,4 +1267,13 @@ impl SecurityStore {
             .as_ref()
             .is_none_or(|parent| Self::grant_is_active(state, parent))
     }
+}
+
+fn same_runtime_lineage(left: &PrincipalId, right: &PrincipalId) -> bool {
+    fn lineage(id: &PrincipalId) -> Option<&str> {
+        let value = id.as_str().strip_prefix("plugin-runtime:")?;
+        value.rsplit_once(':').map(|(plugin, _)| plugin)
+    }
+
+    lineage(left).is_some_and(|left| lineage(right) == Some(left))
 }

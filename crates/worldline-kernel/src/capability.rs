@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::PluginId;
+use crate::{PluginId, PrincipalId};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct InterfaceVersion {
@@ -143,7 +143,12 @@ pub(crate) struct CapabilityPublication {
     pub(crate) service: Arc<dyn CapabilityService>,
 }
 
-type ProviderMap = BTreeMap<PluginId, Arc<dyn CapabilityService>>;
+struct RegisteredProvider {
+    principal: PrincipalId,
+    service: Arc<dyn CapabilityService>,
+}
+
+type ProviderMap = BTreeMap<PluginId, RegisteredProvider>;
 type ProviderRegistry = BTreeMap<CapabilityId, ProviderMap>;
 
 #[derive(Default)]
@@ -155,6 +160,7 @@ impl CapabilityRegistry {
     pub(crate) fn publish(
         &self,
         provider: PluginId,
+        principal: PrincipalId,
         capability: CapabilityId,
         service: Arc<dyn CapabilityService>,
     ) {
@@ -165,7 +171,7 @@ impl CapabilityRegistry {
         providers
             .entry(capability)
             .or_default()
-            .insert(provider, service);
+            .insert(provider, RegisteredProvider { principal, service });
     }
 
     pub(crate) fn unpublish(&self, provider: &PluginId, capability: &CapabilityId) {
@@ -190,7 +196,7 @@ impl CapabilityRegistry {
 
     pub(crate) fn provider_for(&self, required: &CapabilityId) -> Option<PluginId> {
         self.resolve(required, &BTreeSet::new())
-            .map(|(_, provider, _)| provider)
+            .map(|(_, provider, _, _)| provider)
     }
 
     pub(crate) fn provider_for_except(
@@ -199,19 +205,29 @@ impl CapabilityRegistry {
         excluded: &BTreeSet<PluginId>,
     ) -> Option<PluginId> {
         self.resolve(required, excluded)
-            .map(|(_, provider, _)| provider)
+            .map(|(_, provider, _, _)| provider)
     }
 
     pub(crate) fn resolve(
         &self,
         required: &CapabilityId,
         excluded: &BTreeSet<PluginId>,
-    ) -> Option<(CapabilityId, PluginId, Arc<dyn CapabilityService>)> {
+    ) -> Option<(
+        CapabilityId,
+        PluginId,
+        PrincipalId,
+        Arc<dyn CapabilityService>,
+    )> {
         let providers = self
             .providers
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let mut selected: Option<(CapabilityId, PluginId, Arc<dyn CapabilityService>)> = None;
+        let mut selected: Option<(
+            CapabilityId,
+            PluginId,
+            PrincipalId,
+            Arc<dyn CapabilityService>,
+        )> = None;
 
         for (provided_id, provider_map) in providers.iter() {
             if !provided_id.is_compatible_with(required) {
@@ -221,17 +237,17 @@ impl CapabilityRegistry {
                 if excluded.contains(provider_id) {
                     continue;
                 }
-                let should_replace =
-                    selected
-                        .as_ref()
-                        .is_none_or(|(selected_capability, selected_provider, _)| {
-                            (provider_id, provided_id) < (selected_provider, selected_capability)
-                        });
+                let should_replace = selected.as_ref().is_none_or(
+                    |(selected_capability, selected_provider, _, _)| {
+                        (provider_id, provided_id) < (selected_provider, selected_capability)
+                    },
+                );
                 if should_replace {
                     selected = Some((
                         provided_id.clone(),
                         provider_id.clone(),
-                        Arc::clone(service),
+                        service.principal.clone(),
+                        Arc::clone(&service.service),
                     ));
                 }
             }
