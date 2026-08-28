@@ -16,8 +16,8 @@ use crate::{
         PrincipalId, PrincipalKind, SecurityError,
     },
     state::{
-        InMemoryStateBackend, InstallationId, InstallationRecord, StateBackend, StateError,
-        StateHandle, StateSchemaVersion, StateStore,
+        InMemoryStateBackend, InstallationId, InstallationRecord, RuntimeStateLease, StateBackend,
+        StateError, StateHandle, StateSchemaVersion, StateStore,
     },
     trajectory::{LifecyclePhase, Trajectory, TrajectoryEvent, TrajectoryEventKind},
 };
@@ -45,6 +45,7 @@ struct RuntimeInstance {
     scope: LifecycleScope,
     publications: Vec<CapabilityPublication>,
     runtime_principal: PrincipalId,
+    state_lease: Arc<RuntimeStateLease>,
 }
 
 struct PluginRecord {
@@ -83,19 +84,20 @@ impl Kernel {
     pub fn new() -> Self {
         let backend = Arc::new(InMemoryStateBackend::new());
         Self::from_state_backend(backend.clone(), Some(backend))
+            .expect("the in-memory state backend must initialize")
     }
 
     /// Creates a kernel over a caller-owned backend. Sharing an in-memory
     /// backend between kernel instances models restart without sharing runtime
     /// principals or grants.
-    pub fn with_state_backend(backend: Arc<dyn StateBackend>) -> Self {
+    pub fn with_state_backend(backend: Arc<dyn StateBackend>) -> Result<Self, StateError> {
         Self::from_state_backend(backend, None)
     }
 
     fn from_state_backend(
         backend: Arc<dyn StateBackend>,
         memory_backend: Option<Arc<InMemoryStateBackend>>,
-    ) -> Self {
+    ) -> Result<Self, StateError> {
         let trajectory = Trajectory::default();
         let registry = Arc::new(CapabilityRegistry::default());
         let security = Arc::new(crate::security::SecurityStore::new());
@@ -108,7 +110,7 @@ impl Kernel {
             principal: security.system_principal(),
             kind: PrincipalKind::System,
         });
-        let state = Arc::new(StateStore::new(backend, trajectory.clone()));
+        let state = Arc::new(StateStore::new(backend, trajectory.clone())?);
         let mut default_installations = std::collections::BTreeMap::new();
         for record in state.all_records() {
             let principal = installation_principal(&record);
@@ -125,7 +127,7 @@ impl Kernel {
                 .entry(record.plugin_id().clone())
                 .or_insert_with(|| record.installation_id().clone());
         }
-        Self {
+        Ok(Self {
             registry,
             security,
             broker,
@@ -134,7 +136,7 @@ impl Kernel {
             default_installations,
             memory_backend,
             trajectory,
-        }
+        })
     }
 
     pub fn register<P>(&mut self, plugin: P) -> Result<PluginId, KernelError>
@@ -194,6 +196,11 @@ impl Kernel {
             });
         }
         self.state.prepare_retry(&installation)?;
+        self.state.prepare_for_schema(
+            &installation,
+            definition.state_schema_version(),
+            definition.state_migrations(),
+        )?;
         let id = definition.id().clone();
         self.plugins.insert(
             id.clone(),
@@ -254,10 +261,11 @@ impl Kernel {
     }
 
     pub fn installation_id_for_plugin(&self, plugin: &PluginId) -> Option<InstallationId> {
-        self.plugins
-            .get(plugin)
-            .map(|record| record.installation_id.clone())
-            .or_else(|| self.default_installations.get(plugin).cloned())
+        if let Some(record) = self.plugins.get(plugin) {
+            return Some(record.installation_id.clone());
+        }
+        let installations = self.state.records_for_plugin(plugin);
+        (installations.len() == 1).then(|| installations[0].installation_id().clone())
     }
 
     pub fn principal_for_installation(&self, installation: &InstallationId) -> Option<PrincipalId> {
@@ -305,6 +313,22 @@ impl Kernel {
         }
     }
 
+    /// Causes one installation metadata transition to fail. This hook exists
+    /// for recovery-path acceptance tests.
+    pub fn fail_next_state_record_update(&self) {
+        if let Some(backend) = &self.memory_backend {
+            backend.fail_next_record_update();
+        }
+    }
+
+    /// Causes an installation metadata transition to fail after the requested
+    /// number of successful transitions.
+    pub fn fail_state_record_update_after(&self, successful_updates: u64) {
+        if let Some(backend) = &self.memory_backend {
+            backend.fail_record_update_after(successful_updates);
+        }
+    }
+
     /// Causes one subsequent in-memory uninstall/delete to fail.
     pub fn fail_next_state_delete(&self) {
         if let Some(backend) = &self.memory_backend {
@@ -326,6 +350,7 @@ impl Kernel {
             self.unregister(&plugin)?;
         }
         self.state.uninstall(installation)?;
+        self.retire_installation_principal(installation)?;
         if let Some(plugin_id) = plugin_id
             && self
                 .default_installations
@@ -337,22 +362,49 @@ impl Kernel {
         Ok(())
     }
 
+    fn retire_installation_principal(
+        &self,
+        installation: &InstallationId,
+    ) -> Result<(), KernelError> {
+        let principal = PrincipalId::plugin_installation(installation.as_str());
+        let (kind, direct_grants, descendant_grants) =
+            self.security.retire_principal(&principal)?;
+        for grant in direct_grants {
+            self.trajectory
+                .push_security(TrajectoryEventKind::GrantRevoked { grant });
+        }
+        for grant in descendant_grants {
+            self.trajectory
+                .push_security(TrajectoryEventKind::GrantAutoRevoked { grant });
+        }
+        self.trajectory
+            .push_security(TrajectoryEventKind::PrincipalRetired { principal, kind });
+        Ok(())
+    }
+
     fn ensure_default_installation(
         &mut self,
         plugin: &PluginId,
         schema: StateSchemaVersion,
     ) -> Result<InstallationId, KernelError> {
-        if let Some(installation) = self.default_installations.get(plugin).cloned() {
-            if self
-                .state
-                .record(&installation)
-                .is_some_and(|record| record.plugin_id() == plugin)
-            {
-                return Ok(installation);
+        let installations = self.state.records_for_plugin(plugin);
+        match installations.as_slice() {
+            [] => self.create_installation(plugin.clone(), schema),
+            [installation] => {
+                let installation = installation.installation_id().clone();
+                self.default_installations
+                    .insert(plugin.clone(), installation.clone());
+                Ok(installation)
             }
-            self.default_installations.remove(plugin);
+            _ => Err(StateError::AmbiguousInstallation {
+                plugin: plugin.clone(),
+                installations: installations
+                    .into_iter()
+                    .map(|record| record.installation_id().clone())
+                    .collect(),
+            }
+            .into()),
         }
-        self.create_installation(plugin.clone(), schema)
     }
 
     fn register_installation_principal(
@@ -715,31 +767,11 @@ impl Kernel {
                 record.installation_id.clone(),
             )
         };
-        if self
-            .state
-            .prepare_for_schema(
-                &installation,
-                definition.state_schema_version(),
-                definition.state_migrations(),
-            )
-            .is_err()
-        {
-            self.trajectory.push(
-                id.clone(),
-                TrajectoryEventKind::PluginFailure {
-                    phase: LifecyclePhase::Activation,
-                    message: "installation state was not ready for activation".to_owned(),
-                },
-            );
-            if let Some(record) = self.plugins.get_mut(id) {
-                record.state = RuntimeState::Failed;
-            }
-            return ActivationOutcome::Failed;
-        }
         self.trajectory
             .push(id.clone(), TrajectoryEventKind::ActivationStarted);
         let scope_id = self.security.allocate_scope();
         let runtime_principal = self.security.allocate_runtime_principal(id.as_str());
+        let state_lease = RuntimeStateLease::new();
         self.trajectory
             .push_security(TrajectoryEventKind::PrincipalRegistered {
                 principal: runtime_principal.id().clone(),
@@ -750,10 +782,28 @@ impl Kernel {
                 installation: installation.clone(),
                 runtime: runtime_principal.id().clone(),
             });
-        let state = self
+        let state = match self
             .state
-            .handle(&installation)
-            .expect("prepared installation must provide a state handle");
+            .runtime_handle(&installation, Arc::clone(&state_lease))
+        {
+            Ok(state) => state,
+            Err(error) => {
+                state_lease.revoke();
+                self.trajectory.push(
+                    id.clone(),
+                    TrajectoryEventKind::PluginFailure {
+                        phase: LifecyclePhase::Activation,
+                        message: error.to_string(),
+                    },
+                );
+                self.cleanup_scope(id, LifecycleScope::new(scope_id, Vec::new()));
+                self.revoke_runtime_authority(runtime_principal.id());
+                if let Some(record) = self.plugins.get_mut(id) {
+                    record.state = RuntimeState::Failed;
+                }
+                return ActivationOutcome::Failed;
+            }
+        };
         let mut context = ActivationContext::new(
             &definition,
             runtime_principal.id().clone(),
@@ -763,7 +813,7 @@ impl Kernel {
             Arc::clone(&self.broker),
         );
         let activation = catch_unwind(AssertUnwindSafe(|| plugin.activate(&mut context)));
-        let (scope, publications) = context.into_parts();
+        let (scope, publications, state_lease) = context.into_parts();
 
         match activation {
             Ok(Ok(runtime)) => {
@@ -781,6 +831,7 @@ impl Kernel {
                         "plugin '{}' declared capability '{}' but did not publish it",
                         id, missing
                     ));
+                    state_lease.revoke();
                     self.record_activation_failure(
                         id,
                         LifecyclePhase::Activation,
@@ -805,6 +856,7 @@ impl Kernel {
                             scope,
                             publications,
                             runtime_principal: runtime_principal.id().clone(),
+                            state_lease,
                         });
                         record.state = RuntimeState::Active;
                     }
@@ -814,6 +866,7 @@ impl Kernel {
                 }
             }
             Ok(Err(error)) => {
+                state_lease.revoke();
                 self.trajectory.push(
                     id.clone(),
                     TrajectoryEventKind::PluginFailure {
@@ -829,6 +882,7 @@ impl Kernel {
                 ActivationOutcome::Failed
             }
             Err(payload) => {
+                state_lease.revoke();
                 let message = panic_message(payload.as_ref());
                 self.trajectory.push(
                     id.clone(),
@@ -921,6 +975,7 @@ impl Kernel {
         else {
             return;
         };
+        instance.state_lease.revoke();
         self.trajectory
             .push(id.clone(), TrajectoryEventKind::DeactivationStarted);
         let mut runtime = instance.runtime;

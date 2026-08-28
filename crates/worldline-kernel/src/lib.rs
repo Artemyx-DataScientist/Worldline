@@ -34,8 +34,8 @@ pub use security::{
 };
 pub use state::{
     BackendState, InMemoryStateBackend, InstallationId, InstallationRecord, InstallationStatus,
-    MigrationContext, MigrationError, MigrationId, MigrationPlan, StateBackend, StateError,
-    StateHandle, StateKey, StateMigration, StateSchemaVersion, StateTransaction,
-    StateTransactionId, StateValue,
+    MigrationContext, MigrationError, MigrationId, MigrationPlan, RuntimeStateHandle, StateBackend,
+    StateError, StateHandle, StateKey, StateMigration, StateRevision, StateSchemaVersion,
+    StateTransaction, StateTransactionId, StateTransactionKind, StateValue,
 };
 pub use trajectory::{LifecyclePhase, TrajectoryEvent, TrajectoryEventKind};

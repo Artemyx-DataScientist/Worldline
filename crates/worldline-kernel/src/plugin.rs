@@ -10,7 +10,9 @@ use crate::{
     effect::{LifecycleScope, OwnedEffect},
     invocation::{CapabilityHandle, InvocationBroker},
     security::{LifecycleScopeId, PrincipalId},
-    state::{InstallationId, StateHandle, StateMigration, StateSchemaVersion},
+    state::{
+        InstallationId, RuntimeStateHandle, RuntimeStateLease, StateMigration, StateSchemaVersion,
+    },
 };
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -186,7 +188,7 @@ pub struct ActivationContext {
     dependencies: BTreeMap<CapabilityId, DependencyKind>,
     declared_capabilities: BTreeSet<CapabilityId>,
     broker: Arc<InvocationBroker>,
-    state: StateHandle,
+    state: RuntimeStateHandle,
     effects: Vec<OwnedEffect>,
     publications: Vec<CapabilityPublication>,
 }
@@ -197,7 +199,7 @@ impl ActivationContext {
         principal: PrincipalId,
         installation_id: InstallationId,
         scope_id: LifecycleScopeId,
-        state: StateHandle,
+        state: RuntimeStateHandle,
         broker: Arc<InvocationBroker>,
     ) -> Self {
         Self {
@@ -226,7 +228,7 @@ impl ActivationContext {
         &self.installation_id
     }
 
-    pub fn state(&self) -> &StateHandle {
+    pub fn state(&self) -> &RuntimeStateHandle {
         &self.state
     }
 
@@ -283,10 +285,17 @@ impl ActivationContext {
         Ok(())
     }
 
-    pub(crate) fn into_parts(self) -> (LifecycleScope, Vec<CapabilityPublication>) {
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        LifecycleScope,
+        Vec<CapabilityPublication>,
+        std::sync::Arc<RuntimeStateLease>,
+    ) {
         (
             LifecycleScope::new(self.scope_id, self.effects),
             self.publications,
+            self.state.lease(),
         )
     }
 }

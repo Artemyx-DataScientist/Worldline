@@ -8,6 +8,9 @@ Worldline is a modular, user-controlled AI browser kernel for web parsing and
 browser automation. Users bring their own AI provider; providers integrate as
 isolated plugins behind capability-based authorization.
 
+Текущее продуктовое направление, архитектурные гипотезы, milestones и
+проверяемые критерии выхода описаны в [Worldline Roadmap](ROADMAP.md).
+
 Это Rust workspace для Grace Changes `C-KERNEL-PLUGIN-RUNTIME-BOOTSTRAP-20260827`
 и `C-KERNEL-CAPABILITY-SECURITY-20260828`. Ядро намеренно не знает о browser
 engine, LLM, UI, истории, вкладках или конкретном agent runtime.
@@ -36,6 +39,20 @@ Persistent state принадлежит `InstallationId`, а не `PluginId` и 
 `StateSchemaVersion` kernel строит directed migration plan и не активирует
 новый runtime до успешного migration commit; migration context не имеет
 capability-доступа.
+
+Каждая запись также имеет монотонную `StateRevision`. Transaction фиксирует
+свою исходную revision, а backend принимает commit только через optimistic
+CAS; конфликтующие или stale transactions получают явную ошибку и не могут
+затереть чужие изменения или откатить schema. Обычная transaction допускается
+только в `Ready` и никогда не меняет schema metadata. Runtime получает
+lease-bound `RuntimeStateHandle`: после deactivation/unregister сохранённый
+clone handle и уже открытая transaction теряют право на state access.
+
+Ошибки state preparation, migration и backend recovery возвращаются вызывающему
+коду; migration path errors (`NoMigrationPath`/`AmbiguousMigrationPath`) не
+маскируются generic activation failure. Запуск через custom `StateBackend`
+также fallible: ошибки загрузки installation records не трактуются как пустое
+хранилище.
 
 Авторизация выполняется в момент допуска invocation: broker проверяет grant до
 передачи вызова provider. Поэтому отзыв grant не отменяет уже допущенный

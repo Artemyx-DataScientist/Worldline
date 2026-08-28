@@ -87,7 +87,15 @@ pub enum TrajectoryEventKind {
     InstallationUninstallFailed {
         installation: InstallationId,
     },
+    InstallationRecoveryFailed {
+        installation: InstallationId,
+        operation: String,
+    },
     PrincipalRegistered {
+        principal: PrincipalId,
+        kind: PrincipalKind,
+    },
+    PrincipalRetired {
         principal: PrincipalId,
         kind: PrincipalKind,
     },

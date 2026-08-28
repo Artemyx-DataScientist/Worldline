@@ -1108,6 +1108,60 @@ impl SecurityStore {
         (direct, descendants)
     }
 
+    pub(crate) fn retire_principal(
+        &self,
+        principal: &PrincipalId,
+    ) -> Result<(PrincipalKind, Vec<GrantId>, Vec<GrantId>), SecurityError> {
+        let mut state = self
+            .state
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let Some(principal_metadata) = state.principals.get(principal) else {
+            return Ok((PrincipalKind::PluginInstallation, Vec::new(), Vec::new()));
+        };
+        let principal_kind = principal_metadata.kind();
+        let direct_ids: Vec<GrantId> = state
+            .grants
+            .values()
+            .filter(|grant| {
+                grant.status == GrantStatus::Active
+                    && (grant.subject == *principal || grant.issuer == *principal)
+            })
+            .map(|grant| grant.id.clone())
+            .collect();
+        let direct_set: BTreeSet<GrantId> = direct_ids.iter().cloned().collect();
+        let mut changed = BTreeSet::new();
+        let mut pending = direct_ids;
+        while let Some(candidate) = pending.pop() {
+            let Some(grant) = state.grants.get_mut(&candidate) else {
+                continue;
+            };
+            if grant.status == GrantStatus::Revoked {
+                continue;
+            }
+            grant.status = GrantStatus::Revoked;
+            changed.insert(candidate.clone());
+            let descendants: Vec<GrantId> = state
+                .grants
+                .values()
+                .filter(|child| child.parent_grant.as_ref() == Some(&candidate))
+                .map(|child| child.id.clone())
+                .collect();
+            pending.extend(descendants);
+        }
+        state.principals.remove(principal);
+        let mut direct = Vec::new();
+        let mut descendants = Vec::new();
+        for id in changed {
+            if direct_set.contains(&id) {
+                direct.push(id);
+            } else {
+                descendants.push(id);
+            }
+        }
+        Ok((principal_kind, direct, descendants))
+    }
+
     pub(crate) fn revoke_lifecycle_scope(&self, scope: LifecycleScopeId) -> Vec<GrantId> {
         let ids: Vec<GrantId> = {
             let mut state = self

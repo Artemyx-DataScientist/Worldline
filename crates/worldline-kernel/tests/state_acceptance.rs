@@ -4,10 +4,11 @@ use std::sync::{
 };
 
 use worldline_kernel::{
-    ActivationContext, CapabilityId, GrantLifetime, InstallationStatus, InterfaceVersion, Kernel,
-    MigrationError, MigrationId, NoopRuntime, Plugin, PluginDefinition, PluginError, PluginRuntime,
-    PrincipalKind, ResourceScope, StateError, StateKey, StateMigration, StateSchemaVersion,
-    TrajectoryEventKind,
+    ActivationContext, BackendState, CapabilityId, GrantLifetime, InstallationId,
+    InstallationRecord, InstallationStatus, InterfaceVersion, Kernel, MigrationError, MigrationId,
+    NoopRuntime, Plugin, PluginDefinition, PluginError, PluginRuntime, PrincipalKind,
+    ResourceScope, RuntimeStateHandle, StateBackend, StateError, StateKey, StateMigration,
+    StateRevision, StateSchemaVersion, StateTransactionId, TrajectoryEventKind,
 };
 
 fn schema(value: u64) -> StateSchemaVersion {
@@ -69,6 +70,66 @@ impl Plugin for StatePlugin {
                 .map_err(|error| PluginError::new(error.to_string()))?;
         }
         Ok(Box::new(NoopRuntime))
+    }
+}
+
+struct LeaseCapturingPlugin {
+    definition: PluginDefinition,
+    handle: Arc<Mutex<Option<RuntimeStateHandle>>>,
+}
+
+impl Plugin for LeaseCapturingPlugin {
+    fn definition(&self) -> &PluginDefinition {
+        &self.definition
+    }
+
+    fn activate(
+        &self,
+        context: &mut ActivationContext,
+    ) -> Result<Box<dyn PluginRuntime>, PluginError> {
+        *self.handle.lock().unwrap() = Some(context.state().clone());
+        Ok(Box::new(NoopRuntime))
+    }
+}
+
+struct FailingListBackend;
+
+impl StateBackend for FailingListBackend {
+    fn create(&self, _state: BackendState) -> Result<(), StateError> {
+        panic!("create must not be reached when listing fails")
+    }
+
+    fn snapshot(&self, _installation: &InstallationId) -> Result<BackendState, StateError> {
+        panic!("snapshot must not be reached when listing fails")
+    }
+
+    fn commit_if_revision(
+        &self,
+        _installation: &InstallationId,
+        _transaction: &StateTransactionId,
+        _expected_revision: StateRevision,
+        _state: BackendState,
+    ) -> Result<(), StateError> {
+        panic!("commit must not be reached when listing fails")
+    }
+
+    fn update_record_if_revision(
+        &self,
+        _expected_revision: StateRevision,
+        _record: InstallationRecord,
+    ) -> Result<(), StateError> {
+        panic!("record update must not be reached when listing fails")
+    }
+
+    fn delete(&self, _installation: &InstallationId) -> Result<(), StateError> {
+        panic!("delete must not be reached when listing fails")
+    }
+
+    fn list_records(&self) -> Result<Vec<InstallationRecord>, StateError> {
+        Err(StateError::BackendFailure {
+            operation: "list_records",
+            message: "injected list failure".to_owned(),
+        })
     }
 }
 
@@ -134,6 +195,26 @@ fn two_installations_of_one_plugin_are_isolated() {
 }
 
 #[test]
+fn implicit_registration_rejects_ambiguous_installation_selection() {
+    let mut kernel = Kernel::new();
+    let first = install(&mut kernel, "ambiguous-registration", 0);
+    let second = install(&mut kernel, "ambiguous-registration", 0);
+
+    assert!(matches!(
+        kernel.register(StatePlugin::new(PluginDefinition::new("ambiguous-registration"))),
+        Err(worldline_kernel::KernelError::State(
+            StateError::AmbiguousInstallation { plugin, installations }
+        )) if plugin == "ambiguous-registration".into()
+            && installations == vec![first, second]
+    ));
+    assert!(
+        kernel
+            .installation_id_for_plugin(&"ambiguous-registration".into())
+            .is_none()
+    );
+}
+
+#[test]
 fn runtime_binding_rejects_another_installation() {
     let mut kernel = Kernel::new();
     let first = install(&mut kernel, "bound-plugin", 0);
@@ -173,6 +254,86 @@ fn transactions_are_atomic_and_rollback_is_invisible() {
     rollback.put("a", b"not-committed").unwrap();
     rollback.rollback().unwrap();
     assert_eq!(handle.get("a").unwrap(), Some(b"one".to_vec()));
+}
+
+#[test]
+fn overlapping_transactions_detect_conflicts_without_lost_updates() {
+    let mut kernel = Kernel::new();
+    let installation = install(&mut kernel, "transaction-conflict", 0);
+    let handle = kernel.state_handle(&installation).unwrap();
+    let mut first = handle.transaction().unwrap();
+    let mut second = handle.transaction().unwrap();
+    assert_eq!(
+        first.kind(),
+        worldline_kernel::StateTransactionKind::Regular
+    );
+    let base_revision = first.base_revision();
+    assert_eq!(first.schema_version(), schema(0));
+
+    first.put("a", b"one").unwrap();
+    first.commit().unwrap();
+    assert_eq!(
+        kernel
+            .installation(&installation)
+            .unwrap()
+            .state_schema_version(),
+        schema(0)
+    );
+    second.put("b", b"two").unwrap();
+    assert!(matches!(
+        second.commit(),
+        Err(StateError::TransactionConflict {
+            expected_revision,
+            actual_revision,
+            ..
+        }) if expected_revision == base_revision
+            && actual_revision.value() == base_revision.value() + 1
+    ));
+
+    assert_eq!(handle.get("a").unwrap(), Some(b"one".to_vec()));
+    assert_eq!(handle.get("b").unwrap(), None);
+}
+
+#[test]
+fn regular_transaction_cannot_commit_during_or_after_migration() {
+    let mut kernel = Kernel::new();
+    let installation = install(&mut kernel, "transaction-migration", 1);
+    let handle = kernel.state_handle(&installation).unwrap();
+    let mut stale = handle.transaction().unwrap();
+    let pending = Arc::new(Mutex::new(Some(handle.transaction().unwrap())));
+    let pending_for_migration = Arc::clone(&pending);
+    let definition = PluginDefinition::new("transaction-migration")
+        .with_state_schema_version(schema(2))
+        .with_state_migration(StateMigration::new(
+            "one-to-two",
+            schema(1),
+            schema(2),
+            move |_| {
+                let transaction = pending_for_migration.lock().unwrap().take().unwrap();
+                assert!(matches!(
+                    transaction.commit(),
+                    Err(StateError::TransactionConflict { .. })
+                ));
+                Ok(())
+            },
+        ));
+    kernel
+        .register_for_installation(StatePlugin::new(definition), &installation)
+        .unwrap();
+
+    stale.put("stale", b"must-not-commit").unwrap();
+    assert!(matches!(
+        stale.commit(),
+        Err(StateError::TransactionConflict { .. })
+    ));
+    assert_eq!(
+        kernel
+            .installation(&installation)
+            .unwrap()
+            .state_schema_version(),
+        schema(2)
+    );
+    assert_eq!(handle.get("stale").unwrap(), None);
 }
 
 #[test]
@@ -249,15 +410,48 @@ fn unregister_preserves_state_and_new_runtime_gets_new_authority() {
 }
 
 #[test]
+fn runtime_state_handle_is_revoked_with_runtime_lifecycle() {
+    let mut kernel = Kernel::new();
+    let installation = install(&mut kernel, "lease-plugin", 0);
+    let captured = Arc::new(Mutex::new(None));
+    let plugin = kernel
+        .register_for_installation(
+            LeaseCapturingPlugin {
+                definition: PluginDefinition::new("lease-plugin"),
+                handle: Arc::clone(&captured),
+            },
+            &installation,
+        )
+        .unwrap();
+    let handle = captured.lock().unwrap().clone().unwrap();
+    let pending_transaction = handle.transaction().unwrap();
+
+    kernel.unregister(&plugin).unwrap();
+
+    assert!(matches!(
+        handle.get("key"),
+        Err(StateError::StateAccessDenied { installation: id }) if id == installation
+    ));
+    assert!(matches!(
+        handle.transaction(),
+        Err(StateError::StateAccessDenied { installation: id }) if id == installation
+    ));
+    assert!(matches!(
+        pending_transaction.commit(),
+        Err(StateError::StateAccessDenied { installation: id }) if id == installation
+    ));
+}
+
+#[test]
 fn shared_backend_restart_recovers_state_without_runtime_authority() {
     let backend = Arc::new(worldline_kernel::InMemoryStateBackend::new());
     let installation;
     {
-        let mut first_kernel = Kernel::with_state_backend(backend.clone());
+        let mut first_kernel = Kernel::with_state_backend(backend.clone()).unwrap();
         installation = install(&mut first_kernel, "backend-restart", 0);
         put(&first_kernel, &installation, "persistent", b"survives");
     }
-    let second_kernel = Kernel::with_state_backend(backend);
+    let second_kernel = Kernel::with_state_backend(backend).unwrap();
     assert_eq!(
         second_kernel
             .state_handle(&installation)
@@ -271,6 +465,17 @@ fn shared_backend_restart_recovers_state_without_runtime_authority() {
             .principal_for_plugin(&"backend-restart".into())
             .is_none()
     );
+}
+
+#[test]
+fn backend_record_listing_failure_is_observable_at_kernel_startup() {
+    assert!(matches!(
+        Kernel::with_state_backend(Arc::new(FailingListBackend)),
+        Err(StateError::BackendFailure {
+            operation: "list_records",
+            ..
+        })
+    ));
 }
 
 #[test]
@@ -412,9 +617,14 @@ fn failed_migration_rolls_back_state_and_blocks_activation() {
         ));
     let plugin = StatePlugin::new(definition);
     let activated_counter = Arc::clone(&plugin.activation_count);
-    kernel
-        .register_for_installation(plugin, &installation)
-        .unwrap();
+    assert!(matches!(
+        kernel.register_for_installation(plugin, &installation),
+        Err(worldline_kernel::KernelError::State(
+            StateError::MigrationFailed {
+                migration: Some(migration), ..
+            }
+        )) if migration == MigrationId::new("two-to-three")
+    ));
     assert_eq!(activated_counter.load(Ordering::SeqCst), 0);
     assert_eq!(
         kernel.installation(&installation).unwrap().status(),
@@ -454,13 +664,17 @@ fn failed_migration_waits_for_explicit_registration_retry() {
                 Err(MigrationError::new("retry required"))
             },
         ));
-    let plugin = kernel
-        .register_for_installation(StatePlugin::new(failing_definition), &installation)
-        .unwrap();
+    assert!(matches!(
+        kernel.register_for_installation(StatePlugin::new(failing_definition), &installation),
+        Err(worldline_kernel::KernelError::State(
+            StateError::MigrationFailed {
+                migration: Some(migration), ..
+            }
+        )) if migration == MigrationId::new("fail-once")
+    ));
     assert_eq!(attempts.load(Ordering::SeqCst), 1);
     kernel.reconcile();
     assert_eq!(attempts.load(Ordering::SeqCst), 1);
-    kernel.unregister(&plugin).unwrap();
 
     let successful_definition = PluginDefinition::new("retry-migration")
         .with_state_schema_version(schema(2))
@@ -487,6 +701,49 @@ fn failed_migration_waits_for_explicit_registration_retry() {
 }
 
 #[test]
+fn migration_recovery_failure_is_reported_and_marks_installation_degraded() {
+    let mut kernel = Kernel::new();
+    let installation = install(&mut kernel, "migration-recovery", 1);
+    kernel.fail_state_record_update_after(2);
+    let definition = PluginDefinition::new("migration-recovery")
+        .with_state_schema_version(schema(2))
+        .with_state_migration(StateMigration::new(
+            "one-to-two",
+            schema(1),
+            schema(2),
+            |_| Err(MigrationError::new("migration failed")),
+        ));
+
+    assert!(matches!(
+        kernel.register_for_installation(StatePlugin::new(definition), &installation),
+        Err(worldline_kernel::KernelError::State(
+            StateError::StateRecoveryFailed {
+                operation: "mark migration failed",
+                ..
+            }
+        ))
+    ));
+    assert_eq!(
+        kernel.installation(&installation).unwrap().status(),
+        InstallationStatus::RecoveryFailed
+    );
+    assert!(matches!(
+        kernel.state_handle(&installation),
+        Err(StateError::InstallationNotReady {
+            status: InstallationStatus::RecoveryFailed,
+            ..
+        })
+    ));
+    assert!(kernel.trajectory().iter().any(|event| {
+        matches!(
+            event.kind(),
+            TrajectoryEventKind::InstallationRecoveryFailed { installation: id, .. }
+                if id == &installation
+        )
+    }));
+}
+
+#[test]
 fn missing_and_ambiguous_paths_are_rejected() {
     let mut kernel = Kernel::new();
     let missing = install(&mut kernel, "missing-path", 1);
@@ -498,9 +755,12 @@ fn missing_and_ambiguous_paths_are_rejected() {
             schema(2),
             |_| Ok(()),
         ));
-    kernel
-        .register_for_installation(StatePlugin::new(missing_definition), &missing)
-        .unwrap();
+    assert!(matches!(
+        kernel.register_for_installation(StatePlugin::new(missing_definition), &missing),
+        Err(worldline_kernel::KernelError::State(
+            StateError::NoMigrationPath { from, to }
+        )) if from == schema(1) && to == schema(3)
+    ));
     assert_eq!(
         kernel.installation(&missing).unwrap().status(),
         InstallationStatus::MigrationFailed
@@ -539,9 +799,12 @@ fn missing_and_ambiguous_paths_are_rejected() {
             schema(4),
             |_| Ok(()),
         ));
-    kernel
-        .register_for_installation(StatePlugin::new(ambiguous_definition), &ambiguous)
-        .unwrap();
+    assert!(matches!(
+        kernel.register_for_installation(StatePlugin::new(ambiguous_definition), &ambiguous),
+        Err(worldline_kernel::KernelError::State(
+            StateError::AmbiguousMigrationPath { from, to }
+        )) if from == schema(1) && to == schema(4)
+    ));
     assert_eq!(
         kernel.installation(&ambiguous).unwrap().status(),
         InstallationStatus::MigrationFailed
@@ -567,9 +830,12 @@ fn upgrade_edges_do_not_imply_downgrade_but_explicit_downgrade_works() {
             schema(3),
             |_| Ok(()),
         ));
-    kernel
-        .register_for_installation(StatePlugin::new(rejected_definition), &rejected)
-        .unwrap();
+    assert!(matches!(
+        kernel.register_for_installation(StatePlugin::new(rejected_definition), &rejected),
+        Err(worldline_kernel::KernelError::State(
+            StateError::NoMigrationPath { from, to }
+        )) if from == schema(3) && to == schema(2)
+    ));
     assert_eq!(
         kernel.installation(&rejected).unwrap().status(),
         InstallationStatus::MigrationFailed
@@ -629,6 +895,48 @@ fn unregister_is_not_uninstall_and_uninstall_deletes_state() {
 }
 
 #[test]
+fn uninstall_revokes_and_retires_installation_authority() {
+    let mut kernel = Kernel::new();
+    let installation = install(&mut kernel, "authority-installation", 0);
+    let installation_principal = kernel.principal_for_installation(&installation).unwrap();
+    let child = kernel
+        .register_principal_id("authority-child", PrincipalKind::Agent)
+        .unwrap();
+    let direct = kernel
+        .create_root_grant(
+            installation_principal.clone(),
+            capability().contract(),
+            ["read"],
+            ResourceScope::Any,
+            true,
+            GrantLifetime::Persistent,
+        )
+        .unwrap();
+    let descendant = kernel
+        .delegate_grant(
+            direct.clone(),
+            child,
+            ["read"],
+            ResourceScope::Any,
+            GrantLifetime::Persistent,
+        )
+        .unwrap();
+
+    kernel.uninstall(&installation).unwrap();
+
+    assert!(!kernel.is_grant_active(&direct));
+    assert!(!kernel.is_grant_active(&descendant));
+    assert!(kernel.principal(&installation_principal).is_none());
+    assert!(kernel.trajectory().iter().any(|event| {
+        matches!(
+            event.kind(),
+            TrajectoryEventKind::PrincipalRetired { principal, .. }
+                if principal == &installation_principal
+        )
+    }));
+}
+
+#[test]
 fn failed_uninstall_preserves_record_and_state() {
     let mut kernel = Kernel::new();
     let installation = install(&mut kernel, "failed-uninstall", 0);
@@ -653,6 +961,29 @@ fn failed_uninstall_preserves_record_and_state() {
         InstallationStatus::Ready
     );
     kernel.uninstall(&installation).unwrap();
+}
+
+#[test]
+fn uninstall_recovery_failure_is_not_silently_swallowed() {
+    let mut kernel = Kernel::new();
+    let installation = install(&mut kernel, "uninstall-recovery", 0);
+    put(&kernel, &installation, "key", b"preserve");
+    kernel.fail_state_record_update_after(1);
+    kernel.fail_next_state_delete();
+
+    assert!(matches!(
+        kernel.uninstall(&installation),
+        Err(worldline_kernel::KernelError::State(
+            StateError::StateRecoveryFailed {
+                operation: "uninstall",
+                ..
+            }
+        ))
+    ));
+    assert_eq!(
+        kernel.installation(&installation).unwrap().status(),
+        InstallationStatus::RecoveryFailed
+    );
 }
 
 #[test]

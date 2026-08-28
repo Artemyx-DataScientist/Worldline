@@ -39,6 +39,37 @@ impl fmt::Display for InstallationId {
     }
 }
 
+/// Monotonically increasing revision of one installation's persisted state.
+///
+/// Revisions cover both state values and installation metadata transitions so
+/// that a transaction cannot commit against a stale schema or lifecycle view.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct StateRevision(u64);
+
+impl StateRevision {
+    pub const fn new(value: u64) -> Self {
+        Self(value)
+    }
+
+    pub const fn value(self) -> u64 {
+        self.0
+    }
+
+    fn next(self) -> Self {
+        Self(
+            self.0
+                .checked_add(1)
+                .expect("state revision counter exhausted"),
+        )
+    }
+}
+
+impl fmt::Display for StateRevision {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
 /// Explicit version of the bytes stored by an installation.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct StateSchemaVersion(u64);
@@ -161,6 +192,7 @@ pub enum InstallationStatus {
     Ready,
     MigrationFailed,
     Uninstalling,
+    RecoveryFailed,
 }
 
 impl fmt::Display for InstallationStatus {
@@ -172,6 +204,7 @@ impl fmt::Display for InstallationStatus {
             Self::Ready => "Ready",
             Self::MigrationFailed => "MigrationFailed",
             Self::Uninstalling => "Uninstalling",
+            Self::RecoveryFailed => "RecoveryFailed",
         };
         formatter.write_str(name)
     }
@@ -184,6 +217,7 @@ pub struct InstallationRecord {
     plugin_id: PluginId,
     state_schema_version: StateSchemaVersion,
     status: InstallationStatus,
+    revision: StateRevision,
 }
 
 impl InstallationRecord {
@@ -203,6 +237,10 @@ impl InstallationRecord {
         self.status
     }
 
+    pub const fn state_revision(&self) -> StateRevision {
+        self.revision
+    }
+
     pub(crate) fn new(
         installation_id: InstallationId,
         plugin_id: PluginId,
@@ -214,16 +252,24 @@ impl InstallationRecord {
             plugin_id,
             state_schema_version,
             status,
+            revision: StateRevision::default(),
         }
     }
 
+    fn with_revision(&self, revision: StateRevision) -> Self {
+        let mut record = self.clone();
+        record.revision = revision;
+        record
+    }
+
     fn with_status(&self, status: InstallationStatus) -> Self {
-        Self::new(
-            self.installation_id.clone(),
-            self.plugin_id.clone(),
-            self.state_schema_version,
+        Self {
+            installation_id: self.installation_id.clone(),
+            plugin_id: self.plugin_id.clone(),
+            state_schema_version: self.state_schema_version,
             status,
-        )
+            revision: self.revision,
+        }
     }
 
     fn with_schema_and_status(
@@ -231,12 +277,13 @@ impl InstallationRecord {
         state_schema_version: StateSchemaVersion,
         status: InstallationStatus,
     ) -> Self {
-        Self::new(
-            self.installation_id.clone(),
-            self.plugin_id.clone(),
+        Self {
+            installation_id: self.installation_id.clone(),
+            plugin_id: self.plugin_id.clone(),
             state_schema_version,
             status,
-        )
+            revision: self.revision,
+        }
     }
 }
 
@@ -276,9 +323,32 @@ pub enum StateError {
     TransactionCommitFailed {
         installation: InstallationId,
         transaction: StateTransactionId,
+        cause: Box<StateError>,
+    },
+    TransactionConflict {
+        installation: InstallationId,
+        transaction: StateTransactionId,
+        expected_revision: StateRevision,
+        actual_revision: StateRevision,
+    },
+    RevisionConflict {
+        installation: InstallationId,
+        expected_revision: StateRevision,
+        actual_revision: StateRevision,
     },
     UninstallFailed {
         installation: InstallationId,
+        cause: Box<StateError>,
+    },
+    StateRecoveryFailed {
+        installation: InstallationId,
+        operation: &'static str,
+        primary: Box<StateError>,
+        recovery: Box<StateError>,
+    },
+    AmbiguousInstallation {
+        plugin: PluginId,
+        installations: Vec<InstallationId>,
     },
     RuntimeInstallationMismatch {
         expected: InstallationId,
@@ -342,16 +412,53 @@ impl fmt::Display for StateError {
             Self::TransactionCommitFailed {
                 installation,
                 transaction,
+                cause,
             } => write!(
                 formatter,
-                "transaction '{transaction}' for installation '{installation}' did not commit"
+                "transaction '{transaction}' for installation '{installation}' did not commit: {cause}"
             ),
-            Self::UninstallFailed { installation } => {
+            Self::TransactionConflict {
+                installation,
+                transaction,
+                expected_revision,
+                actual_revision,
+            } => write!(
+                formatter,
+                "transaction '{transaction}' for installation '{installation}' conflicted at revision {actual_revision} (expected {expected_revision})"
+            ),
+            Self::RevisionConflict {
+                installation,
+                expected_revision,
+                actual_revision,
+            } => write!(
+                formatter,
+                "metadata update for installation '{installation}' conflicted at revision {actual_revision} (expected {expected_revision})"
+            ),
+            Self::UninstallFailed {
+                installation,
+                cause,
+            } => {
                 write!(
                     formatter,
-                    "uninstall of installation '{installation}' failed"
+                    "uninstall of installation '{installation}' failed: {cause}"
                 )
             }
+            Self::StateRecoveryFailed {
+                installation,
+                operation,
+                primary,
+                recovery,
+            } => write!(
+                formatter,
+                "state recovery for installation '{installation}' after {operation} failed: {primary}; recovery failed: {recovery}"
+            ),
+            Self::AmbiguousInstallation {
+                plugin,
+                installations,
+            } => write!(
+                formatter,
+                "plugin '{plugin}' has multiple installations and requires an explicit installation: {installations:?}"
+            ),
             Self::RuntimeInstallationMismatch { expected, actual } => write!(
                 formatter,
                 "runtime is bound to installation '{expected}', not '{actual}'"
@@ -440,13 +547,23 @@ pub trait StateBackend: Send + Sync {
 
     fn snapshot(&self, installation: &InstallationId) -> Result<BackendState, StateError>;
 
-    fn commit(&self, installation: &InstallationId, state: BackendState) -> Result<(), StateError>;
+    fn commit_if_revision(
+        &self,
+        installation: &InstallationId,
+        transaction: &StateTransactionId,
+        expected_revision: StateRevision,
+        state: BackendState,
+    ) -> Result<(), StateError>;
 
-    fn update_record(&self, record: InstallationRecord) -> Result<(), StateError>;
+    fn update_record_if_revision(
+        &self,
+        expected_revision: StateRevision,
+        record: InstallationRecord,
+    ) -> Result<(), StateError>;
 
     fn delete(&self, installation: &InstallationId) -> Result<(), StateError>;
 
-    fn list_records(&self) -> Vec<InstallationRecord>;
+    fn list_records(&self) -> Result<Vec<InstallationRecord>, StateError>;
 }
 
 /// Deterministic in-memory StateBackend used by the bootstrap kernel and tests.
@@ -454,6 +571,7 @@ pub trait StateBackend: Send + Sync {
 pub struct InMemoryStateBackend {
     installations: RwLock<BTreeMap<InstallationId, BackendState>>,
     fail_next_commit: AtomicBool,
+    fail_record_update_after: AtomicU64,
     fail_next_delete: AtomicBool,
 }
 
@@ -465,6 +583,45 @@ impl InMemoryStateBackend {
     /// Injects one atomic commit failure. The next commit consumes the fault.
     pub fn fail_next_commit(&self) {
         self.fail_next_commit.store(true, Ordering::SeqCst);
+    }
+
+    /// Injects one metadata update failure. The next record transition
+    /// consumes the fault.
+    pub fn fail_next_record_update(&self) {
+        self.fail_record_update_after.store(1, Ordering::SeqCst);
+    }
+
+    /// Injects a metadata update failure after the requested number of
+    /// successful record updates.
+    pub fn fail_record_update_after(&self, successful_updates: u64) {
+        self.fail_record_update_after
+            .store(successful_updates.saturating_add(1), Ordering::SeqCst);
+    }
+
+    fn should_fail_record_update(&self) -> bool {
+        loop {
+            let encoded = self.fail_record_update_after.load(Ordering::SeqCst);
+            if encoded == 0 {
+                return false;
+            }
+            if encoded == 1 {
+                if self
+                    .fail_record_update_after
+                    .compare_exchange(1, 0, Ordering::SeqCst, Ordering::SeqCst)
+                    .is_ok()
+                {
+                    return true;
+                }
+                continue;
+            }
+            if self
+                .fail_record_update_after
+                .compare_exchange(encoded, encoded - 1, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+            {
+                return false;
+            }
+        }
     }
 
     /// Injects one uninstall/delete failure. The next delete consumes the fault.
@@ -498,7 +655,13 @@ impl StateBackend for InMemoryStateBackend {
             })
     }
 
-    fn commit(&self, installation: &InstallationId, state: BackendState) -> Result<(), StateError> {
+    fn commit_if_revision(
+        &self,
+        installation: &InstallationId,
+        transaction: &StateTransactionId,
+        expected_revision: StateRevision,
+        state: BackendState,
+    ) -> Result<(), StateError> {
         if self.fail_next_commit.swap(false, Ordering::SeqCst) {
             return Err(StateError::BackendFailure {
                 operation: "commit",
@@ -509,16 +672,45 @@ impl StateBackend for InMemoryStateBackend {
             .installations
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if !installations.contains_key(installation) {
+        let Some(current) = installations.get(installation) else {
             return Err(StateError::UnknownInstallation {
                 installation: installation.clone(),
+            });
+        };
+        let actual_revision = current.record.state_revision();
+        if actual_revision != expected_revision {
+            return Err(StateError::TransactionConflict {
+                installation: installation.clone(),
+                transaction: transaction.clone(),
+                expected_revision,
+                actual_revision,
+            });
+        }
+        let expected_next_revision = expected_revision.next();
+        if state.record.state_revision() != expected_next_revision {
+            return Err(StateError::BackendFailure {
+                operation: "commit",
+                message: format!(
+                    "commit revision must advance from {expected_revision} to {expected_next_revision}, got {}",
+                    state.record.state_revision()
+                ),
             });
         }
         installations.insert(installation.clone(), state);
         Ok(())
     }
 
-    fn update_record(&self, record: InstallationRecord) -> Result<(), StateError> {
+    fn update_record_if_revision(
+        &self,
+        expected_revision: StateRevision,
+        record: InstallationRecord,
+    ) -> Result<(), StateError> {
+        if self.should_fail_record_update() {
+            return Err(StateError::BackendFailure {
+                operation: "update_record",
+                message: "injected record update failure".to_owned(),
+            });
+        }
         let installation = record.installation_id.clone();
         let mut installations = self
             .installations
@@ -527,6 +719,24 @@ impl StateBackend for InMemoryStateBackend {
         let Some(state) = installations.get_mut(&installation) else {
             return Err(StateError::UnknownInstallation { installation });
         };
+        let actual_revision = state.record.state_revision();
+        if actual_revision != expected_revision {
+            return Err(StateError::RevisionConflict {
+                installation,
+                expected_revision,
+                actual_revision,
+            });
+        }
+        let expected_next_revision = expected_revision.next();
+        if record.state_revision() != expected_next_revision {
+            return Err(StateError::BackendFailure {
+                operation: "update_record",
+                message: format!(
+                    "record revision must advance from {expected_revision} to {expected_next_revision}, got {}",
+                    record.state_revision()
+                ),
+            });
+        }
         state.record = record;
         Ok(())
     }
@@ -550,13 +760,14 @@ impl StateBackend for InMemoryStateBackend {
         Ok(())
     }
 
-    fn list_records(&self) -> Vec<InstallationRecord> {
-        self.installations
+    fn list_records(&self) -> Result<Vec<InstallationRecord>, StateError> {
+        Ok(self
+            .installations
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .values()
             .map(|state| state.record.clone())
-            .collect()
+            .collect())
     }
 }
 
@@ -837,6 +1048,39 @@ impl MigrationContext {
     }
 }
 
+/// The only transaction kinds admitted by the state store.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StateTransactionKind {
+    Regular,
+    Migration,
+}
+
+pub(crate) struct RuntimeStateLease {
+    active: AtomicBool,
+}
+
+impl RuntimeStateLease {
+    pub(crate) fn new() -> Arc<Self> {
+        Arc::new(Self {
+            active: AtomicBool::new(true),
+        })
+    }
+
+    pub(crate) fn revoke(&self) {
+        self.active.store(false, Ordering::SeqCst);
+    }
+
+    fn ensure_active(&self, installation: &InstallationId) -> Result<(), StateError> {
+        if self.active.load(Ordering::SeqCst) {
+            Ok(())
+        } else {
+            Err(StateError::StateAccessDenied {
+                installation: installation.clone(),
+            })
+        }
+    }
+}
+
 /// Kernel-bound read and transaction handle for exactly one installation.
 #[derive(Clone)]
 pub struct StateHandle {
@@ -875,15 +1119,70 @@ impl StateHandle {
     }
 }
 
+/// Lifecycle-bound state handle exposed to a live plugin runtime.
+///
+/// Cloning this handle does not extend the runtime lease. Once the kernel
+/// deactivates or unregisters the runtime, state access through this type is
+/// denied, including commits of transactions opened before revocation.
+#[derive(Clone)]
+pub struct RuntimeStateHandle {
+    state: StateHandle,
+    lease: Arc<RuntimeStateLease>,
+}
+
+impl fmt::Debug for RuntimeStateHandle {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("RuntimeStateHandle")
+            .field("installation", &self.state.installation)
+            .finish_non_exhaustive()
+    }
+}
+
+impl RuntimeStateHandle {
+    pub fn installation_id(&self) -> &InstallationId {
+        self.state.installation_id()
+    }
+
+    pub fn get(&self, key: impl Into<StateKey>) -> Result<Option<StateValue>, StateError> {
+        self.lease.ensure_active(&self.state.installation)?;
+        self.state.get(key)
+    }
+
+    pub fn contains(&self, key: impl Into<StateKey>) -> Result<bool, StateError> {
+        self.lease.ensure_active(&self.state.installation)?;
+        self.state.contains(key)
+    }
+
+    pub fn list_keys(&self) -> Result<Vec<StateKey>, StateError> {
+        self.lease.ensure_active(&self.state.installation)?;
+        self.state.list_keys()
+    }
+
+    pub fn transaction(&self) -> Result<StateTransaction, StateError> {
+        self.lease.ensure_active(&self.state.installation)?;
+        self.state
+            .store
+            .begin_runtime_transaction(&self.state.installation, Arc::clone(&self.lease))
+    }
+
+    pub(crate) fn lease(&self) -> Arc<RuntimeStateLease> {
+        Arc::clone(&self.lease)
+    }
+}
+
 /// Transactional view of one installation's state namespace.
 pub struct StateTransaction {
     store: Arc<StateStore>,
     installation: InstallationId,
     transaction: StateTransactionId,
-    schema: StateSchemaVersion,
+    kind: StateTransactionKind,
+    base_schema: StateSchemaVersion,
+    base_revision: StateRevision,
     original_values: BTreeMap<StateKey, StateValue>,
     values: BTreeMap<StateKey, StateValue>,
     active: bool,
+    lease: Option<Arc<RuntimeStateLease>>,
 }
 
 impl fmt::Debug for StateTransaction {
@@ -892,7 +1191,9 @@ impl fmt::Debug for StateTransaction {
             .debug_struct("StateTransaction")
             .field("installation", &self.installation)
             .field("transaction", &self.transaction)
-            .field("schema", &self.schema)
+            .field("kind", &self.kind)
+            .field("base_schema", &self.base_schema)
+            .field("base_revision", &self.base_revision)
             .field("active", &self.active)
             .finish_non_exhaustive()
     }
@@ -907,8 +1208,16 @@ impl StateTransaction {
         &self.installation
     }
 
+    pub const fn kind(&self) -> StateTransactionKind {
+        self.kind
+    }
+
     pub const fn schema_version(&self) -> StateSchemaVersion {
-        self.schema
+        self.base_schema
+    }
+
+    pub const fn base_revision(&self) -> StateRevision {
+        self.base_revision
     }
 
     pub fn get(&self, key: impl Into<StateKey>) -> Option<StateValue> {
@@ -928,6 +1237,7 @@ impl StateTransaction {
         key: impl Into<StateKey>,
         value: impl AsRef<[u8]>,
     ) -> Result<(), StateError> {
+        self.ensure_lease_active()?;
         let key = key.into();
         if !key.is_well_formed() {
             return Err(StateError::InvalidStateKey { key });
@@ -937,6 +1247,7 @@ impl StateTransaction {
     }
 
     pub fn delete(&mut self, key: impl Into<StateKey>) -> Result<bool, StateError> {
+        self.ensure_lease_active()?;
         let key = key.into();
         if !key.is_well_formed() {
             return Err(StateError::InvalidStateKey { key });
@@ -945,15 +1256,34 @@ impl StateTransaction {
     }
 
     pub fn commit(mut self) -> Result<(), StateError> {
+        if self.kind != StateTransactionKind::Regular {
+            self.active = false;
+            self.store
+                .log_transaction_rollback(&self.installation, &self.transaction);
+            return Err(StateError::StateAccessDenied {
+                installation: self.installation.clone(),
+            });
+        }
+        if let Err(error) = self.ensure_lease_active() {
+            self.active = false;
+            self.store
+                .log_transaction_rollback(&self.installation, &self.transaction);
+            return Err(error);
+        }
         let values = std::mem::take(&mut self.values);
         let changed_key_count = changed_key_count(&self.original_values, &values);
         self.active = false;
         self.store.commit_transaction(
             &self.installation,
             &self.transaction,
-            self.schema,
-            values,
-            changed_key_count,
+            TransactionCommit {
+                kind: self.kind,
+                base_schema: self.base_schema,
+                base_revision: self.base_revision,
+                target_schema: None,
+                values,
+                changed_key_count,
+            },
         )
     }
 
@@ -966,22 +1296,38 @@ impl StateTransaction {
         Ok(())
     }
 
-    fn commit_with_schema(
-        mut self,
-        schema: StateSchemaVersion,
-        status: InstallationStatus,
-    ) -> Result<(), StateError> {
+    fn commit_migration(mut self, target_schema: StateSchemaVersion) -> Result<(), StateError> {
+        if self.kind != StateTransactionKind::Migration {
+            self.active = false;
+            self.store
+                .log_transaction_rollback(&self.installation, &self.transaction);
+            return Err(StateError::StateAccessDenied {
+                installation: self.installation.clone(),
+            });
+        }
         let values = std::mem::take(&mut self.values);
         let changed_key_count = changed_key_count(&self.original_values, &values);
         self.active = false;
-        self.store.commit_transaction_with_schema(
+        self.store.commit_transaction(
             &self.installation,
             &self.transaction,
-            schema,
-            status,
-            values,
-            changed_key_count,
+            TransactionCommit {
+                kind: self.kind,
+                base_schema: self.base_schema,
+                base_revision: self.base_revision,
+                target_schema: Some(target_schema),
+                values,
+                changed_key_count,
+            },
         )
+    }
+
+    fn ensure_lease_active(&self) -> Result<(), StateError> {
+        if let Some(lease) = &self.lease {
+            lease.ensure_active(&self.installation)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -1008,6 +1354,15 @@ fn changed_key_count(
         .count()
 }
 
+struct TransactionCommit {
+    kind: StateTransactionKind,
+    base_schema: StateSchemaVersion,
+    base_revision: StateRevision,
+    target_schema: Option<StateSchemaVersion>,
+    values: BTreeMap<StateKey, StateValue>,
+    changed_key_count: usize,
+}
+
 pub(crate) struct StateStore {
     backend: Arc<dyn StateBackend>,
     records: RwLock<BTreeMap<InstallationId, InstallationRecord>>,
@@ -1017,9 +1372,12 @@ pub(crate) struct StateStore {
 }
 
 impl StateStore {
-    pub(crate) fn new(backend: Arc<dyn StateBackend>, trajectory: Trajectory) -> Self {
+    pub(crate) fn new(
+        backend: Arc<dyn StateBackend>,
+        trajectory: Trajectory,
+    ) -> Result<Self, StateError> {
         let records = backend
-            .list_records()
+            .list_records()?
             .into_iter()
             .map(|record| (record.installation_id.clone(), record))
             .collect::<BTreeMap<_, _>>();
@@ -1029,13 +1387,13 @@ impl StateStore {
             .filter_map(|suffix| suffix.parse::<u64>().ok())
             .max()
             .unwrap_or(0);
-        Self {
+        Ok(Self {
             backend,
             records: RwLock::new(records),
             next_installation: AtomicU64::new(next_installation),
             next_transaction: AtomicU64::new(0),
             trajectory,
-        }
+        })
     }
 
     pub(crate) fn create_installation(
@@ -1043,7 +1401,7 @@ impl StateStore {
         plugin_id: PluginId,
         schema: StateSchemaVersion,
     ) -> Result<InstallationId, StateError> {
-        let installation = loop {
+        let (installation, installed) = loop {
             let sequence = self.next_installation.fetch_add(1, Ordering::SeqCst) + 1;
             let candidate = InstallationId::generated(sequence);
             let exists = self
@@ -1052,26 +1410,36 @@ impl StateStore {
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .contains_key(&candidate);
             if !exists {
-                break candidate;
+                let installed = InstallationRecord::new(
+                    candidate.clone(),
+                    plugin_id.clone(),
+                    schema,
+                    InstallationStatus::Installed,
+                );
+                match self
+                    .backend
+                    .create(BackendState::new(installed.clone(), BTreeMap::new()))
+                {
+                    Ok(()) => break (candidate, installed),
+                    Err(StateError::InstallationAlreadyExists { .. }) => continue,
+                    Err(error) => return Err(error),
+                }
             }
         };
-        let installed = InstallationRecord::new(
-            installation.clone(),
-            plugin_id.clone(),
-            schema,
-            InstallationStatus::Installed,
-        );
-        self.backend
-            .create(BackendState::new(installed.clone(), BTreeMap::new()))?;
-        let ready = installed.with_status(InstallationStatus::Ready);
-        if let Err(error) = self.backend.update_record(ready.clone()) {
-            let _ = self.backend.delete(&installation);
-            return Err(error);
-        }
-        self.records
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .insert(installation.clone(), ready);
+        let ready = match self.replace_record(&installed.with_status(InstallationStatus::Ready)) {
+            Ok(record) => record,
+            Err(primary) => match self.backend.delete(&installation) {
+                Ok(()) => return Err(primary),
+                Err(recovery) => {
+                    return Err(StateError::StateRecoveryFailed {
+                        installation,
+                        operation: "create installation",
+                        primary: Box::new(primary),
+                        recovery: Box::new(recovery),
+                    });
+                }
+            },
+        };
         self.trajectory
             .push_security(TrajectoryEventKind::InstallationCreated {
                 installation: installation.clone(),
@@ -1081,7 +1449,7 @@ impl StateStore {
         self.trajectory
             .push_security(TrajectoryEventKind::InstallationReady {
                 installation: installation.clone(),
-                schema,
+                schema: ready.state_schema_version(),
             });
         Ok(installation)
     }
@@ -1144,30 +1512,71 @@ impl StateStore {
         })
     }
 
+    pub(crate) fn runtime_handle(
+        self: &Arc<Self>,
+        installation: &InstallationId,
+        lease: Arc<RuntimeStateLease>,
+    ) -> Result<RuntimeStateHandle, StateError> {
+        let record = self
+            .record(installation)
+            .ok_or_else(|| StateError::UnknownInstallation {
+                installation: installation.clone(),
+            })?;
+        if record.status != InstallationStatus::Ready {
+            return Err(StateError::InstallationNotReady {
+                installation: installation.clone(),
+                status: record.status,
+            });
+        }
+        Ok(RuntimeStateHandle {
+            state: StateHandle {
+                store: Arc::clone(self),
+                installation: installation.clone(),
+            },
+            lease,
+        })
+    }
+
     pub(crate) fn begin_transaction(
         self: &Arc<Self>,
         installation: &InstallationId,
     ) -> Result<StateTransaction, StateError> {
-        self.begin_transaction_for_status(installation, InstallationStatus::Ready)
+        self.begin_transaction_for_status(
+            installation,
+            InstallationStatus::Ready,
+            StateTransactionKind::Regular,
+            None,
+        )
+    }
+
+    fn begin_runtime_transaction(
+        self: &Arc<Self>,
+        installation: &InstallationId,
+        lease: Arc<RuntimeStateLease>,
+    ) -> Result<StateTransaction, StateError> {
+        self.begin_transaction_for_status(
+            installation,
+            InstallationStatus::Ready,
+            StateTransactionKind::Regular,
+            Some(lease),
+        )
     }
 
     fn begin_transaction_for_status(
         self: &Arc<Self>,
         installation: &InstallationId,
         required_status: InstallationStatus,
+        kind: StateTransactionKind,
+        lease: Option<Arc<RuntimeStateLease>>,
     ) -> Result<StateTransaction, StateError> {
-        let record = self
-            .record(installation)
-            .ok_or_else(|| StateError::UnknownInstallation {
-                installation: installation.clone(),
-            })?;
-        if record.status != required_status {
+        let snapshot = self.backend.snapshot(installation)?;
+        if snapshot.record.status != required_status {
             return Err(StateError::InstallationNotReady {
                 installation: installation.clone(),
-                status: record.status,
+                status: snapshot.record.status,
             });
         }
-        let snapshot = self.backend.snapshot(installation)?;
+        self.cache_record(snapshot.record.clone());
         let transaction_number = self.next_transaction.fetch_add(1, Ordering::SeqCst) + 1;
         let transaction = StateTransactionId(format!("state-transaction-{transaction_number}"));
         self.trajectory
@@ -1179,10 +1588,13 @@ impl StateStore {
             store: Arc::clone(self),
             installation: installation.clone(),
             transaction,
-            schema: snapshot.record.state_schema_version,
+            kind,
+            base_schema: snapshot.record.state_schema_version,
+            base_revision: snapshot.record.revision,
             original_values: snapshot.values.clone(),
             values: snapshot.values,
             active: true,
+            lease,
         })
     }
 
@@ -1223,7 +1635,10 @@ impl StateStore {
                 installation: installation.clone(),
             });
         };
-        if record.status == InstallationStatus::Uninstalling {
+        if matches!(
+            record.status,
+            InstallationStatus::Uninstalling | InstallationStatus::RecoveryFailed
+        ) {
             return Err(StateError::InstallationNotReady {
                 installation: installation.clone(),
                 status: record.status,
@@ -1253,16 +1668,22 @@ impl StateStore {
             return Ok(());
         }
 
-        self.replace_record(&record.with_status(InstallationStatus::PreparingState))?;
+        let preparing =
+            self.replace_record(&record.with_status(InstallationStatus::PreparingState))?;
         let plan =
             match MigrationPlan::build(record.state_schema_version, target_schema, migrations) {
                 Ok(plan) => plan,
                 Err(error) => {
-                    self.mark_migration_failed(&record, target_schema, None);
-                    return Err(error);
+                    return Err(self.mark_migration_failed(&preparing, target_schema, None, error));
                 }
             };
-        self.replace_record(&record.with_status(InstallationStatus::Migrating))?;
+        let migrating =
+            match self.replace_record(&preparing.with_status(InstallationStatus::Migrating)) {
+                Ok(record) => record,
+                Err(error) => {
+                    return Err(self.mark_migration_failed(&preparing, target_schema, None, error));
+                }
+            };
         self.trajectory
             .push_security(TrajectoryEventKind::MigrationPlanned {
                 installation: installation.clone(),
@@ -1277,14 +1698,17 @@ impl StateStore {
                 to_schema: plan.to_schema,
             });
 
-        let transaction =
-            match self.begin_transaction_for_status(installation, InstallationStatus::Migrating) {
-                Ok(transaction) => transaction,
-                Err(error) => {
-                    self.mark_migration_failed(&record, target_schema, None);
-                    return Err(error);
-                }
-            };
+        let transaction = match self.begin_transaction_for_status(
+            installation,
+            InstallationStatus::Migrating,
+            StateTransactionKind::Migration,
+            None,
+        ) {
+            Ok(transaction) => transaction,
+            Err(error) => {
+                return Err(self.mark_migration_failed(&migrating, target_schema, None, error));
+            }
+        };
         let mut context = MigrationContext {
             transaction,
             installation: installation.clone(),
@@ -1328,19 +1752,21 @@ impl StateStore {
         let transaction = context.into_transaction();
         if let Some((migration, message)) = failure {
             let _ = transaction.rollback();
-            let error = StateError::MigrationFailed {
+            let primary = StateError::MigrationFailed {
                 installation: installation.clone(),
                 migration: Some(migration.clone()),
                 message,
             };
-            self.mark_migration_failed(&record, target_schema, Some(migration));
-            return Err(error);
+            return Err(self.mark_migration_failed(
+                &migrating,
+                target_schema,
+                Some(migration),
+                primary,
+            ));
         }
 
-        if let Err(error) = transaction.commit_with_schema(target_schema, InstallationStatus::Ready)
-        {
-            self.mark_migration_failed(&record, target_schema, None);
-            return Err(error);
+        if let Err(error) = transaction.commit_migration(target_schema) {
+            return Err(self.mark_migration_failed(&migrating, target_schema, None, error));
         }
         self.trajectory
             .push_security(TrajectoryEventKind::MigrationCommitted {
@@ -1361,94 +1787,162 @@ impl StateStore {
         record: &InstallationRecord,
         target_schema: StateSchemaVersion,
         migration: Option<MigrationId>,
-    ) {
+        primary: StateError,
+    ) -> StateError {
         let failed = record.with_status(InstallationStatus::MigrationFailed);
-        let _ = self.replace_record(&failed);
         self.trajectory
             .push_security(TrajectoryEventKind::MigrationFailed {
                 installation: record.installation_id.clone(),
                 from_schema: record.state_schema_version,
                 to_schema: target_schema,
-                migration,
+                migration: migration.clone(),
             });
+        match self.replace_record(&failed) {
+            Ok(_) => primary,
+            Err(recovery) => {
+                self.mark_cache_recovery_failed(record);
+                self.trajectory
+                    .push_security(TrajectoryEventKind::InstallationRecoveryFailed {
+                        installation: record.installation_id.clone(),
+                        operation: "mark migration failed".to_owned(),
+                    });
+                StateError::StateRecoveryFailed {
+                    installation: record.installation_id.clone(),
+                    operation: "mark migration failed",
+                    primary: Box::new(primary),
+                    recovery: Box::new(recovery),
+                }
+            }
+        }
     }
 
-    fn replace_record(&self, record: &InstallationRecord) -> Result<(), StateError> {
-        self.backend.update_record(record.clone())?;
+    fn replace_record(
+        &self,
+        record: &InstallationRecord,
+    ) -> Result<InstallationRecord, StateError> {
+        let current = self.backend.snapshot(&record.installation_id)?;
+        let actual_revision = current.record.state_revision();
+        if actual_revision != record.state_revision() {
+            return Err(StateError::RevisionConflict {
+                installation: record.installation_id.clone(),
+                expected_revision: record.state_revision(),
+                actual_revision,
+            });
+        }
+        let next = record.with_revision(actual_revision.next());
+        self.backend
+            .update_record_if_revision(actual_revision, next.clone())?;
+        self.cache_record(next.clone());
+        Ok(next)
+    }
+
+    fn cache_record(&self, record: InstallationRecord) {
         self.records
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .insert(record.installation_id.clone(), record.clone());
-        Ok(())
+            .insert(record.installation_id.clone(), record);
+    }
+
+    fn mark_cache_recovery_failed(&self, record: &InstallationRecord) {
+        self.cache_record(record.with_status(InstallationStatus::RecoveryFailed));
     }
 
     fn commit_transaction(
         &self,
         installation: &InstallationId,
         transaction: &StateTransactionId,
-        schema: StateSchemaVersion,
-        values: BTreeMap<StateKey, StateValue>,
-        changed_key_count: usize,
+        commit: TransactionCommit,
     ) -> Result<(), StateError> {
-        self.commit_transaction_with_schema(
-            installation,
-            transaction,
-            schema,
-            InstallationStatus::Ready,
+        let TransactionCommit {
+            kind,
+            base_schema,
+            base_revision,
+            target_schema,
             values,
             changed_key_count,
-        )
-    }
-
-    fn commit_transaction_with_schema(
-        &self,
-        installation: &InstallationId,
-        transaction: &StateTransactionId,
-        schema: StateSchemaVersion,
-        status: InstallationStatus,
-        values: BTreeMap<StateKey, StateValue>,
-        changed_key_count: usize,
-    ) -> Result<(), StateError> {
-        let Some(record) = self.record(installation) else {
-            self.log_transaction_rollback(installation, transaction);
-            return Err(StateError::UnknownInstallation {
-                installation: installation.clone(),
-            });
+        } = commit;
+        let current = match self.backend.snapshot(installation) {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                self.log_transaction_rollback(installation, transaction);
+                return Err(error);
+            }
         };
-        let valid_status = match status {
-            InstallationStatus::Ready => matches!(
-                record.status,
-                InstallationStatus::Ready | InstallationStatus::Migrating
-            ),
-            InstallationStatus::Migrating => record.status == InstallationStatus::Migrating,
-            _ => false,
-        };
-        if !valid_status {
+        let actual_revision = current.record.state_revision();
+        if actual_revision != base_revision {
             self.log_transaction_rollback(installation, transaction);
-            return Err(StateError::InstallationNotReady {
-                installation: installation.clone(),
-                status: record.status,
-            });
-        }
-        let next_record = record.with_schema_and_status(schema, status);
-        let backend_state = BackendState::new(next_record.clone(), values);
-        if self.backend.commit(installation, backend_state).is_err() {
-            self.log_transaction_rollback(installation, transaction);
-            return Err(StateError::TransactionCommitFailed {
+            return Err(StateError::TransactionConflict {
                 installation: installation.clone(),
                 transaction: transaction.clone(),
+                expected_revision: base_revision,
+                actual_revision,
             });
         }
-        self.records
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .insert(installation.clone(), next_record.clone());
+
+        let next_schema = match kind {
+            StateTransactionKind::Regular => {
+                if target_schema.is_some()
+                    || current.record.status != InstallationStatus::Ready
+                    || current.record.state_schema_version != base_schema
+                {
+                    self.log_transaction_rollback(installation, transaction);
+                    return Err(StateError::InstallationNotReady {
+                        installation: installation.clone(),
+                        status: current.record.status,
+                    });
+                }
+                base_schema
+            }
+            StateTransactionKind::Migration => {
+                let Some(target_schema) = target_schema else {
+                    self.log_transaction_rollback(installation, transaction);
+                    return Err(StateError::StateAccessDenied {
+                        installation: installation.clone(),
+                    });
+                };
+                if current.record.status != InstallationStatus::Migrating
+                    || current.record.state_schema_version != base_schema
+                {
+                    self.log_transaction_rollback(installation, transaction);
+                    return Err(StateError::InstallationNotReady {
+                        installation: installation.clone(),
+                        status: current.record.status,
+                    });
+                }
+                target_schema
+            }
+        };
+        let next_record = current
+            .record
+            .with_schema_and_status(next_schema, InstallationStatus::Ready)
+            .with_revision(base_revision.next());
+        let backend_state = BackendState::new(next_record.clone(), values);
+        let commit_result = self.backend.commit_if_revision(
+            installation,
+            transaction,
+            base_revision,
+            backend_state,
+        );
+        if let Err(error) = commit_result {
+            self.log_transaction_rollback(installation, transaction);
+            return Err(match error {
+                StateError::TransactionConflict { .. }
+                | StateError::RevisionConflict { .. }
+                | StateError::UnknownInstallation { .. } => error,
+                _ => StateError::TransactionCommitFailed {
+                    installation: installation.clone(),
+                    transaction: transaction.clone(),
+                    cause: Box::new(error),
+                },
+            });
+        }
+        self.cache_record(next_record.clone());
         self.trajectory
             .push_security(TrajectoryEventKind::StateTransactionCommitted {
                 installation: installation.clone(),
                 transaction: transaction.clone(),
                 changed_key_count,
-                schema,
+                schema: next_schema,
             });
         Ok(())
     }
@@ -1471,26 +1965,48 @@ impl StateStore {
             .ok_or_else(|| StateError::UnknownInstallation {
                 installation: installation.clone(),
             })?;
-        if record.status == InstallationStatus::Uninstalling {
+        if matches!(
+            record.status,
+            InstallationStatus::Uninstalling | InstallationStatus::RecoveryFailed
+        ) {
             return Err(StateError::InstallationNotReady {
                 installation: installation.clone(),
                 status: record.status,
             });
         }
-        let uninstalling = record.with_status(InstallationStatus::Uninstalling);
-        self.replace_record(&uninstalling)?;
+        let uninstalling =
+            self.replace_record(&record.with_status(InstallationStatus::Uninstalling))?;
         self.trajectory
             .push_security(TrajectoryEventKind::InstallationUninstallStarted {
                 installation: installation.clone(),
             });
-        if self.backend.delete(installation).is_err() {
-            let _ = self.replace_record(&record);
+        if let Err(primary) = self.backend.delete(installation) {
+            let restore = uninstalling.with_status(record.status);
+            if let Err(recovery) = self.replace_record(&restore) {
+                self.mark_cache_recovery_failed(&uninstalling);
+                self.trajectory
+                    .push_security(TrajectoryEventKind::InstallationUninstallFailed {
+                        installation: installation.clone(),
+                    });
+                self.trajectory
+                    .push_security(TrajectoryEventKind::InstallationRecoveryFailed {
+                        installation: installation.clone(),
+                        operation: "restore after uninstall failure".to_owned(),
+                    });
+                return Err(StateError::StateRecoveryFailed {
+                    installation: installation.clone(),
+                    operation: "uninstall",
+                    primary: Box::new(primary),
+                    recovery: Box::new(recovery),
+                });
+            }
             self.trajectory
                 .push_security(TrajectoryEventKind::InstallationUninstallFailed {
                     installation: installation.clone(),
                 });
             return Err(StateError::UninstallFailed {
                 installation: installation.clone(),
+                cause: Box::new(primary),
             });
         }
         self.records
