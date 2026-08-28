@@ -42,6 +42,14 @@ AI-чатом. Это рабочая среда над обычной ОС, ко
 workspace. Вкладка остаётся полезным временным представлением, но не является
 единицей памяти продукта.
 
+У Worldline есть отдельная визуальная гипотеза: содержимое остаётся привычным и
+читаемым, а управляющий слой среды получает оптический glass-язык. Стекло здесь
+не decoration theme и не свойство каждой карточки. Оно показывает границу:
+«это Worldline управляет контентом, контекстом или действием поверх него».
+Веб-страница не должна становиться полупрозрачной ради стиля; navigation chrome,
+floating commands, agent actions и временные contextual surfaces могут
+ощущаться как самостоятельный системный слой над ней.
+
 Успех Worldline определяется не количеством AI-функций, а тем, может ли
 пользователь:
 
@@ -116,6 +124,7 @@ composition профиля.
 | UI composition host относится к kernel | Открытый вопрос | UI spike проверяет, можно ли оставить в host только bootstrap/window handles, а composition вынести в plugins |
 | CEF — первый browser engine provider | Кандидат | Engine spike по embedding, isolation, semantics, packaging, licensing и upgrade cost |
 | wgpu — первый renderer/compositor provider | Кандидат | UI/OSR spike по latency, accessibility и cross-platform fallback |
+| Optical system glass — визуальный язык управляющего слоя | Направление | M1 UI spike доказывает hierarchy, readability, bounded backdrop sampling, degraded fallback и frame-time budget на opaque web/workspace content |
 | WIT Components — внешний third-party ABI | Сильный кандидат | ABI compatibility и sandbox prototype против альтернативного out-of-process IPC |
 | Hybrid persistence: state stores + selective logs + blobs + indexes | Сильный кандидат | Каждый bounded domain обосновывает свою source-of-truth model; event sourcing остаётся opt-in |
 
@@ -206,6 +215,7 @@ plugin**. Это концептуальное родство, а не требо
 | Failure model | Partial activation, degraded mode, quarantine и safe mode являются штатными состояниями |
 | Upgrade | `stage -> migrate copy -> validate -> switch -> rollback`; новая версия не портит единственную рабочую копию state |
 | Diagnostics | Replay только для явно event-sourced domains; plugin telemetry и plugin bisect проектируются до публичной ecosystem |
+| Visual layering | Web/workspace content в основном opaque; glass зарезервирован для system chrome, controls over content, agent/action overlays и temporary context UI |
 
 ### Предварительная модель трёх trust zones
 
@@ -253,7 +263,7 @@ M0 Kernel
 | --- | --- |
 | **S0 — Kernel** | user command -> host -> capability RPC/broker -> replaceable demo provider -> result/error -> diagnostic observation |
 | **S1 — Durable runtime** | boot profile -> installation/runtime -> RPC -> state commit -> independent event observation -> restart/restore |
-| **S2 — Browser** | shell command -> browser provider process -> navigation -> rendered page -> history/state restore |
+| **S2 — Browser** | shell command -> browser provider process -> navigation -> opaque rendered page under Worldline system chrome -> history/state restore |
 | **S3 — Agentic** | selection/intent -> agent plugin -> inference provider -> browser observation/action -> visible result or exact approval |
 | **S4 — Background** | internet event source -> subscriber -> persistent task wakeup -> semantic filter -> notification |
 
@@ -631,6 +641,84 @@ Desktop host лишь загружает bootstrap composition; продукто
 - restore последнего workspace после restart;
 - accessibility, keyboard navigation и базовая диагностика renderer/engine.
 
+#### Visual DNA — system glass over content
+
+Glass в Worldline является семантическим материалом управляющего слоя, а не
+глобальным skin. Базовая карта поверхностей:
+
+| Surface | Default material intent |
+| --- | --- |
+| Web page, document, media и прочий provider content | В основном opaque; исходная читаемость и визуальная идентичность контента сохраняются |
+| Workspace notes, evidence, results и другие долгоживущие content surfaces | В основном opaque или с плотным substrate; не становятся стеклом только потому, что принадлежат Worldline |
+| Workspace switcher, tab/navigation chrome и системный status chrome | Glass как устойчивый слой навигации над контентом |
+| Floating omnibox, command palette и controls over content | Glass; здесь появляется узнаваемая Worldline lens geometry |
+| Selection tools, contextual panels, transient menus и notifications | Glass, пока поверхность действительно временная и расположена над контентом |
+| Agent progress, action preview и approval shell | Glass как видимая граница agency; точный payload подтверждения получает плотный readable substrate |
+| Dense settings, permissions, diagnostics и длинный текст | Dense/opaque fallback; оптический эффект никогда не важнее точности и читаемости |
+
+Перенос из SignalWeave означает reuse проверенных material contracts, а не
+копирование Android UI или пикселей:
+
+- semantic material role отделён от optical geometry, intensity и readability;
+- readability pressure не превращает один semantic material в другой, а
+  независимо усиливает substrate, contrast, blur floor или opacity;
+- optical material bounded собственным mask и не читает backdrop за пределами
+  разрешённого composition region;
+- stationary chrome остаётся stationary: никаких постоянных waves, swimming,
+  глобального RGB ghosting или shimmer в default path;
+- nested glass использует явную composition policy и один backdrop sample на
+  chrome group, без накопления blur, refraction, rim и opacity;
+- shader/pipeline identity остаётся структурно стабильной, а динамические
+  параметры меняются uniforms без per-frame shader compilation, pipeline
+  rebuild, bitmap allocation или I/O;
+- reduced motion, reduced transparency/high contrast и GPU fallback являются
+  частью material contract, а не поздним косметическим патчем.
+
+Текущая реализация SignalWeave уже даёт полезные evidence-backed patterns:
+semantic material levels, orthogonal readability policy, SDF-bounded
+refraction, Fresnel/specular/inner-depth stack, API fallbacks и grouped backdrop
+composition. Проектируемые там `FlatPanel`, `ConvexLens` и `CapsuleLens` с
+единым thickness field пока рассматриваются Worldline именно как сильная
+гипотеза для spike, а не как доказанный готовый renderer.
+
+Worldline-specific signature candidate — floating omnibox или command surface в
+форме сфероцилиндрической линзы: цилиндрическая середина почти не искажает
+контент вдоль длинной оси, а выпуклые endcaps дают более сильную двумерную
+кривизну. Один thickness field `h(x, y)` должен порождать и displacement, и
+surface normal; этот же normal используют refraction, Fresnel, specular и
+highlights. Так линза остаётся одним оптическим телом, а не набором
+несогласованных blur/gradient эффектов.
+
+Для `wgpu` spike проверяются:
+
+1. единый WGSL material core и backdrop texture contract внутри renderer plugin,
+   без glass-specific знания в kernel;
+2. `FlatPanel`, `ConvexLens` и `CapsuleLens` как geometry profiles одного
+   материала, а не отдельные shaders для каждого widget;
+3. bounded sampling, clip/mask correctness и clean transmission center;
+4. локальная dispersion только там, где optical power достаточно велика, off
+   by default и без цветных призраков на тексте;
+5. single-backdrop composition для нескольких chrome bounds и явное правило
+   nested lens-inside-chrome;
+6. frame-time, GPU memory, resize, multi-window, scroll и input-to-frame budgets;
+7. полная keyboard, hit-test и accessibility semantics, не выводимая из
+   отрисованных пикселей;
+8. deterministic dense/opaque fallback при недостаточном GPU capability,
+   reduced transparency или невозможности безопасно получить backdrop.
+
+Kill tests визуального направления:
+
+- bright, dark, saturated и rapidly changing page content не разрушает
+  читаемость omnibox, approvals и navigation;
+- два вложенных glass surfaces не удваивают blur/refraction и не создают bright
+  rim stacking;
+- default stationary capture остаётся pixel-stable без пользовательского input;
+- выключение optical effects не меняет layout, focus order, hit targets или
+  capability semantics;
+- renderer degradation оставляет Worldline usable, а не блокирует browser boot;
+- glass work не задерживает headful browser path: ранний M1 может использовать
+  плотный fallback, пока optical compositor ещё проходит spike.
+
 ### M1.5 — Minimal durable workspace plugin
 
 - stable `WorkspaceId` и явное создание/переименование/архивация;
@@ -654,6 +742,8 @@ Desktop host лишь загружает bootstrap composition; продукто
   permissions и failures;
 - смена browser или renderer provider не меняет shell/workspace consumer
   contracts;
+- opaque page/content layer и glass system layer визуально различимы, при этом
+  shell сохраняет читаемость, keyboard/accessibility semantics и dense fallback;
 - failure необязательного browser/UI plugin приводит к degraded mode, а не к
   bootstrap deadlock.
 
@@ -703,6 +793,9 @@ multitab-задача переживает interruption/restart и не теря
 - approval действует на конкретный action digest, target revision и TTL и
   истекает при любом их изменении;
 - UI показывает текущую страницу, действие, источник authority и результат;
+- agent/action overlays используют system glass как видимую границу agency, но
+  exact approval payload остаётся на dense readable substrate и не скрывается
+  за refraction;
 - stop отменяет pending work и отзывает task-scoped authority;
 - rollback/undo там, где provider способен его гарантировать.
 
@@ -821,6 +914,8 @@ Workspace продолжает жить, когда страницы и даже
 - объединять дубли и связанные updates;
 - показывать evidence, condition match и использованный provider;
 - поддерживать snooze, mute, revise condition и stop monitoring;
+- notification chrome может использовать system glass, но evidence и condition
+  text остаются opaque/dense и читаемыми без backdrop effects;
 - измерять precision полезных уведомлений и стоимость false positives.
 
 ### M3 exit criterion
@@ -911,6 +1006,9 @@ acceptance journeys.
   providers ключевого capability без изменения consumer.
 - **Notification precision:** доля фоновых уведомлений, которые пользователь
   считает соответствующими заданному условию.
+- **Visual control clarity:** пользователь отличает content от Worldline
+  controls/agency, а readability, accessibility и task completion не ухудшаются
+  при glass on/off или degraded renderer fallback.
 
 ## 14. Правила изменения roadmap
 
@@ -933,7 +1031,10 @@ acceptance journeys.
 9. Календарные обещания добавляются только после декомпозиции milestone на
    changes, определения владельцев и измерения фактической скорости.
 10. Если новый feature улучшает чат, но не улучшает деятельность внутри
-   workspace, он не является приоритетом Worldline.
+    workspace, он не является приоритетом Worldline.
+11. Glass обозначает system control plane над контентом. Он не применяется к
+    каждому panel, не расширяет kernel и не принимается без readable fallback,
+    accessibility semantics, performance evidence и nested-composition tests.
 
 Короткая формула roadmap:
 
