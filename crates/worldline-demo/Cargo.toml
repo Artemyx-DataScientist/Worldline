@@ -1,0 +1,11 @@
+[package]
+name = "worldline-demo"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Capability provider replacement demonstration for Worldline"
+
+[dependencies]
+worldline-kernel = { path = "../worldline-kernel" }
+
