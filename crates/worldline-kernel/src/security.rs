@@ -4,7 +4,7 @@ use std::{
     sync::RwLock,
 };
 
-use crate::CapabilityId;
+use crate::{CapabilityId, RuntimeId};
 
 /// The category of a subject in the kernel security model.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -40,11 +40,11 @@ impl PrincipalId {
 
     pub(crate) fn plugin_runtime(
         plugin_id: &str,
-        runtime_number: u64,
+        runtime_id: RuntimeId,
         runtime_generation: u64,
     ) -> Self {
         Self::new(format!(
-            "plugin-runtime:{plugin_id}:{runtime_number}@{runtime_generation}"
+            "plugin-runtime:{plugin_id}:{runtime_id}@{runtime_generation}"
         ))
     }
 }
@@ -516,6 +516,7 @@ pub struct InvocationRequest {
     payload: Vec<u8>,
     causal_parent: Option<InvocationId>,
     nested_depth: usize,
+    provider_runtime: Option<RuntimeId>,
 }
 
 impl InvocationRequest {
@@ -538,6 +539,7 @@ impl InvocationRequest {
             payload: payload.as_ref().to_vec(),
             causal_parent: None,
             nested_depth: 0,
+            provider_runtime: None,
         }
     }
 
@@ -584,6 +586,12 @@ impl InvocationRequest {
         self
     }
 
+    pub(crate) fn with_provider_runtime(mut self, runtime_id: RuntimeId) -> Self {
+        self.provider_runtime = Some(runtime_id);
+        self
+    }
+
+    #[allow(clippy::type_complexity)]
     pub(crate) fn into_parts(
         self,
     ) -> (
@@ -595,6 +603,7 @@ impl InvocationRequest {
         Vec<u8>,
         Option<InvocationId>,
         usize,
+        Option<RuntimeId>,
     ) {
         (
             self.caller,
@@ -605,6 +614,7 @@ impl InvocationRequest {
             self.payload,
             self.causal_parent,
             self.nested_depth,
+            self.provider_runtime,
         )
     }
 }
@@ -820,7 +830,6 @@ struct SecurityState {
     next_grant: u64,
     next_invocation: u64,
     next_scope: u64,
-    next_runtime: u64,
 }
 
 /// In-memory security authority shared by kernel handles and the invocation
@@ -928,15 +937,15 @@ impl SecurityStore {
     pub(crate) fn allocate_runtime_principal(
         &self,
         plugin_id: &str,
+        runtime_id: RuntimeId,
         runtime_generation: u64,
     ) -> Principal {
         let mut state = self
             .state
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        state.next_runtime += 1;
         let principal = Principal::new(
-            PrincipalId::plugin_runtime(plugin_id, state.next_runtime, runtime_generation),
+            PrincipalId::plugin_runtime(plugin_id, runtime_id, runtime_generation),
             PrincipalKind::PluginRuntime,
         );
         state
@@ -1195,6 +1204,7 @@ impl SecurityStore {
         revoked.into_iter().collect()
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn authorize(
         &self,
         caller: &PrincipalId,
@@ -1203,6 +1213,8 @@ impl SecurityStore {
         resource: &ResourceId,
         source: &AuthoritySource,
         enclosing_provider: Option<&PrincipalId>,
+        enclosing_runtime: Option<&RuntimeId>,
+        requested_runtime: Option<RuntimeId>,
     ) -> Result<AuthoritySet, DenialReason> {
         let state = self
             .state
@@ -1235,6 +1247,7 @@ impl SecurityStore {
                     .is_some_and(|principal| principal.kind() == PrincipalKind::PluginRuntime);
                 if provider != caller
                     || enclosing_provider != Some(provider)
+                    || enclosing_runtime != requested_runtime.as_ref()
                     || !is_runtime_provider
                 {
                     return Err(DenialReason::InvalidAuthoritySource);
@@ -1336,6 +1349,7 @@ impl SecurityStore {
 fn same_runtime_lineage(left: &PrincipalId, right: &PrincipalId) -> bool {
     fn lineage(id: &PrincipalId) -> Option<&str> {
         let value = id.as_str().strip_prefix("plugin-runtime:")?;
+        let value = value.split_once('@').map(|(plugin, _)| plugin)?;
         value.rsplit_once(':').map(|(plugin, _)| plugin)
     }
 

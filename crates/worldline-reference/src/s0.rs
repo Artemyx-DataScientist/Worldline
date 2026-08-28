@@ -14,6 +14,8 @@ pub struct S0Report {
     pub installation_id: String,
     pub state_before_restart: String,
     pub state_after_restart: String,
+    pub old_runtime_id: String,
+    pub new_runtime_id: String,
     pub old_runtime: String,
     pub new_runtime: String,
     pub first_result: String,
@@ -54,6 +56,9 @@ pub fn run() -> Result<S0Report, String> {
     let installation = first_host
         .installation_id_for_plugin(&provider)
         .ok_or_else(|| "provider installation was not created".to_owned())?;
+    let old_runtime_id = first_host
+        .runtime_id_for_plugin(&provider)
+        .ok_or_else(|| "provider runtime id was not allocated".to_owned())?;
     let old_runtime = first_host
         .principal_for_plugin(&provider)
         .ok_or_else(|| "provider runtime was not activated".to_owned())?;
@@ -119,6 +124,9 @@ pub fn run() -> Result<S0Report, String> {
     let new_runtime = restarted_host
         .principal_for_plugin(&restarted_provider)
         .ok_or_else(|| "restarted provider runtime was not activated".to_owned())?;
+    let new_runtime_id = restarted_host
+        .runtime_id_for_plugin(&restarted_provider)
+        .ok_or_else(|| "restarted provider runtime id was not allocated".to_owned())?;
     if old_runtime == new_runtime {
         return Err("host restart reused the previous runtime principal".to_owned());
     }
@@ -176,6 +184,8 @@ pub fn run() -> Result<S0Report, String> {
         installation_id: installation.to_string(),
         state_before_restart,
         state_after_restart,
+        old_runtime_id: old_runtime_id.to_string(),
+        new_runtime_id: new_runtime_id.to_string(),
         old_runtime: old_runtime.to_string(),
         new_runtime: new_runtime.to_string(),
         first_result,

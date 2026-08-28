@@ -12,7 +12,11 @@ fn main() {
         report.state_before_restart, report.state_after_restart
     );
     println!(
-        "runtime identity: {} -> {}",
+        "RuntimeId: {} -> {}",
+        report.old_runtime_id, report.new_runtime_id
+    );
+    println!(
+        "runtime principals: {} -> {}",
         report.old_runtime, report.new_runtime
     );
     println!("independent observations: {}", report.observations);

@@ -12,8 +12,11 @@
 - **M0.2 — Done.** Это был active gate текущего boundary review; он закрыт
   [ADR-KERNEL-BOUNDARY-V1](docs/adr/ADR-KERNEL-BOUNDARY-V1.md), тремя
   reference families и постоянным S0 proving slice.
-- **M0.3 — Next.** Следующий implementation milestone — Plugin Runtime v1:
-  настоящий `RuntimeId`, multi-install runtime и async lifecycle.
+- **M0.3 — Done.** Plugin Runtime v1 закрыт явным runtime identity,
+  multi-install cardinality, split-phase lifecycle, recovery policy,
+  discovery и deterministic provider selection.
+- **M0.4 — Next.** Следующий implementation milestone — Capability RPC and
+  event transport.
 
 ## 1. Куда идёт Worldline
 
@@ -354,7 +357,7 @@ Exit criterion: содержимое kernel объясняется необхо�
 удобством текущей реализации или ранней блок-схемой. Evidence: ADR boundary
 classification, `worldline-reference` acceptance suite и S0 restart proof.
 
-### M0.3 — Plugin Runtime v1 — Next
+### M0.3 — Plugin Runtime v1 — Done
 
 - ввести настоящий `RuntimeId`, не представленный через `PluginId`;
 - завершить модель
@@ -380,7 +383,9 @@ Kill tests:
 - provider replacement не требует перезапуска совместимого consumer.
 
 Exit criterion: lifecycle, identity и replacement semantics стабильны и не
-требуют специальных обходов от будущего browser runtime.
+требуют специальных обходов от будущего browser runtime. Evidence:
+[ADR-PLUGIN-RUNTIME-V1](docs/adr/ADR-PLUGIN-RUNTIME-V1.md), 20 новых runtime-v1
+acceptance tests, сохранённые M0.1/M0.2 suites и S0 proving slice.
 
 ### M0.4 — Capability RPC and event transport
 

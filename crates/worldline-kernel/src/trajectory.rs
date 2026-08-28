@@ -1,8 +1,9 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    CapabilityContract, CapabilityId, GrantId, GrantLifetime, InvocationId, OperationId, PluginId,
-    PrincipalId, PrincipalKind, ResourceId, ResourceScope,
+    CapabilityContract, CapabilityId, GrantId, GrantLifetime, InvocationId, LifecycleScopeId,
+    OperationId, PluginId, PrincipalId, PrincipalKind, ResourceId, ResourceScope,
+    runtime::{ActivationReason, LifecycleOperationId, RuntimeFailureClass, RuntimeId},
     security::AuthoritySet,
     state::{InstallationId, MigrationId, StateSchemaVersion, StateTransactionId},
 };
@@ -29,6 +30,73 @@ pub enum TrajectoryEventKind {
     RuntimeBoundToInstallation {
         installation: InstallationId,
         runtime: PrincipalId,
+    },
+    RuntimeCreated {
+        runtime_id: RuntimeId,
+        installation: InstallationId,
+        plugin: PluginId,
+        principal: PrincipalId,
+        scope: LifecycleScopeId,
+        activation_reason: ActivationReason,
+        activation_attempt: u32,
+    },
+    RuntimeWaitingDependencies {
+        installation: InstallationId,
+        plugin: PluginId,
+        missing: Vec<CapabilityId>,
+    },
+    RuntimeActivationStarted {
+        runtime_id: RuntimeId,
+        installation: InstallationId,
+    },
+    RuntimeActivated {
+        runtime_id: RuntimeId,
+        installation: InstallationId,
+    },
+    RuntimeDeactivationStarted {
+        runtime_id: RuntimeId,
+        installation: InstallationId,
+    },
+    RuntimeStopped {
+        runtime_id: RuntimeId,
+        installation: InstallationId,
+    },
+    RuntimeFailed {
+        runtime_id: RuntimeId,
+        installation: InstallationId,
+        classification: RuntimeFailureClass,
+        message: String,
+    },
+    RuntimeCrashed {
+        runtime_id: RuntimeId,
+        installation: InstallationId,
+        message: String,
+    },
+    RuntimeCancelled {
+        runtime_id: RuntimeId,
+        installation: InstallationId,
+    },
+    RuntimeHung {
+        runtime_id: RuntimeId,
+        installation: InstallationId,
+    },
+    RuntimeQuarantined {
+        runtime_id: RuntimeId,
+        installation: InstallationId,
+    },
+    RuntimeRestartScheduled {
+        installation: InstallationId,
+        attempt: u32,
+    },
+    RuntimeRestartAttempted {
+        runtime_id: RuntimeId,
+        installation: InstallationId,
+        attempt: u32,
+    },
+    LifecycleCompletionRejected {
+        runtime_id: RuntimeId,
+        operation: LifecycleOperationId,
+        classification: RuntimeFailureClass,
     },
     StateTransactionStarted {
         installation: InstallationId,
@@ -134,6 +202,26 @@ pub enum TrajectoryEventKind {
     ProviderLost {
         capability: CapabilityId,
         provider: PluginId,
+    },
+    ProviderRuntimeLost {
+        capability: CapabilityId,
+        provider: PluginId,
+        runtime_id: RuntimeId,
+    },
+    ProviderSelectionMade {
+        requested: CapabilityId,
+        compatible_candidate_count: usize,
+        selected_runtime_id: Option<RuntimeId>,
+        selected_installation: Option<InstallationId>,
+        policy: String,
+        reason: String,
+    },
+    CapabilityVersionNegotiated {
+        requested: CapabilityId,
+        selected: Option<CapabilityId>,
+    },
+    BootDegraded {
+        reasons: Vec<String>,
     },
     DeactivationStarted,
     EffectCleanupStarted {

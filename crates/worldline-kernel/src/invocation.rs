@@ -10,6 +10,7 @@ use crate::{
     ResourceId,
     capability::CapabilityRegistry,
     error::panic_message,
+    runtime::RuntimeId,
     security::{AuthoritySet, AuthoritySource, SecurityStore},
     trajectory::{Trajectory, TrajectoryEventKind},
 };
@@ -19,8 +20,14 @@ use crate::{
 /// many nested invocations.
 pub const MAX_NESTED_INVOCATION_DEPTH: usize = 32;
 
+#[derive(Clone)]
+struct InvocationFrame {
+    runtime_id: RuntimeId,
+    principal: PrincipalId,
+}
+
 thread_local! {
-    static INVOCATION_FRAMES: RefCell<Vec<PrincipalId>> = const { RefCell::new(Vec::new()) };
+    static INVOCATION_FRAMES: RefCell<Vec<InvocationFrame>> = const { RefCell::new(Vec::new()) };
 }
 
 struct InvocationFrameGuard;
@@ -30,12 +37,17 @@ impl InvocationFrameGuard {
         INVOCATION_FRAMES.with(|frames| frames.borrow().len())
     }
 
-    fn current_provider() -> Option<PrincipalId> {
+    fn current_provider() -> Option<InvocationFrame> {
         INVOCATION_FRAMES.with(|frames| frames.borrow().last().cloned())
     }
 
-    fn enter(provider: PrincipalId) -> Self {
-        INVOCATION_FRAMES.with(|frames| frames.borrow_mut().push(provider));
+    fn enter(runtime_id: RuntimeId, principal: PrincipalId) -> Self {
+        INVOCATION_FRAMES.with(|frames| {
+            frames.borrow_mut().push(InvocationFrame {
+                runtime_id,
+                principal,
+            })
+        });
         Self
     }
 }
@@ -149,6 +161,7 @@ pub struct InvocationContext {
     invocation_id: InvocationId,
     caller: PrincipalId,
     provider: PrincipalId,
+    provider_runtime_id: RuntimeId,
     capability: CapabilityId,
     operation: OperationId,
     resource: ResourceId,
@@ -164,6 +177,7 @@ impl InvocationContext {
         invocation_id: InvocationId,
         caller: PrincipalId,
         provider: PrincipalId,
+        provider_runtime_id: RuntimeId,
         capability: CapabilityId,
         operation: OperationId,
         resource: ResourceId,
@@ -176,6 +190,7 @@ impl InvocationContext {
             invocation_id,
             caller,
             provider,
+            provider_runtime_id,
             capability,
             operation,
             resource,
@@ -196,6 +211,10 @@ impl InvocationContext {
 
     pub fn provider(&self) -> &PrincipalId {
         &self.provider
+    }
+
+    pub const fn provider_runtime_id(&self) -> RuntimeId {
+        self.provider_runtime_id
     }
 
     pub fn capability(&self) -> &CapabilityId {
@@ -236,6 +255,7 @@ impl InvocationContext {
         )
         .with_authority(AuthoritySource::Delegated(self.authority.clone()))
         .with_causal_parent(self.invocation_id.clone())
+        .with_provider_runtime(self.provider_runtime_id)
         .with_nested_depth(self.nested_depth.saturating_add(1));
         self.broker.invoke(request)
     }
@@ -258,6 +278,7 @@ impl InvocationContext {
         )
         .with_authority(AuthoritySource::ProviderSelf(self.provider.clone()))
         .with_causal_parent(self.invocation_id.clone())
+        .with_provider_runtime(self.provider_runtime_id)
         .with_nested_depth(self.nested_depth.saturating_add(1));
         self.broker.invoke(request)
     }
@@ -299,6 +320,7 @@ impl InvocationBroker {
             payload,
             causal_parent,
             requested_depth,
+            request_provider_runtime,
         ) = request.into_parts();
         let invocation = self.security.allocate_invocation();
         let contract = capability.contract();
@@ -333,7 +355,9 @@ impl InvocationBroker {
             &operation,
             &resource,
             &authority_source,
-            enclosing_provider.as_ref(),
+            enclosing_provider.as_ref().map(|frame| &frame.principal),
+            enclosing_provider.as_ref().map(|frame| &frame.runtime_id),
+            request_provider_runtime,
         ) {
             Ok(authority) => authority,
             Err(reason) => {
@@ -368,9 +392,7 @@ impl InvocationBroker {
                 causal_parent: causal_parent.clone(),
             });
 
-        let Some((_, _provider_plugin, provider, service)) =
-            self.registry.resolve(&capability, &BTreeSet::new())
-        else {
+        let Some(resolved) = self.registry.resolve(&capability, &BTreeSet::new()) else {
             self.trajectory
                 .push_security(TrajectoryEventKind::InvocationFailed {
                     invocation,
@@ -381,7 +403,8 @@ impl InvocationBroker {
         let context = InvocationContext::new(
             invocation.clone(),
             caller.clone(),
-            provider.clone(),
+            resolved.descriptor.principal().clone(),
+            resolved.descriptor.runtime_id(),
             capability.clone(),
             operation.clone(),
             resource.clone(),
@@ -394,7 +417,7 @@ impl InvocationBroker {
             .push_security(TrajectoryEventKind::InvocationStarted {
                 invocation: invocation.clone(),
                 caller,
-                provider: provider.clone(),
+                provider: resolved.descriptor.principal().clone(),
                 capability: contract,
                 operation,
                 resource,
@@ -402,9 +425,12 @@ impl InvocationBroker {
                 causal_parent,
             });
 
-        let _frame = InvocationFrameGuard::enter(provider.clone());
+        let _frame = InvocationFrameGuard::enter(
+            resolved.descriptor.runtime_id(),
+            resolved.descriptor.principal().clone(),
+        );
         let result = catch_unwind(AssertUnwindSafe(|| {
-            service.invoke_with_context(&context, &payload)
+            resolved.service.invoke_with_context(&context, &payload)
         }));
         match result {
             Ok(Ok(response)) => {

@@ -1,8 +1,8 @@
 use std::{any::Any, error::Error, fmt};
 
 use crate::{
-    CapabilityId, DenialReason, InvocationId, OperationId, PluginId, PrincipalId, ResourceId,
-    SecurityError, StateError,
+    CapabilityId, DenialReason, InstallationId, InvocationId, LifecycleOperationId, OperationId,
+    PluginId, PrincipalId, ResourceId, RuntimeId, RuntimeLifecycleState, SecurityError, StateError,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -181,10 +181,73 @@ impl Error for EffectCleanupError {}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum KernelError {
-    DuplicatePlugin { id: PluginId },
-    UnknownPlugin { id: PluginId },
-    InvalidDefinition { id: PluginId, reason: String },
-    PluginDefinitionPanicked { message: String },
+    DuplicatePlugin {
+        id: PluginId,
+    },
+    UnknownPlugin {
+        id: PluginId,
+    },
+    UnknownRuntime {
+        runtime: RuntimeId,
+    },
+    RuntimeAlreadyActiveForInstallation {
+        installation: InstallationId,
+    },
+    InvalidRuntimeTransition {
+        runtime: RuntimeId,
+        from: RuntimeLifecycleState,
+        to: RuntimeLifecycleState,
+    },
+    RuntimeInstallationMismatch {
+        runtime: RuntimeId,
+        installation: InstallationId,
+    },
+    RuntimeActivationFailed {
+        runtime: RuntimeId,
+        message: String,
+    },
+    RuntimeActivationCancelled {
+        runtime: RuntimeId,
+    },
+    RuntimeActivationDeadlineExceeded {
+        runtime: RuntimeId,
+    },
+    RuntimeDeactivationFailed {
+        runtime: RuntimeId,
+        message: String,
+    },
+    RuntimeDeactivationDeadlineExceeded {
+        runtime: RuntimeId,
+    },
+    RuntimeHung {
+        runtime: RuntimeId,
+    },
+    RuntimeQuarantined {
+        installation: InstallationId,
+    },
+    StartupBudgetExceeded,
+    NoCompatibleProvider {
+        capability: CapabilityId,
+    },
+    ProviderSelectionFailed {
+        capability: CapabilityId,
+        reason: String,
+    },
+    CapabilityVersionIncompatible {
+        required: CapabilityId,
+        provided: CapabilityId,
+    },
+    StaleLifecycleCompletion {
+        runtime: RuntimeId,
+        operation: LifecycleOperationId,
+    },
+    InvalidDefinition {
+        id: PluginId,
+        reason: String,
+    },
+    PluginDefinitionPanicked {
+        message: String,
+    },
     Security(SecurityError),
     State(StateError),
 }
@@ -196,6 +259,62 @@ impl fmt::Display for KernelError {
                 write!(formatter, "plugin '{id}' is already registered")
             }
             Self::UnknownPlugin { id } => write!(formatter, "plugin '{id}' is not registered"),
+            Self::UnknownRuntime { runtime } => write!(formatter, "runtime '{runtime}' is unknown"),
+            Self::RuntimeAlreadyActiveForInstallation { installation } => write!(
+                formatter,
+                "installation '{installation}' already has a live runtime"
+            ),
+            Self::InvalidRuntimeTransition { runtime, from, to } => write!(
+                formatter,
+                "runtime '{runtime}' cannot transition from '{from:?}' to '{to:?}'"
+            ),
+            Self::RuntimeInstallationMismatch {
+                runtime,
+                installation,
+            } => write!(
+                formatter,
+                "runtime '{runtime}' is not bound to installation '{installation}'"
+            ),
+            Self::RuntimeActivationFailed { runtime, message } => write!(
+                formatter,
+                "runtime '{runtime}' activation failed: {message}"
+            ),
+            Self::RuntimeActivationCancelled { runtime } => {
+                write!(formatter, "runtime '{runtime}' activation was cancelled")
+            }
+            Self::RuntimeActivationDeadlineExceeded { runtime } => write!(
+                formatter,
+                "runtime '{runtime}' activation deadline exceeded"
+            ),
+            Self::RuntimeDeactivationFailed { runtime, message } => write!(
+                formatter,
+                "runtime '{runtime}' deactivation failed: {message}"
+            ),
+            Self::RuntimeDeactivationDeadlineExceeded { runtime } => write!(
+                formatter,
+                "runtime '{runtime}' deactivation deadline exceeded"
+            ),
+            Self::RuntimeHung { runtime } => write!(formatter, "runtime '{runtime}' is hung"),
+            Self::RuntimeQuarantined { installation } => {
+                write!(formatter, "installation '{installation}' is quarantined")
+            }
+            Self::StartupBudgetExceeded => formatter.write_str("startup budget exceeded"),
+            Self::NoCompatibleProvider { capability } => write!(
+                formatter,
+                "no compatible provider exists for capability '{capability}'"
+            ),
+            Self::ProviderSelectionFailed { capability, reason } => write!(
+                formatter,
+                "provider selection for '{capability}' failed: {reason}"
+            ),
+            Self::CapabilityVersionIncompatible { required, provided } => write!(
+                formatter,
+                "provider capability '{provided}' is incompatible with '{required}'"
+            ),
+            Self::StaleLifecycleCompletion { runtime, operation } => write!(
+                formatter,
+                "lifecycle completion for runtime '{runtime}' and operation '{operation}' is stale"
+            ),
             Self::InvalidDefinition { id, reason } => {
                 write!(formatter, "invalid definition for plugin '{id}': {reason}")
             }
@@ -209,6 +328,11 @@ impl fmt::Display for KernelError {
 }
 
 impl Error for KernelError {}
+
+/// Explicit name for lifecycle transition/operation failures.  The kernel
+/// keeps one error enum so existing callers can continue matching
+/// `KernelError`, while lifecycle APIs can document this narrower contract.
+pub type RuntimeLifecycleError = KernelError;
 
 impl From<SecurityError> for KernelError {
     fn from(error: SecurityError) -> Self {

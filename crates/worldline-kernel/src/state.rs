@@ -242,10 +242,9 @@ impl InstallationRecord {
         self.revision
     }
 
-    /// Monotonic incarnation epoch for runtimes bound to this installation.
-    ///
-    /// This is a transitional identity seed for the pre-M0.3 runtime model,
-    /// not the final public `RuntimeId`.
+    /// Monotonic installation incarnation seed used when the kernel allocates
+    /// ephemeral `RuntimeId` values. It is persistent metadata, not the
+    /// runtime identity itself.
     pub const fn runtime_generation(&self) -> u64 {
         self.runtime_generation
     }
@@ -1535,11 +1534,9 @@ impl StateStore {
         })
     }
 
-    /// Allocates a persisted incarnation epoch before a runtime is activated.
-    ///
-    /// The epoch lets the transitional runtime-principal format distinguish
-    /// host restarts while the final `RuntimeId` registry remains an M0.3
-    /// concern.
+    /// Allocates a persisted installation incarnation epoch before a runtime is
+    /// activated. The epoch lets a new host instance distinguish runtime IDs
+    /// created for the same installation after restart.
     pub(crate) fn allocate_runtime_generation(
         &self,
         installation: &InstallationId,

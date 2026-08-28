@@ -18,9 +18,11 @@ engine, LLM, UI, истории, вкладках или конкретном ag
 В workspace входят:
 
 - `worldline-kernel` — plugin contract, структурированные capability identities,
-  dependency resolution, lifecycle scopes, owned effects, principals, in-memory
-  grants, resource attenuation, revocation, invocation broker и append-only
-  trajectory;
+  dependency resolution, installation-scoped runtime lifecycle, opaque
+  `RuntimeId`, split-phase activation/deactivation, lifecycle recovery,
+  capability discovery/selection, lifecycle scopes, owned effects, principals,
+  in-memory grants, resource attenuation, revocation, invocation broker и
+  append-only trajectory;
 - `worldline-demo` — host-level S0 proving slice, показывающий разницу между
   capability availability и authorization, independent observation, restart
   continuity и compatible provider replacement.
@@ -73,9 +75,11 @@ provider runtime и использует только его собственн�
 Observation bus из reference crate — это намеренно минимальный host-local
 fixture, а не production EventBus: observation имеет собственную identity и
 producer identity, subscriber не участвует в provider resolution и не может
-подменить RPC result. Production event transport, scheduler, blob persistence,
-CEF/wgpu composition и настоящий `RuntimeId` остаются следующими отдельными
-рубежами.
+подменить RPC result. M0.3 добавляет runtime lifecycle primitives, но не
+притворяется production scheduler: для native in-process plugin cancellation
+остаётся cooperative, а `Hung` изолирует authority и publication логически,
+не убивая произвольный thread. Production event transport, scheduler, blob
+persistence и CEF/wgpu composition остаются следующими отдельными рубежами.
 
 ## Проверка
 

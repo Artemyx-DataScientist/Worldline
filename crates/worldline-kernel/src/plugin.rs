@@ -9,6 +9,7 @@ use crate::{
     capability::{CapabilityId, CapabilityPublication, CapabilityService, DependencyKind},
     effect::{LifecycleScope, OwnedEffect},
     invocation::{CapabilityHandle, InvocationBroker},
+    runtime::{ActivationReason, LifecycleCancellationToken, LifecycleContext, RuntimeId},
     security::{LifecycleScopeId, PrincipalId},
     state::{
         InstallationId, RuntimeStateHandle, RuntimeStateLease, StateMigration, StateSchemaVersion,
@@ -170,6 +171,13 @@ pub trait Plugin: Send + Sync {
 
 pub trait PluginRuntime: Send {
     fn deactivate(&mut self) -> Result<(), PluginError>;
+
+    /// Lifecycle-aware deactivation hook. Existing runtimes only need to
+    /// implement `deactivate`; the default preserves that ABI while allowing
+    /// cooperative cancellation in runtime-v1 implementations.
+    fn deactivate_with_context(&mut self, _context: &LifecycleContext) -> Result<(), PluginError> {
+        self.deactivate()
+    }
 }
 
 pub struct NoopRuntime;
@@ -182,9 +190,13 @@ impl PluginRuntime for NoopRuntime {
 
 pub struct ActivationContext {
     plugin_id: PluginId,
+    runtime_id: RuntimeId,
     principal: PrincipalId,
     installation_id: InstallationId,
     scope_id: LifecycleScopeId,
+    activation_reason: ActivationReason,
+    cancellation: LifecycleCancellationToken,
+    deadline: Option<std::time::Duration>,
     dependencies: BTreeMap<CapabilityId, DependencyKind>,
     declared_capabilities: BTreeSet<CapabilityId>,
     broker: Arc<InvocationBroker>,
@@ -194,19 +206,28 @@ pub struct ActivationContext {
 }
 
 impl ActivationContext {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         definition: &PluginDefinition,
+        runtime_id: RuntimeId,
         principal: PrincipalId,
         installation_id: InstallationId,
         scope_id: LifecycleScopeId,
+        activation_reason: ActivationReason,
+        cancellation: LifecycleCancellationToken,
+        deadline: Option<std::time::Duration>,
         state: RuntimeStateHandle,
         broker: Arc<InvocationBroker>,
     ) -> Self {
         Self {
             plugin_id: definition.id.clone(),
+            runtime_id,
             principal,
             installation_id,
             scope_id,
+            activation_reason,
+            cancellation,
+            deadline,
             dependencies: definition.dependencies.clone(),
             declared_capabilities: definition.provides.clone(),
             broker,
@@ -218,6 +239,10 @@ impl ActivationContext {
 
     pub fn plugin_id(&self) -> &PluginId {
         &self.plugin_id
+    }
+
+    pub const fn runtime_id(&self) -> RuntimeId {
+        self.runtime_id
     }
 
     pub fn principal(&self) -> &PrincipalId {
@@ -234,6 +259,22 @@ impl ActivationContext {
 
     pub fn lifecycle_scope_id(&self) -> LifecycleScopeId {
         self.scope_id
+    }
+
+    pub const fn activation_reason(&self) -> ActivationReason {
+        self.activation_reason
+    }
+
+    pub fn cancellation(&self) -> LifecycleCancellationToken {
+        self.cancellation.clone()
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancellation.is_cancelled()
+    }
+
+    pub const fn deadline(&self) -> Option<std::time::Duration> {
+        self.deadline
     }
 
     pub fn capability(

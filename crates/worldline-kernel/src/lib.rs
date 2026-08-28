@@ -13,19 +13,29 @@ mod error;
 mod invocation;
 mod kernel;
 mod plugin;
+mod runtime;
 mod security;
 mod state;
 mod trajectory;
 
 pub use capability::{
-    CapabilityDependency, CapabilityId, CapabilityService, DependencyKind, InterfaceVersion,
+    CapabilityDependency, CapabilityDiscoveryDescriptor, CapabilityId, CapabilityService,
+    DependencyKind, InterfaceVersion, ProviderDescriptor, ProviderSelectionDiagnostic,
 };
 pub use effect::OwnedEffect;
-pub use error::{CapabilityError, EffectCleanupError, KernelError, PluginError};
+pub use error::{
+    CapabilityError, EffectCleanupError, KernelError, PluginError, RuntimeLifecycleError,
+};
 pub use invocation::{CapabilityHandle, InvocationContext, MAX_NESTED_INVOCATION_DEPTH};
-pub use kernel::{Kernel, ReconcileReport, RuntimeState};
+pub use kernel::{Kernel, ReconcileReport, RuntimeMetadata};
 pub use plugin::{
     ActivationContext, NoopRuntime, Plugin, PluginDefinition, PluginId, PluginRuntime,
+};
+pub use runtime::{
+    ActivationMode, ActivationReason, LifecycleCancellationToken, LifecycleContext,
+    LifecycleOperation, LifecycleOperationId, RestartMode, RestartPolicy, RuntimeCriticality,
+    RuntimeFailureClass, RuntimeId, RuntimeLaunchPolicy, RuntimeLifecycleState, RuntimeState,
+    StartupBudget,
 };
 pub use security::{
     AuthoritySet, AuthoritySource, CapabilityContract, CapabilityGrant, DenialReason, GrantId,
