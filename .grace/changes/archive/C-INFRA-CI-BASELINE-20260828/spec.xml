@@ -1,0 +1,46 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-INFRA-CI-BASELINE-20260828>
+    <Summary>Implement Phase A and the minimum repository-owned portion of Phase B from the Worldline CI/CD policy.</Summary>
+    <Problem>Worldline has pinned Rust and local verification commands but no repository-owned CI entrypoint, stable required check topology, workflow permissions contract, or machine-enforced architecture and proving-slice gates.</Problem>
+    <Goals>
+      <Goal>Create a local cross-platform CI entrypoint that owns source, correctness, architecture-security, and proving-slice suites.</Goal>
+      <Goal>Create minimal GitHub pull-request and master workflows whose stable jobs call only repository-owned verification logic.</Goal>
+      <Goal>Make GRACE integrity, kernel dependency direction, EVENT BUS IS NOT RPC, and permanent S0 and S1 proving evidence explicit gates.</Goal>
+      <Goal>Document branch-protection check names and failure ownership without claiming external repository settings were applied.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>docs/CI-CD.md is the living engineering policy and this change must implement only its Phase A plus the minimum repository-owned Phase B envelope.</Constraint>
+      <Constraint>GitHub Actions is orchestration only; all required verification logic must run locally.</Constraint>
+      <Constraint>Rust 1.98.0 and workflow actions must be pinned; workflow permissions must default to read-only.</Constraint>
+      <Constraint>Required gates may not use continue-on-error, silent test discovery loss, or success by skipping.</Constraint>
+      <Constraint>No production Rust source or protected acceptance test may be modified by this change.</Constraint>
+      <Constraint>Existing unrelated dirty-tree work is coexistence state and must not be claimed, reformatted, reverted, or absorbed.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Nightly fuzzing, Miri, sanitizers, chaos, long-running concurrency suites, and performance baselines.</NonGoal>
+      <NonGoal>Application packaging, signing, SBOM publication, attestations, automatic deployment, or a release workflow that publishes artifacts.</NonGoal>
+      <NonGoal>Changing GitHub branch-protection settings through an external API.</NonGoal>
+      <NonGoal>Adding live browser, model-provider, network-service, or production-credential tests.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>A repository-owned PowerShell entrypoint exposes stable source, correctness, architecture-security, proving-slice, and all suites and returns nonzero on every failed required command.</Criterion>
+      <Criterion>Pull-request and master workflows use stable job names, pinned actions, minimal permissions, concurrency cancellation where appropriate, the pinned project toolchain, and no duplicated verification business logic.</Criterion>
+      <Criterion>The source suite runs rustfmt, cargo check, Clippy with warnings denied, and rustdoc; correctness runs the workspace tests.</Criterion>
+      <Criterion>The architecture-security suite validates the GRACE model and kernel dependency direction and executes the current security, lifecycle, state, and RPC-event acceptance evidence.</Criterion>
+      <Criterion>The proving-slice suite runs the reference boundary acceptance test and worldline-demo so S0 and S1 remain permanent gates.</Criterion>
+      <Criterion>README and repository templates identify the local command and exact required check names while explicitly distinguishing local evidence from an actual hosted CI run.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-GRACE-CONTROL-LAYER />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+      <ExpectedEvidence>All repository-owned gates pass locally; GRACE final lint passes; workflow syntax and immutable action references are inspectable. Hosted CI remains unverified until a named GitHub run exists.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The default integration branch is master and GitHub Actions is the intended hosted orchestrator.</Assumption>
+      <Assumption>The user's 2026-08-28 instruction and supplied CI/CD policy explicitly approve this normative spec; the executable plan remains separately draft until approved.</Assumption>
+    </Assumptions>
+  </C-INFRA-CI-BASELINE-20260828>
+</GraceChangeSpec>

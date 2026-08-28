@@ -1,0 +1,10 @@
+<GracePrinciples graceVersion="4.0">
+  <Principle>Approved change plans are immutable during execution.</Principle>
+  <Principle>Backend or agent failure ends an execution attempt, not a durable task or approved change.</Principle>
+  <Principle>Observed write scope and fresh product-path evidence are mandatory for acceptance.</Principle>
+  <Principle>EVENT BUS IS NOT RPC.</Principle>
+  <Principle>Always retain an early runnable end-to-end vertical proving slice.</Principle>
+  <Principle>Event sourcing is opt-in and must not automatically become the storage model for every domain.</Principle>
+  <Principle>Workflow truth, architecture decisions, runtime truth, and CI policy have distinct owners.</Principle>
+  <Principle>No green result may be obtained by silently skipping required evidence.</Principle>
+</GracePrinciples>

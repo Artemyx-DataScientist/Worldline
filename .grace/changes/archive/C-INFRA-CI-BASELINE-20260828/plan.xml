@@ -1,0 +1,118 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-INFRA-CI-BASELINE-20260828>
+    <IntentSummary>Add one repository-owned verification interface and thin PR/master GitHub orchestration, then project the resulting CI module into GRACE without touching product behavior.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-GRACE-CONTROL-LAYER</Value>
+        <Value>docs/CI-CD.md</Value>
+        <Value>rust-toolchain.toml</Value>
+        <Value>crates/worldline-reference/tests/boundary_acceptance.rs</Value>
+      </MustExist>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>.github/workflows/pr.yml</Value>
+        <Value>.github/workflows/master.yml</Value>
+        <Value>.github/pull_request_template.md</Value>
+      </MustExist>
+      <MustVerify>
+        <Module>M-CI-BASELINE</Module>
+      </MustVerify>
+      <MustPassCommand>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+    <ObservedWriteScope>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      <File>.github/workflows/pr.yml</File>
+      <File>.github/workflows/master.yml</File>
+      <File>.github/pull_request_template.md</File>
+      <File>README.md</File>
+      <File>.grace/graph/index.xml</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.grace/verification/index.xml</File>
+      <File>.grace/verification/main.xml</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>Create the repository-owned CI runner and architecture guard</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The runner exposes exactly the declared stable suites, stops at the first failed command, preserves command exit codes, and can be invoked with pwsh on Windows and Linux.</Criterion>
+          <Criterion>The architecture guard reads Cargo metadata, proves worldline-kernel has no dependency on another Worldline workspace crate, validates required GRACE layout, and does not modify the tree.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        </Verification>
+      </T-001>
+      <T-002>
+        <Title>Add the pull-request workflow</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The workflow has stable source, correctness, architecture-security, and proving-slice jobs, minimal permissions, pinned checkout action, and pull-request concurrency cancellation.</Criterion>
+          <Criterion>Every job calls the repository-owned runner and contains no duplicate Cargo gate sequence.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-002>
+      <T-003>
+        <Title>Add the master workflow</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The workflow runs all required suites for pushes to master, uses minimal permissions and pinned actions, and does not publish a release.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-003>
+      <T-004>
+        <Title>Document stable checks and contributor handoff</Title>
+        <DependsOn>
+          <T-002 />
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>README names the local all-suite command and links the CI/CD and GRACE policies.</Criterion>
+          <Criterion>The pull-request template requires a change ID, affected modules, proving-slice impact, commands run, unverified gaps, and explicit external side-effect review.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+        </Verification>
+      </T-004>
+      <T-005>
+        <Title>Apply the durable CI graph and verification projection and run final local gates</Title>
+        <DependsOn>
+          <T-002 />
+          <T-003 />
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>M-CI-BASELINE and V-M-CI-BASELINE are routed exactly once and describe the implemented local and hosted boundaries without claiming an unobserved GitHub run.</Criterion>
+          <Criterion>All four selected target commands pass and final GRACE lint reports no errors attributable to this change.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-INFRA-CI-BASELINE-20260828>
+</GraceChangePlan>

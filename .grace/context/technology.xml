@@ -1,0 +1,12 @@
+<GraceTechnology graceVersion="4.0">
+  <Language>Rust 2024 edition</Language>
+  <Runtime>Pinned stable Rust 1.98.0 native host; future plugin isolation may use Wasmtime, native processes, or provider processes behind versioned contracts.</Runtime>
+  <Framework>Cargo workspace with a generic kernel crate, reference plugin crate, and proving-slice demo.</Framework>
+  <TestingStack>cargo test acceptance suites, persistent S0 and S1 proving slices, rustfmt, Clippy, rustdoc, and GRACE 4 lint.</TestingStack>
+  <Observability>Typed trajectory records and independent diagnostic or domain events; trace context is not authority.</Observability>
+  <OperationalConstraints>
+    <Constraint>Prefer standard library and existing workspace patterns before adding dependencies.</Constraint>
+    <Constraint>CI logic must remain runnable through repository-owned commands rather than existing only in workflow YAML.</Constraint>
+    <Constraint>Tests must not require live model providers, browser services, or production credentials.</Constraint>
+  </OperationalConstraints>
+</GraceTechnology>

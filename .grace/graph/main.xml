@@ -1,0 +1,24 @@
+<GraceGraphDocument graceVersion="4.0">
+  <GD-MAIN>
+    <M-KERNEL-CAPABILITY-RUNTIME>
+      <Summary>Generic Rust microkernel boundary for plugin definitions and installations, runtime lifecycle, capability discovery and authorization, RPC, independent typed events, state ownership, effects, security, and trajectory evidence.</Summary>
+    </M-KERNEL-CAPABILITY-RUNTIME>
+    <M-REFERENCE-PROVING-SLICE>
+      <Summary>Replaceable browser-like, agent-like, and UI-like reference plugins plus the permanent S0 and S1 host-level proving path through only public kernel contracts.</Summary>
+    </M-REFERENCE-PROVING-SLICE>
+    <M-GRACE-CONTROL-LAYER>
+      <Summary>Repository-local GRACE 4 workflow model, immutable change contracts, scope controls, verification projection, evidence language, and acceptance protocol.</Summary>
+    </M-GRACE-CONTROL-LAYER>
+    <M-CI-BASELINE>
+      <Summary>Repository-owned CI entrypoint and thin pull-request/master orchestration for source, correctness, architecture-security, and permanent S0/S1 proving-slice gates.</Summary>
+      <Path>scripts/ci/Invoke-WorldlineCi.ps1</Path>
+      <Path>scripts/ci/Test-WorldlineArchitecture.ps1</Path>
+      <Path>.github/workflows/pr.yml</Path>
+      <Path>.github/workflows/master.yml</Path>
+      <Path>.github/pull_request_template.md</Path>
+      <M-GRACE-CONTROL-LAYER />
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-REFERENCE-PROVING-SLICE />
+    </M-CI-BASELINE>
+  </GD-MAIN>
+</GraceGraphDocument>

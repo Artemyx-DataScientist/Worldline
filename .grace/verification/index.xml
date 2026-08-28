@@ -1,0 +1,13 @@
+<GraceVerificationIndex graceVersion="4.0">
+  <VerificationDocuments>
+    <VD-MAIN>
+      <Path>verification/main.xml</Path>
+      <Owns>
+        <V-M-KERNEL-CAPABILITY-RUNTIME />
+        <V-M-REFERENCE-PROVING-SLICE />
+        <V-M-GRACE-CONTROL-LAYER />
+        <V-M-CI-BASELINE />
+      </Owns>
+    </VD-MAIN>
+  </VerificationDocuments>
+</GraceVerificationIndex>

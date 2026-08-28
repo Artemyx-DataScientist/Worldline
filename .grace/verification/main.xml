@@ -1,0 +1,50 @@
+<GraceVerificationDocument graceVersion="4.0">
+  <VD-MAIN>
+    <V-M-KERNEL-CAPABILITY-RUNTIME>
+      <TestFiles>
+        <File>crates/worldline-kernel/tests/runtime_acceptance.rs</File>
+        <File>crates/worldline-kernel/tests/runtime_v1_acceptance.rs</File>
+        <File>crates/worldline-kernel/tests/security_acceptance.rs</File>
+        <File>crates/worldline-kernel/tests/state_acceptance.rs</File>
+        <File>crates/worldline-kernel/tests/rpc_event_acceptance.rs</File>
+      </TestFiles>
+      <Command>cargo test -p worldline-kernel</Command>
+      <Scenario>Lifecycle, capability authorization, state recovery, RPC, and typed-event acceptance suites pass without browser, model, or UI special cases in the kernel.</Scenario>
+      <TraceAssertion>Event subscribers cannot determine an RPC result, trace context does not confer authority, and durable event delivery never silently downgrades.</TraceAssertion>
+    </V-M-KERNEL-CAPABILITY-RUNTIME>
+    <V-M-REFERENCE-PROVING-SLICE>
+      <TestFiles>
+        <File>crates/worldline-reference/tests/boundary_acceptance.rs</File>
+      </TestFiles>
+      <Command>cargo test -p worldline-reference --test boundary_acceptance</Command>
+      <Command>cargo run -p worldline-demo</Command>
+      <Scenario>S0 and S1 compose replaceable reference plugin families through public kernel contracts and preserve state while replacing runtime identity and authority across restart.</Scenario>
+      <TraceAssertion>The proving path reports separate RPC and event outcomes and remains runnable as a single host-level scenario.</TraceAssertion>
+    </V-M-REFERENCE-PROVING-SLICE>
+    <V-M-GRACE-CONTROL-LAYER>
+      <TestFiles>
+        <File>AGENTS.md</File>
+        <File>docs/grace/README.md</File>
+      </TestFiles>
+      <Command>grace lint --path . --assertions current</Command>
+      <Scenario>Context, graph, verification routing, active bundle identities, statuses, assertions, and scopes are accepted by GRACE 4.0.4.</Scenario>
+      <TraceAssertion>Spec approval and plan approval remain distinct, and approved plans are never mutated in place.</TraceAssertion>
+    </V-M-GRACE-CONTROL-LAYER>
+    <V-M-CI-BASELINE>
+      <TestFiles>
+        <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+        <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+        <File>.github/workflows/pr.yml</File>
+        <File>.github/workflows/master.yml</File>
+        <File>.github/pull_request_template.md</File>
+      </TestFiles>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      <Scenario>Repository-owned local CI runs pinned source and correctness gates, architecture-security checks, and permanent S0/S1 proving evidence; PR and master workflows remain thin hosted orchestration.</Scenario>
+      <TraceAssertion>Every required workflow job calls the same local runner, kernel dependency direction remains outward-only, and local evidence is not promoted to an unobserved GitHub run.</TraceAssertion>
+    </V-M-CI-BASELINE>
+  </VD-MAIN>
+</GraceVerificationDocument>

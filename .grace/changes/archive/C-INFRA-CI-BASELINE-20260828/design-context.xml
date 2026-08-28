@@ -1,0 +1,12 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <C-INFRA-CI-BASELINE-20260828>
+    <Rationale>Worldline needs CI to enforce the same architectural boundaries as its roadmap. The first implementation is deliberately small: fast local suites and PR/master orchestration before nightly and release engineering exist.</Rationale>
+    <Decision>Bootstrap canonical GRACE 4 first, commit the living CI/CD policy as engineering governance, then execute CI implementation only after separate plan approval.</Decision>
+    <Alternatives>
+      <Alternative rejected="true">Put all verification commands directly in GitHub YAML. Rejected because local parity and failure ownership would be lost.</Alternative>
+      <Alternative rejected="true">Create nightly and publishing workflows immediately. Rejected because the current product has no distributable application and the policy stages those capabilities later.</Alternative>
+      <Alternative rejected="true">Treat event tests as ordinary unit coverage. Rejected because EVENT BUS IS NOT RPC is an architecture gate.</Alternative>
+    </Alternatives>
+    <ApprovalBoundary>The approved spec fixes intent and scope. Approval of this document does not approve plan.xml; plan approval must name the executable artifact separately.</ApprovalBoundary>
+  </C-INFRA-CI-BASELINE-20260828>
+</GraceChangeDesignContext>

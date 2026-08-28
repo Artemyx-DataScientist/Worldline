@@ -1,0 +1,13 @@
+<GraceGraphIndex graceVersion="4.0">
+  <GraphDocuments>
+    <GD-MAIN>
+      <Path>graph/main.xml</Path>
+      <Owns>
+        <M-KERNEL-CAPABILITY-RUNTIME />
+        <M-REFERENCE-PROVING-SLICE />
+        <M-GRACE-CONTROL-LAYER />
+        <M-CI-BASELINE />
+      </Owns>
+    </GD-MAIN>
+  </GraphDocuments>
+</GraceGraphIndex>

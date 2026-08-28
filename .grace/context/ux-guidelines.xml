@@ -1,0 +1,7 @@
+<GraceUXGuidelines graceVersion="4.0">
+  <Applicability>applicable</Applicability>
+  <Audience>People working across related pages, tools, notes, files, agent runs, and long-lived workspaces.</Audience>
+  <Guideline>The environment should feel aware of the current activity rather than present an empty browser or a detached chatbot.</Guideline>
+  <Guideline>Agent actions remain visible, inspectable, interruptible, and confirmation-gated before consequential external side effects.</Guideline>
+  <Guideline>History is presented as activity, decisions, results, and open questions rather than only URLs and timestamps.</Guideline>
+</GraceUXGuidelines>

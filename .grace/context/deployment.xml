@@ -1,0 +1,5 @@
+<GraceDeployment graceVersion="4.0">
+  <Applicability>applicable</Applicability>
+  <Target>Development and CI on Windows and Linux; distributable desktop application targets are deferred until the roadmap reaches packaging.</Target>
+  <Notes>CI proves commits. Publishing requires an explicitly selected immutable release. Master must never imply automatic user deployment.</Notes>
+</GraceDeployment>

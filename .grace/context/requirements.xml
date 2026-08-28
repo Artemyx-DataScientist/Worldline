@@ -1,0 +1,21 @@
+<GraceRequirements graceVersion="4.0">
+  <ProjectName>Worldline</ProjectName>
+  <Annotation>Userland operating environment for the Internet built from capability-provided plugins above a generic Rust kernel.</Annotation>
+  <Keywords>Rust, plugin runtime, capabilities, browser, agents, UI composition, workspaces, activity memory</Keywords>
+  <Goals>
+    <Goal>Preserve what the user was doing, why they were doing it, and what resulted instead of storing only pages and URLs.</Goal>
+    <Goal>Provide browser, agent, UI, memory, search, and integration behavior through replaceable plugins.</Goal>
+    <Goal>Keep one runnable end-to-end proving slice from the earliest kernel build through each roadmap milestone.</Goal>
+  </Goals>
+  <Users>
+    <User>People doing long-running research, development, purchasing, writing, and monitoring work on the Internet.</User>
+    <User>Plugin authors integrating browser engines, models, UI surfaces, storage, search, and external tools.</User>
+  </Users>
+  <Constraints>
+    <Constraint>Nothing above the kernel receives hidden privilege or product-specific special treatment.</Constraint>
+    <Constraint>Capability authority is default-deny and auditable.</Constraint>
+    <Constraint>RPC and event transport retain separate semantics, failure behavior, and authority.</Constraint>
+    <Constraint>Event sourcing is never the automatic storage model for every domain.</Constraint>
+    <Constraint>External side effects require visible intent and explicit confirmation at the policy boundary.</Constraint>
+  </Constraints>
+</GraceRequirements>
