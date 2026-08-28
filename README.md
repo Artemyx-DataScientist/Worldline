@@ -4,6 +4,10 @@ Worldline строится как модульный информационны�
 браузерная автоматизация и AI-провайдеры подключаются отдельными plugins, а
 пользователь сам выбирает провайдера и условия его использования.
 
+Worldline is a modular, user-controlled AI browser kernel for web parsing and
+browser automation. Users bring their own AI provider; providers integrate as
+isolated plugins behind capability-based authorization.
+
 Это Rust workspace для Grace Changes `C-KERNEL-PLUGIN-RUNTIME-BOOTSTRAP-20260827`
 и `C-KERNEL-CAPABILITY-SECURITY-20260828`. Ядро намеренно не знает о browser
 engine, LLM, UI, истории, вкладках или конкретном agent runtime.
