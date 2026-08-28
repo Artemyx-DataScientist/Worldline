@@ -50,3 +50,9 @@ cargo run -p worldline-demo
 
 Toolchain проекта закреплён на последнем доступном стабильном Rust `1.98.0`,
 edition — `2024`.
+
+## Лицензия
+
+Worldline распространяется на условиях двойной лицензии `MIT OR Apache-2.0`.
+Подробности находятся в файлах [LICENSE-MIT](LICENSE-MIT) и
+[LICENSE-APACHE](LICENSE-APACHE).
