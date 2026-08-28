@@ -1,4 +1,4 @@
-use crate::EffectCleanupError;
+use crate::{EffectCleanupError, LifecycleScopeId};
 
 pub struct OwnedEffect {
     label: String,
@@ -28,12 +28,17 @@ impl OwnedEffect {
 }
 
 pub(crate) struct LifecycleScope {
+    id: LifecycleScopeId,
     effects: Vec<OwnedEffect>,
 }
 
 impl LifecycleScope {
-    pub(crate) fn new(effects: Vec<OwnedEffect>) -> Self {
-        Self { effects }
+    pub(crate) fn new(id: LifecycleScopeId, effects: Vec<OwnedEffect>) -> Self {
+        Self { id, effects }
+    }
+
+    pub(crate) fn id(&self) -> LifecycleScopeId {
+        self.id
     }
 
     pub(crate) fn into_effects(self) -> Vec<OwnedEffect> {

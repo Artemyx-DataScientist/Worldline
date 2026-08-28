@@ -252,6 +252,19 @@ fn provider_replacement_keeps_consumer_contract_and_live_handle() {
         .expect("consumer handle lock is not poisoned")
         .clone()
         .expect("consumer must have a capability handle");
+    let consumer_principal = kernel
+        .principal_for_plugin(&consumer_id)
+        .expect("consumer principal must be registered");
+    kernel
+        .create_root_grant(
+            consumer_principal,
+            capability.contract(),
+            ["greet"],
+            worldline_kernel::ResourceScope::Any,
+            false,
+            worldline_kernel::GrantLifetime::Persistent,
+        )
+        .expect("consumer grant must be created");
 
     assert_eq!(
         String::from_utf8(handle.invoke("greet", b"Worldline").expect("A must answer"))

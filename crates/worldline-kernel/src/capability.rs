@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{CapabilityError, PluginId};
+use crate::PluginId;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct InterfaceVersion {
@@ -62,6 +62,10 @@ impl CapabilityId {
 
     pub const fn interface_version(&self) -> InterfaceVersion {
         self.interface_version
+    }
+
+    pub fn contract(&self) -> crate::CapabilityContract {
+        crate::CapabilityContract::from(self)
     }
 
     pub fn is_well_formed(&self) -> bool {
@@ -124,6 +128,14 @@ impl CapabilityDependency {
 
 pub trait CapabilityService: Send + Sync {
     fn invoke(&self, operation: &str, payload: &[u8]) -> Result<Vec<u8>, String>;
+
+    fn invoke_with_context(
+        &self,
+        context: &crate::InvocationContext,
+        payload: &[u8],
+    ) -> Result<Vec<u8>, String> {
+        self.invoke(context.operation().as_str(), payload)
+    }
 }
 
 pub(crate) struct CapabilityPublication {
@@ -190,7 +202,7 @@ impl CapabilityRegistry {
             .map(|(_, provider, _)| provider)
     }
 
-    fn resolve(
+    pub(crate) fn resolve(
         &self,
         required: &CapabilityId,
         excluded: &BTreeSet<PluginId>,
@@ -226,48 +238,5 @@ impl CapabilityRegistry {
         }
 
         selected
-    }
-}
-
-#[derive(Clone)]
-pub struct CapabilityHandle {
-    required: CapabilityId,
-    registry: Arc<CapabilityRegistry>,
-}
-
-impl CapabilityHandle {
-    pub fn id(&self) -> &CapabilityId {
-        &self.required
-    }
-
-    pub fn is_available(&self) -> bool {
-        self.registry.has_provider(&self.required)
-    }
-
-    pub fn invoke(&self, operation: &str, payload: &[u8]) -> Result<Vec<u8>, CapabilityError> {
-        let Some((_, _, service)) = self.registry.resolve(&self.required, &BTreeSet::new()) else {
-            return Err(CapabilityError::Unavailable {
-                capability: self.required.clone(),
-            });
-        };
-        service
-            .invoke(operation, payload)
-            .map_err(|message| CapabilityError::InvocationFailed {
-                capability: self.required.clone(),
-                message,
-            })
-    }
-
-    pub(crate) fn new(required: CapabilityId, registry: Arc<CapabilityRegistry>) -> Self {
-        Self { required, registry }
-    }
-}
-
-impl fmt::Debug for CapabilityHandle {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("CapabilityHandle")
-            .field("required", &self.required)
-            .finish_non_exhaustive()
     }
 }

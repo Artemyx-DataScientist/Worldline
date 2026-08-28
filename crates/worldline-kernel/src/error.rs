@@ -1,6 +1,9 @@
 use std::{any::Any, error::Error, fmt};
 
-use crate::{CapabilityId, PluginId};
+use crate::{
+    CapabilityId, DenialReason, InvocationId, OperationId, PluginId, PrincipalId, ResourceId,
+    SecurityError,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PluginError {
@@ -48,10 +51,55 @@ pub enum CapabilityError {
     Unavailable {
         capability: CapabilityId,
     },
+    PrincipalUnavailable {
+        principal: PrincipalId,
+    },
+    Denied {
+        invocation: InvocationId,
+        caller: PrincipalId,
+        capability: Box<CapabilityId>,
+        operation: OperationId,
+        resource: Box<ResourceId>,
+        reason: DenialReason,
+    },
     InvocationFailed {
         capability: CapabilityId,
         message: String,
     },
+}
+
+impl CapabilityError {
+    pub fn denial_reason(&self) -> Option<DenialReason> {
+        match self {
+            Self::Denied { reason, .. } => Some(*reason),
+            _ => None,
+        }
+    }
+
+    pub fn invocation_id(&self) -> Option<&InvocationId> {
+        match self {
+            Self::Denied { invocation, .. } => Some(invocation),
+            _ => None,
+        }
+    }
+
+    pub fn caller(&self) -> Option<&PrincipalId> {
+        match self {
+            Self::Denied { caller, .. } => Some(caller),
+            _ => None,
+        }
+    }
+
+    pub fn capability(&self) -> Option<&CapabilityId> {
+        match self {
+            Self::Unavailable { capability } | Self::InvocationFailed { capability, .. } => {
+                Some(capability)
+            }
+            Self::Denied { capability, .. } => Some(capability),
+            Self::UndeclaredDependency { capability, .. } => Some(capability),
+            Self::PrincipalUnavailable { .. } => None,
+        }
+    }
 }
 
 impl fmt::Display for CapabilityError {
@@ -67,6 +115,20 @@ impl fmt::Display for CapabilityError {
             Self::Unavailable { capability } => {
                 write!(formatter, "capability '{capability}' is unavailable")
             }
+            Self::PrincipalUnavailable { principal } => {
+                write!(formatter, "principal '{principal}' is unavailable")
+            }
+            Self::Denied {
+                caller,
+                capability,
+                operation,
+                resource,
+                reason,
+                ..
+            } => write!(
+                formatter,
+                "principal '{caller}' is denied operation '{operation}' on capability '{capability}' for resource '{resource}': {reason}"
+            ),
             Self::InvocationFailed {
                 capability,
                 message,
@@ -123,6 +185,7 @@ pub enum KernelError {
     UnknownPlugin { id: PluginId },
     InvalidDefinition { id: PluginId, reason: String },
     PluginDefinitionPanicked { message: String },
+    Security(SecurityError),
 }
 
 impl fmt::Display for KernelError {
@@ -138,11 +201,18 @@ impl fmt::Display for KernelError {
             Self::PluginDefinitionPanicked { message } => {
                 write!(formatter, "plugin definition panicked: {message}")
             }
+            Self::Security(error) => error.fmt(formatter),
         }
     }
 }
 
 impl Error for KernelError {}
+
+impl From<SecurityError> for KernelError {
+    fn from(error: SecurityError) -> Self {
+        Self::Security(error)
+    }
+}
 
 pub(crate) fn panic_message(payload: &(dyn Any + Send)) -> String {
     if let Some(message) = payload.downcast_ref::<&str>() {

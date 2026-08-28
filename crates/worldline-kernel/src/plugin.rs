@@ -6,11 +6,10 @@ use std::{
 
 use crate::{
     CapabilityError, PluginError,
-    capability::{
-        CapabilityHandle, CapabilityId, CapabilityPublication, CapabilityRegistry,
-        CapabilityService, DependencyKind,
-    },
+    capability::{CapabilityId, CapabilityPublication, CapabilityService, DependencyKind},
     effect::{LifecycleScope, OwnedEffect},
+    invocation::{CapabilityHandle, InvocationBroker},
+    security::{LifecycleScopeId, PrincipalId},
 };
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -135,20 +134,29 @@ impl PluginRuntime for NoopRuntime {
 
 pub struct ActivationContext {
     plugin_id: PluginId,
+    principal: PrincipalId,
+    scope_id: LifecycleScopeId,
     dependencies: BTreeMap<CapabilityId, DependencyKind>,
     declared_capabilities: BTreeSet<CapabilityId>,
-    registry: Arc<CapabilityRegistry>,
+    broker: Arc<InvocationBroker>,
     effects: Vec<OwnedEffect>,
     publications: Vec<CapabilityPublication>,
 }
 
 impl ActivationContext {
-    pub(crate) fn new(definition: &PluginDefinition, registry: Arc<CapabilityRegistry>) -> Self {
+    pub(crate) fn new(
+        definition: &PluginDefinition,
+        principal: PrincipalId,
+        scope_id: LifecycleScopeId,
+        broker: Arc<InvocationBroker>,
+    ) -> Self {
         Self {
             plugin_id: definition.id.clone(),
+            principal,
+            scope_id,
             dependencies: definition.dependencies.clone(),
             declared_capabilities: definition.provides.clone(),
-            registry,
+            broker,
             effects: Vec::new(),
             publications: Vec::new(),
         }
@@ -156,6 +164,14 @@ impl ActivationContext {
 
     pub fn plugin_id(&self) -> &PluginId {
         &self.plugin_id
+    }
+
+    pub fn principal(&self) -> &PrincipalId {
+        &self.principal
+    }
+
+    pub fn lifecycle_scope_id(&self) -> LifecycleScopeId {
+        self.scope_id
     }
 
     pub fn capability(
@@ -170,7 +186,8 @@ impl ActivationContext {
         }
         Ok(CapabilityHandle::new(
             capability.clone(),
-            Arc::clone(&self.registry),
+            self.principal.clone(),
+            Arc::clone(&self.broker),
         ))
     }
 
@@ -207,6 +224,9 @@ impl ActivationContext {
     }
 
     pub(crate) fn into_parts(self) -> (LifecycleScope, Vec<CapabilityPublication>) {
-        (LifecycleScope::new(self.effects), self.publications)
+        (
+            LifecycleScope::new(self.scope_id, self.effects),
+            self.publications,
+        )
     }
 }

@@ -1,8 +1,9 @@
 use std::sync::{Arc, Mutex};
 
 use worldline_kernel::{
-    ActivationContext, CapabilityHandle, CapabilityId, CapabilityService, InterfaceVersion, Kernel,
-    NoopRuntime, Plugin, PluginDefinition, PluginError, PluginRuntime,
+    ActivationContext, CapabilityHandle, CapabilityId, CapabilityService, GrantLifetime,
+    InterfaceVersion, Kernel, NoopRuntime, Plugin, PluginDefinition, PluginError, PluginRuntime,
+    ResourceScope,
 };
 
 fn greeting_capability() -> CapabilityId {
@@ -74,7 +75,7 @@ fn main() {
     let handle = Arc::new(Mutex::new(None));
     let mut kernel = Kernel::new();
 
-    kernel
+    let consumer_id = kernel
         .register(ConsumerPlugin {
             definition: PluginDefinition::new("demo-consumer").requires(capability.clone()),
             capability: capability.clone(),
@@ -95,8 +96,29 @@ fn main() {
         .expect("consumer handle lock is not poisoned")
         .clone()
         .expect("consumer must be active");
+    let consumer_principal = kernel
+        .principal_for_plugin(&consumer_id)
+        .expect("consumer principal must be registered");
     println!(
-        "before replacement: {}",
+        "availability (provider is active): {}",
+        consumer_handle.is_available()
+    );
+    println!(
+        "before grant: {:?}",
+        consumer_handle.invoke("greet", b"Worldline")
+    );
+    let grant = kernel
+        .create_root_grant(
+            consumer_principal,
+            capability.contract(),
+            ["greet"],
+            ResourceScope::Any,
+            false,
+            GrantLifetime::Persistent,
+        )
+        .expect("demo grant must be created");
+    println!(
+        "after grant: {}",
         String::from_utf8(
             consumer_handle
                 .invoke("greet", b"Worldline")
@@ -117,13 +139,20 @@ fn main() {
         .expect("provider A removal must succeed");
 
     println!(
-        "after replacement: {}",
+        "after compatible provider replacement: {}",
         String::from_utf8(
             consumer_handle
                 .invoke("greet", b"Worldline")
                 .expect("provider B must answer"),
         )
         .expect("provider response must be UTF-8")
+    );
+    kernel
+        .revoke_grant(&grant)
+        .expect("demo grant revocation must succeed");
+    println!(
+        "after revoke: {:?}",
+        consumer_handle.invoke("greet", b"Worldline")
     );
     println!("trajectory:");
     for event in kernel.trajectory() {

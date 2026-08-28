@@ -9,7 +9,12 @@ use crate::{
     capability::{CapabilityPublication, CapabilityRegistry},
     effect::LifecycleScope,
     error::panic_message,
+    invocation::{CapabilityHandle, InvocationBroker},
     plugin::{ActivationContext, Plugin, PluginDefinition, PluginId, PluginRuntime},
+    security::{
+        CapabilityGrant, GrantId, GrantRequest, GrantStatus, LifecycleScopeId, Principal,
+        PrincipalId, PrincipalKind, SecurityError,
+    },
     trajectory::{LifecyclePhase, Trajectory, TrajectoryEvent, TrajectoryEventKind},
 };
 
@@ -47,6 +52,8 @@ struct PluginRecord {
 
 pub struct Kernel {
     registry: Arc<CapabilityRegistry>,
+    security: Arc<crate::security::SecurityStore>,
+    broker: Arc<InvocationBroker>,
     plugins: std::collections::BTreeMap<PluginId, PluginRecord>,
     trajectory: Trajectory,
 }
@@ -57,12 +64,32 @@ impl Default for Kernel {
     }
 }
 
+impl Drop for Kernel {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
 impl Kernel {
     pub fn new() -> Self {
+        let trajectory = Trajectory::default();
+        let registry = Arc::new(CapabilityRegistry::default());
+        let security = Arc::new(crate::security::SecurityStore::new());
+        let broker = Arc::new(InvocationBroker::new(
+            Arc::clone(&registry),
+            Arc::clone(&security),
+            trajectory.clone(),
+        ));
+        trajectory.push_security(TrajectoryEventKind::PrincipalRegistered {
+            principal: security.system_principal(),
+            kind: PrincipalKind::System,
+        });
         Self {
-            registry: Arc::new(CapabilityRegistry::default()),
+            registry,
+            security,
+            broker,
             plugins: std::collections::BTreeMap::new(),
-            trajectory: Trajectory::default(),
+            trajectory,
         }
     }
 
@@ -93,6 +120,14 @@ impl Kernel {
         }
 
         let id = definition.id().clone();
+        let principal = Principal::new(plugin_principal_id(&id), PrincipalKind::PluginRuntime);
+        if self.security.ensure_principal(principal.clone())? {
+            self.trajectory
+                .push_security(TrajectoryEventKind::PrincipalRegistered {
+                    principal: principal.id().clone(),
+                    kind: principal.kind(),
+                });
+        }
         self.plugins.insert(
             id.clone(),
             PluginRecord {
@@ -172,6 +207,16 @@ impl Kernel {
                 self.deactivate_one_with_state(plugin_id, RuntimeState::Pending);
             }
         }
+        let (direct_grants, descendant_grants) =
+            self.security.revoke_subject(&plugin_principal_id(id));
+        for grant in direct_grants {
+            self.trajectory
+                .push_security(TrajectoryEventKind::GrantRevoked { grant });
+        }
+        for grant in descendant_grants {
+            self.trajectory
+                .push_security(TrajectoryEventKind::GrantAutoRevoked { grant });
+        }
         self.plugins.remove(id);
         self.trajectory
             .push(id.clone(), TrajectoryEventKind::Unregistered);
@@ -191,8 +236,189 @@ impl Kernel {
         self.registry.has_provider(capability)
     }
 
-    pub fn trajectory(&self) -> &[TrajectoryEvent] {
+    pub fn trajectory(&self) -> Vec<TrajectoryEvent> {
         self.trajectory.events()
+    }
+
+    pub fn register_principal(&self, principal: Principal) -> Result<(), SecurityError> {
+        self.security.register_principal(principal.clone())?;
+        self.trajectory
+            .push_security(TrajectoryEventKind::PrincipalRegistered {
+                principal: principal.id().clone(),
+                kind: principal.kind(),
+            });
+        Ok(())
+    }
+
+    pub fn register_principal_id(
+        &self,
+        id: impl Into<PrincipalId>,
+        kind: PrincipalKind,
+    ) -> Result<PrincipalId, SecurityError> {
+        let principal = Principal::new(id, kind);
+        let id = principal.id().clone();
+        self.register_principal(principal)?;
+        Ok(id)
+    }
+
+    pub fn principal(&self, id: &PrincipalId) -> Option<Principal> {
+        self.security.principal(id)
+    }
+
+    pub fn system_principal(&self) -> PrincipalId {
+        self.security.system_principal()
+    }
+
+    pub fn principal_for_plugin(&self, plugin: &PluginId) -> Option<PrincipalId> {
+        let principal = plugin_principal_id(plugin);
+        self.security
+            .principal_exists(&principal)
+            .then_some(principal)
+    }
+
+    pub fn create_grant(&self, request: GrantRequest) -> Result<GrantId, SecurityError> {
+        let grant = self.security.issue(request)?;
+        let id = grant.id().clone();
+        let event = if let Some(parent) = grant.parent_grant() {
+            TrajectoryEventKind::GrantDelegated {
+                grant: id.clone(),
+                parent: parent.clone(),
+                issuer: grant.issuer().clone(),
+                subject: grant.subject().clone(),
+                capability: grant.capability_contract().clone(),
+                allowed_operations: grant.allowed_operations().clone(),
+                resource_scope: grant.resource_scope().clone(),
+                delegable: grant.delegable(),
+                lifetime: grant.lifetime(),
+            }
+        } else {
+            TrajectoryEventKind::GrantCreated {
+                grant: id.clone(),
+                issuer: grant.issuer().clone(),
+                subject: grant.subject().clone(),
+                capability: grant.capability_contract().clone(),
+                allowed_operations: grant.allowed_operations().clone(),
+                resource_scope: grant.resource_scope().clone(),
+                delegable: grant.delegable(),
+                lifetime: grant.lifetime(),
+            }
+        };
+        self.trajectory.push_security(event);
+        Ok(id)
+    }
+
+    pub fn create_root_grant(
+        &self,
+        subject: impl Into<PrincipalId>,
+        capability: impl Into<crate::CapabilityContract>,
+        operations: impl IntoIterator<Item = impl Into<crate::OperationId>>,
+        resource_scope: crate::ResourceScope,
+        delegable: bool,
+        lifetime: crate::GrantLifetime,
+    ) -> Result<GrantId, SecurityError> {
+        let request = GrantRequest::new(self.system_principal(), subject, capability)
+            .allow_operations(operations)
+            .with_resource_scope(resource_scope)
+            .with_delegable(delegable)
+            .with_lifetime(lifetime);
+        self.create_grant(request)
+    }
+
+    pub fn delegate_grant(
+        &self,
+        parent: impl Into<GrantId>,
+        subject: impl Into<PrincipalId>,
+        operations: impl IntoIterator<Item = impl Into<crate::OperationId>>,
+        resource_scope: crate::ResourceScope,
+        lifetime: crate::GrantLifetime,
+    ) -> Result<GrantId, SecurityError> {
+        let parent = parent.into();
+        let parent_grant =
+            self.security
+                .grant(&parent)
+                .ok_or_else(|| SecurityError::UnknownGrant {
+                    grant: parent.clone(),
+                })?;
+        let request = GrantRequest::new(
+            parent_grant.subject().clone(),
+            subject,
+            parent_grant.capability_contract().clone(),
+        )
+        .allow_operations(operations)
+        .with_resource_scope(resource_scope)
+        .with_parent_grant(parent)
+        .with_delegable(parent_grant.delegable())
+        .with_lifetime(lifetime);
+        self.create_grant(request)
+    }
+
+    pub fn grant(&self, id: &GrantId) -> Option<CapabilityGrant> {
+        self.security.grant(id)
+    }
+
+    pub fn revoke_grant(&self, id: &GrantId) -> Result<(), SecurityError> {
+        let revoked = self.security.revoke(id)?;
+        for (index, grant) in revoked.iter().enumerate() {
+            self.trajectory.push_security(if index == 0 {
+                TrajectoryEventKind::GrantRevoked {
+                    grant: grant.clone(),
+                }
+            } else {
+                TrajectoryEventKind::GrantAutoRevoked {
+                    grant: grant.clone(),
+                }
+            });
+        }
+        Ok(())
+    }
+
+    pub fn is_grant_active(&self, id: &GrantId) -> bool {
+        self.security
+            .grant(id)
+            .is_some_and(|grant| grant.status() == GrantStatus::Active)
+    }
+
+    pub fn lifecycle_scope_for(&self, plugin: &PluginId) -> Option<LifecycleScopeId> {
+        self.plugins
+            .get(plugin)
+            .and_then(|record| record.runtime.as_ref())
+            .map(|instance| instance.scope.id())
+    }
+
+    pub fn revoke_lifecycle_scope(&self, scope: LifecycleScopeId) {
+        let revoked = self.security.revoke_lifecycle_scope(scope);
+        for grant in revoked {
+            self.trajectory
+                .push_security(TrajectoryEventKind::GrantAutoRevoked { grant });
+        }
+    }
+
+    pub fn capability_for(
+        &self,
+        caller: impl Into<PrincipalId>,
+        capability: impl Into<crate::CapabilityId>,
+    ) -> Result<CapabilityHandle, crate::CapabilityError> {
+        let caller = caller.into();
+        if !self.security.principal_exists(&caller) {
+            return Err(crate::CapabilityError::PrincipalUnavailable { principal: caller });
+        }
+        Ok(CapabilityHandle::new(
+            capability.into(),
+            caller,
+            Arc::clone(&self.broker),
+        ))
+    }
+
+    /// Submits an invocation to the broker.
+    ///
+    /// Authorization is admission-time. Once the broker admits a request,
+    /// revoking its grant does not cancel the provider call already in flight;
+    /// the revocation affects subsequent admissions.
+    pub fn invoke(
+        &self,
+        request: crate::InvocationRequest,
+    ) -> Result<Vec<u8>, crate::CapabilityError> {
+        self.broker.invoke(request)
     }
 
     fn refresh_dependency_resolution(&mut self) {
@@ -262,7 +488,13 @@ impl Kernel {
         };
         self.trajectory
             .push(id.clone(), TrajectoryEventKind::ActivationStarted);
-        let mut context = ActivationContext::new(&definition, Arc::clone(&self.registry));
+        let scope_id = self.security.allocate_scope();
+        let mut context = ActivationContext::new(
+            &definition,
+            plugin_principal_id(id),
+            scope_id,
+            Arc::clone(&self.broker),
+        );
         let activation = catch_unwind(AssertUnwindSafe(|| plugin.activate(&mut context)));
         let (scope, publications) = context.into_parts();
 
@@ -375,6 +607,7 @@ impl Kernel {
     }
 
     fn cleanup_scope(&mut self, id: &PluginId, scope: LifecycleScope) {
+        self.revoke_lifecycle_scope(scope.id());
         for effect in scope.into_effects().into_iter().rev() {
             let label = effect.label().to_owned();
             self.trajectory.push(
@@ -551,4 +784,8 @@ enum ActivationOutcome {
     Activated,
     Failed,
     Crashed,
+}
+
+fn plugin_principal_id(plugin: &PluginId) -> PrincipalId {
+    PrincipalId::plugin_runtime(plugin.as_str())
 }
