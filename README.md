@@ -12,8 +12,9 @@ isolated plugins behind capability-based authorization.
 проверяемые критерии выхода описаны в [Worldline Roadmap](ROADMAP.md).
 
 Это Rust workspace для Grace Changes `C-KERNEL-PLUGIN-RUNTIME-BOOTSTRAP-20260827`,
-`C-KERNEL-CAPABILITY-SECURITY-20260828` и
-`C-KERNEL-CAPABILITY-RPC-EVENT-TRANSPORT-20260828`. Ядро намеренно не знает о
+`C-KERNEL-CAPABILITY-SECURITY-20260828`,
+`C-KERNEL-CAPABILITY-RPC-EVENT-TRANSPORT-20260828` и
+`C-KERNEL-PERSISTENCE-RECOVERY-MODEL-20260828`. Ядро намеренно не знает о
 browser engine, LLM, UI, истории, вкладках или конкретном agent runtime.
 
 В workspace входят:
@@ -30,6 +31,9 @@ browser engine, LLM, UI, истории, вкладках или конкрет�
   restart continuity и compatible provider replacement.
 - `worldline-reference` — browser-like, agent-like и UI-like reference
   families, host-local observation fixture и постоянный S0 proving slice.
+- `worldline-storage` — production SQLite StateBackend, transactional outbox,
+  durable EventJournal, metadata-only audit, content-addressed blobs,
+  persistent jobs, backup/restore и hard-kill recovery fixtures.
 
 Boundary decisions M0.2 зафиксированы в
 [ADR-KERNEL-BOUNDARY-V1](docs/adr/ADR-KERNEL-BOUNDARY-V1.md). Reference
@@ -89,13 +93,13 @@ in-flight вызов; он блокирует последующие admissions.
 provider runtime и использует только его собственные grants.
 
 Observation bus из reference crate остаётся минимальным host-local fixture для
-старого S0; kernel Event Transport теперь покрывает M0.4 и не смешивается с
-trajectory или persistence. M0.3 runtime lifecycle primitives не
-притворяются production scheduler: для native in-process plugin cancellation
-остаётся cooperative, а `Hung` изолирует authority и publication логически,
-не убивая произвольный thread. Production crash-safe event persistence,
-transactional outbox, scheduler, blob persistence и CEF/wgpu composition
-остаются следующими отдельными рубежами.
+старого S0; kernel Event Transport не смешивается с trajectory или
+persistence. M0.3 runtime lifecycle primitives не притворяются production
+scheduler: для native in-process plugin cancellation остаётся cooperative, а
+`Hung` изолирует authority и publication логически, не убивая произвольный
+thread. M0.5 теперь закрывает production SQLite state, transactional outbox,
+durable journal, persistent jobs, CAS blobs, backup/restore и crash/restart
+evidence; CEF/wgpu composition остаётся следующим отдельным рубежом.
 
 ## Проверка
 
@@ -127,8 +131,9 @@ pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All
 - `Architecture-Security`
 - `Proving-Slice`
 
-`Architecture-Security` проверяет GRACE layout, направление зависимостей kernel
-и acceptance evidence ядра. `Proving-Slice` сохраняет постоянные S0/S1 gates.
+`Architecture-Security` проверяет GRACE layout, направление зависимостей kernel,
+storage boundary и persistence acceptance evidence. `Proving-Slice` сохраняет
+постоянные S0/S1 gates и production-backed persistence acceptance.
 Workflow-файлы `.github/workflows/pr.yml` и `.github/workflows/master.yml`
 остаются тонкой GitHub Actions orchestration; verification logic принадлежит
 локальному PowerShell runner.

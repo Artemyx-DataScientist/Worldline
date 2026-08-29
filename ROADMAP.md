@@ -18,8 +18,11 @@
 - **M0.4 — Done.** Capability RPC and typed event transport закрыты bounded
   RPC, default-deny event authority, runtime-scoped subscriptions, logical
   durable delivery и S1 proving slice.
-- **M0.5 — Next.** Следующий implementation milestone — Persistence and
-  Recovery Model.
+- **M0.5 — Done.** Persistence and Recovery Model закрыт production SQLite
+  state/outbox/journal, selective audit, CAS blobs, persistent jobs,
+  backup/restore, hard-kill recovery tests и production-backed S1.
+- **M0.6 — Next.** Следующий implementation milestone — Stable IPC and WASM
+  Component Boundary.
 
 ## 1. Куда идёт Worldline
 
@@ -310,17 +313,16 @@ Browser, agent и UI plugins используют один runtime; браузе
 - S1 proving slice, который связывает RPC result, независимое event
   observation и state continuity после host restart.
 
-`worldline-demo` сохраняет S0 и теперь запускает S1: показывает availability,
+`worldline-demo` сохраняет S0 и запускает S1: показывает availability,
 authorization, grant/revoke, provider replacement, независимое typed event
-observation и state continuity после host restart. Следующий proving change
-должен расширить этот путь вместе с M0.5 persistence/recovery, а не заменить
-его новым изолированным subsystem demo.
+observation и state continuity после host restart. M0.5 расширяет тот же
+proving path production-backed persistence/recovery evidence, не заменяя его
+новым изолированным subsystem demo.
 
-M0.1–M0.4 закрыты своими acceptance gates. Текущий активный gate — M0.5:
-production persistence/recovery, transactional outbox boundary и доказуемая
-crash/restart семантика для выбранных bounded domains. Логический
-`InMemoryEventJournal` из M0.4 намеренно не является crash-safe persistence и
-не заменяет M0.5.
+M0.1–M0.5 закрыты своими acceptance gates. Текущий активный gate — M0.6:
+stable IPC and WASM Component Boundary. Логический `InMemoryEventJournal` из
+M0.4 намеренно не является crash-safe persistence; production persistence
+теперь принадлежит M0.5 и реализован в `worldline-storage`.
 
 Статус **Done** разрешено ставить только когда соответствующий exit criterion
 покрыт acceptance-тестами и весь workspace проходит:
@@ -455,7 +457,7 @@ causality vocabulary, но имеют разные APIs, delivery contracts, fai
 acceptance suites. Evidence: RPC/event acceptance tests, S1 restart proof,
 `ADR-CAPABILITY-RPC-EVENT-TRANSPORT-V1` и полный workspace verification.
 
-### M0.5 — Persistence and recovery model
+### M0.5 — Persistence and recovery model — Done
 
 Для каждого bounded domain отдельный ADR выбирает source of truth:
 
@@ -488,7 +490,13 @@ Exit criterion: после crash каждый domain либо восстанав
 state, либо явно отмечает незавершённую операцию; event bus не используется как
 database; большие и секретные payloads не попадают в audit log по умолчанию.
 
-### M0.6 — Stable IPC and WASM Component Boundary
+Evidence: `ADR-PERSISTENCE-RECOVERY-V1`, generic kernel persistence contracts,
+production `worldline-storage`, contract and hard-kill acceptance suites,
+production-backed persistence S1, backup/restore validation и repository-owned
+`All` suite. Локальный evidence не объявляет hosted CI run без именованного
+GitHub Actions результата.
+
+### M0.6 — Stable IPC and WASM Component Boundary — Next
 
 - выбрать и закрепить поддерживаемую версию WASM Component Model/WASI;
 - определить единый logical contract и adapters для builtin Rust, native IPC и
