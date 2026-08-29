@@ -206,4 +206,31 @@ $forbiddenDependencies = @($forbiddenDependencies | Sort-Object -Unique)
 
 Assert-Condition ($forbiddenDependencies.Count -eq 0) ("worldline-kernel must not depend on another Worldline workspace crate: " + ($forbiddenDependencies -join ', '))
 
+$storagePackages = @($workspacePackages | Where-Object { $_.name -eq 'worldline-storage' })
+Assert-Condition ($storagePackages.Count -eq 1) 'Cargo metadata must contain exactly one worldline-storage workspace package.'
+$storagePackage = $storagePackages[0]
+$storageDependencyNames = @($storagePackage.dependencies | ForEach-Object { [string]$_.name })
+Assert-Condition ($storageDependencyNames -contains 'worldline-kernel') 'worldline-storage must depend on worldline-kernel contracts.'
+
+$kernelManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-kernel/Cargo.toml') -Raw
+foreach ($forbiddenToken in @('worldline-storage', 'rusqlite', 'sha2', 'SqliteStateBackend')) {
+    Assert-Condition (-not $kernelManifest.Contains($forbiddenToken)) "worldline-kernel manifest must not mention ${forbiddenToken}."
+}
+$kernelSourceFiles = @(Get-ChildItem -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-kernel/src') -Filter '*.rs' -File -Recurse)
+foreach ($sourceFile in $kernelSourceFiles) {
+    $sourceText = Get-Content -LiteralPath $sourceFile.FullName -Raw
+    foreach ($forbiddenToken in @('rusqlite', 'SqliteStateBackend', 'worldline_storage')) {
+        Assert-Condition (-not $sourceText.Contains($forbiddenToken)) "Kernel source '$($sourceFile.Name)' must not mention ${forbiddenToken}."
+    }
+}
+
+$storageManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-storage/Cargo.toml') -Raw
+Assert-Condition ($storageManifest.Contains('test-failpoints = []')) 'Storage failpoints must be an opt-in feature.'
+Assert-Condition (-not $storageManifest.Contains('default = ["test-failpoints"]')) 'Storage failpoints must not be enabled by default.'
+$storageSourceFiles = @(Get-ChildItem -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-storage/src') -Filter '*.rs' -File -Recurse)
+foreach ($sourceFile in $storageSourceFiles) {
+    $sourceText = Get-Content -LiteralPath $sourceFile.FullName -Raw
+    Assert-Condition (-not $sourceText.Contains('InMemoryStateBackend')) "Storage source '$($sourceFile.Name)' must not provide an in-memory fallback."
+}
+
 Write-Host 'Architecture guard passed: GRACE layout and kernel dependency direction are valid.'
