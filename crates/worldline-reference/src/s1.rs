@@ -1,12 +1,17 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 use worldline_kernel::{
-    ActivationContext, CapabilityId, CapabilityService, EventContract, EventEnvelope,
-    EventPublishOptions, GrantLifetime, InMemoryStateBackend, InterfaceVersion, Kernel,
-    NoopRuntime, Plugin, PluginDefinition, PluginError, PluginRuntime, PrincipalId, PrincipalKind,
-    ResourceId, ResourceScope, RpcCallOptions, RuntimeStateHandle, SubscriptionHandle,
-    SubscriptionOptions, TraceContext,
+    ActivationContext, CapabilityId, CapabilityService, CausationRef, DeliveryMode, EventContract,
+    EventEnvelope, EventJournal, EventPublishOptions, GrantLifetime, InMemoryStateBackend,
+    InterfaceVersion, Kernel, NoopRuntime, OutboxRecord, OutboxStore, Plugin, PluginDefinition,
+    PluginError, PluginRuntime, PrincipalId, PrincipalKind, ResourceId, ResourceScope,
+    RpcCallOptions, RuntimeStateHandle, StateBackend, SubscriptionHandle, SubscriptionOptions,
+    TraceContext,
 };
+use worldline_storage::{SqliteEventJournal, SqliteStateBackend};
 
 fn source_capability() -> CapabilityId {
     CapabilityId::new(
@@ -47,6 +52,7 @@ pub struct S1Report {
 struct StatefulService {
     state: Arc<Mutex<Option<RuntimeStateHandle>>>,
     event: EventContract,
+    durable_outbox: bool,
 }
 
 impl CapabilityService for StatefulService {
@@ -77,7 +83,32 @@ impl CapabilityService for StatefulService {
         transaction
             .put("committed-count", current.to_string().as_bytes())
             .map_err(|error| error.to_string())?;
-        transaction.commit().map_err(|error| error.to_string())?;
+        if self.durable_outbox {
+            let event = EventEnvelope::from_parts(
+                worldline_kernel::EventId::new(format!("s1-outbox-event-{current}")),
+                self.event.clone(),
+                context.provider().clone(),
+                Some(context.provider_runtime_id()),
+                current,
+                context.trace_context().correlation_id().clone(),
+                Some(CausationRef::Invocation(context.invocation_id().clone())),
+                DeliveryMode::Durable,
+                payload.to_vec(),
+                None,
+            );
+            let outbox = OutboxRecord::new(
+                format!("s1-outbox-{current}"),
+                state.installation_id().clone(),
+                event,
+                current,
+                current,
+            );
+            transaction
+                .commit_with_outbox(outbox)
+                .map_err(|error| error.to_string())?;
+        } else {
+            transaction.commit().map_err(|error| error.to_string())?;
+        }
         context
             .publish_event(self.event.clone(), payload, EventPublishOptions::default())
             .map_err(|error| error.to_string())?;
@@ -92,12 +123,21 @@ struct StatefulProvider {
 }
 
 impl StatefulProvider {
-    fn new(plugin: &str, capability: CapabilityId, event: EventContract) -> Self {
+    fn new_with_outbox(
+        plugin: &str,
+        capability: CapabilityId,
+        event: EventContract,
+        durable_outbox: bool,
+    ) -> Self {
         let state = Arc::new(Mutex::new(None));
         Self {
             definition: PluginDefinition::new(plugin).provides(capability.clone()),
             capability,
-            service: Arc::new(StatefulService { state, event }),
+            service: Arc::new(StatefulService {
+                state,
+                event,
+                durable_outbox,
+            }),
         }
     }
 }
@@ -237,18 +277,46 @@ fn read_committed_count(
 /// RPC result and persisted installation state.
 pub fn run() -> Result<S1Report, String> {
     let backend: Arc<dyn worldline_kernel::StateBackend> = Arc::new(InMemoryStateBackend::new());
+    run_with_backend(backend, None, None)
+}
+
+/// Runs S1 with the production SQLite StateBackend, SQLite EventJournal, and
+/// transactional outbox dispatcher. The dispatcher reuses the admitted
+/// envelope from the outbox, so redelivery never allocates a new EventId.
+pub fn run_production(profile_root: impl AsRef<Path>) -> Result<S1Report, String> {
+    let state_backend = Arc::new(
+        SqliteStateBackend::open(profile_root.as_ref()).map_err(|error| error.to_string())?,
+    );
+    let backend: Arc<dyn StateBackend> = state_backend.clone();
+    let outbox: Arc<dyn OutboxStore> = state_backend;
+    let journal: Arc<dyn EventJournal> = Arc::new(
+        SqliteEventJournal::open(profile_root.as_ref()).map_err(|error| error.to_string())?,
+    );
+    run_with_backend(backend, Some(outbox), Some(journal))
+}
+
+fn run_with_backend(
+    backend: Arc<dyn StateBackend>,
+    outbox: Option<Arc<dyn OutboxStore>>,
+    journal: Option<Arc<dyn EventJournal>>,
+) -> Result<S1Report, String> {
     let source = source_capability();
     let follow_up_capability = follow_up_capability();
     let event = observation_contract();
     let control = worldline_kernel::invocation_completed_event_contract();
+    let durable_outbox = outbox.is_some();
 
     let mut first =
         Kernel::with_state_backend(Arc::clone(&backend)).map_err(|error| error.to_string())?;
+    if let Some(journal) = journal.as_ref() {
+        first.set_event_journal(Arc::clone(journal));
+    }
     let source_plugin = first
-        .register(StatefulProvider::new(
+        .register(StatefulProvider::new_with_outbox(
             "s1.stateful.provider",
             source.clone(),
             event.clone(),
+            durable_outbox,
         ))
         .map_err(|error| error.to_string())?;
     let installation = first
@@ -330,12 +398,23 @@ pub fn run() -> Result<S1Report, String> {
     drop(custom_subscription);
     drop(control_subscription);
     drop(first);
+    if let (Some(outbox), Some(journal)) = (outbox.as_ref(), journal.as_ref()) {
+        drain_outbox(outbox.as_ref(), journal.as_ref())?;
+    }
 
     let mut restarted =
         Kernel::with_state_backend(Arc::clone(&backend)).map_err(|error| error.to_string())?;
+    if let Some(journal) = journal.as_ref() {
+        restarted.set_event_journal(Arc::clone(journal));
+    }
     let restarted_source = restarted
         .register_for_installation(
-            StatefulProvider::new("s1.stateful.provider", source.clone(), event.clone()),
+            StatefulProvider::new_with_outbox(
+                "s1.stateful.provider",
+                source.clone(),
+                event.clone(),
+                durable_outbox,
+            ),
             &installation,
         )
         .map_err(|error| error.to_string())?;
@@ -390,6 +469,12 @@ pub fn run() -> Result<S1Report, String> {
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "S1 restarted control observation is missing".to_owned())?;
     let state_after_restart = read_committed_count(&restarted, &installation)?;
+    drop(custom_subscription);
+    drop(control_subscription);
+    drop(restarted);
+    if let (Some(outbox), Some(journal)) = (outbox.as_ref(), journal.as_ref()) {
+        drain_outbox(outbox.as_ref(), journal.as_ref())?;
+    }
 
     Ok(S1Report {
         installation_id: installation.to_string(),
@@ -405,4 +490,19 @@ pub fn run() -> Result<S1Report, String> {
         old_runtime_authority_revoked,
         new_runtime_required_explicit_authority,
     })
+}
+
+fn drain_outbox(outbox: &dyn OutboxStore, journal: &dyn EventJournal) -> Result<(), String> {
+    for pending in outbox.list_pending(64).map_err(|error| error.to_string())? {
+        let delivering = outbox
+            .mark_delivering(pending.outbox_id())
+            .map_err(|error| error.to_string())?;
+        journal
+            .append(delivering.event())
+            .map_err(|error| error.to_string())?;
+        outbox
+            .mark_delivered(delivering.outbox_id())
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }

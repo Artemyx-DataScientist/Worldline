@@ -8,3 +8,4 @@ description = "Reference browser-like, agent-like, and UI-like plugins for World
 
 [dependencies]
 worldline-kernel = { path = "../worldline-kernel" }
+worldline-storage = { path = "../worldline-storage" }
