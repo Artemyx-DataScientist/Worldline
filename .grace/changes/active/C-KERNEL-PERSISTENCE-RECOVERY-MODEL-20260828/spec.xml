@@ -1,0 +1,1600 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-KERNEL-PERSISTENCE-RECOVERY-MODEL-20260828>
+  <ChangeId>C-KERNEL-PERSISTENCE-RECOVERY-MODEL-20260828</ChangeId>
+
+  <Title>
+    Persistence and Recovery Model v1:
+    Crash-Safe State, Transactional Outbox, Durable Journal,
+    Blob Storage and Persistent Scheduler Primitives
+  </Title>
+
+  <Constraints>
+    <Constraint>Production persistence remains behind generic kernel storage contracts; database-specific handles and product-domain types do not cross the plugin boundary.</Constraint>
+    <Constraint>Event transport, audit storage, and derived indexes remain separate from authoritative application state; event sourcing is opt-in per bounded domain.</Constraint>
+    <Constraint>Storage-open and durability failures are explicit and never silently fall back to in-memory storage.</Constraint>
+    <Constraint>Existing M0.1-M0.4 contracts and repository-owned Source, Correctness, ArchitectureSecurity, and ProvingSlice suite names remain stable.</Constraint>
+    <Constraint>In-memory implementations remain available for deterministic unit and contract tests; production proving evidence uses the selected production backend.</Constraint>
+  </Constraints>
+
+  <AffectedAreas>
+    <M-KERNEL-CAPABILITY-RUNTIME />
+    <M-REFERENCE-PROVING-SLICE />
+    <M-CI-BASELINE />
+  </AffectedAreas>
+
+  <VerificationIntent>
+    <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</ExpectedCommand>
+    <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</ExpectedCommand>
+    <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</ExpectedCommand>
+    <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</ExpectedCommand>
+    <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+    <ExpectedEvidence>Fresh local evidence covers production persistence, process-kill recovery, S1 continuity and authority discontinuity; hosted CI remains unverified until a named run exists.</ExpectedEvidence>
+  </VerificationIntent>
+
+  <Summary>
+    Перевести Worldline от корректной in-memory persistence model к первой
+    production persistence/recovery boundary.
+
+    Change должен доказать, что после process crash, hard termination или host
+    restart Worldline способен однозначно определить:
+
+      - какое authoritative state было committed;
+      - какая mutation не была committed;
+      - какие notifications после committed mutation ещё требуют delivery;
+      - какие durable events были приняты journal;
+      - какие scheduler jobs завершены, ожидают wakeup или были прерваны;
+      - какие state migrations/uninstalls завершились;
+      - какие операции имеют неопределённый внешний outcome.
+
+    M0.5 НЕ превращает event transport в database и НЕ переводит Worldline на
+    глобальное event sourcing.
+
+    Для каждого bounded persistence domain должен существовать явный source of
+    truth:
+
+      mutable authoritative state
+        -> transactional state store;
+
+      committed notification intent
+        -> transactional outbox;
+
+      selective audit/control-plane facts
+        -> append-only audit store;
+
+      durable event transport
+        -> event journal;
+
+      large immutable payloads
+        -> content-addressed blob store;
+
+      persistent scheduled work
+        -> job store + scheduler primitives;
+
+      search/read projections
+        -> derived indexes, never authoritative state.
+
+    Production storage implementation выбирается отдельным ADR внутри этого
+    change.
+
+    SQLite является исходным кандидатом для transactional metadata/state,
+    outbox, audit, journal и job state, но не считается архитектурным
+    инвариантом.
+
+    Production backend implementation MUST remain outside product-domain logic
+    and behind storage contracts.
+
+    После этого change S1 proving slice должен проходить не только graceful
+    restart, но и crash/recovery path с production persistence implementation.
+  </Summary>
+
+  <RoadmapAlignment>
+    <Milestone>M0.5 — Persistence and Recovery Model</Milestone>
+
+    <Preconditions>
+      <Precondition>M0.1 — State hardening — Done.</Precondition>
+      <Precondition>M0.2 — Kernel boundary decision — Done.</Precondition>
+      <Precondition>M0.3 — Plugin Runtime v1 — Done.</Precondition>
+      <Precondition>M0.4 — Capability RPC and Event Transport — Done.</Precondition>
+
+      <Precondition>
+        Repository-owned CI baseline exists and future persistence acceptance
+        tests must be reachable through the existing stable CI suites.
+      </Precondition>
+    </Preconditions>
+
+    <Postcondition>
+      После успешного завершения active implementation milestone становится
+      M0.6 — Stable IPC and WASM Component Boundary.
+    </Postcondition>
+  </RoadmapAlignment>
+
+  <ArchitecturalInvariants>
+    <Invariant>
+      EVERY PERSISTED DOMAIN HAS EXACTLY ONE AUTHORITATIVE SOURCE OF TRUTH.
+    </Invariant>
+
+    <Invariant>
+      EVENT PUBLICATION IS NOT PERSISTENCE.
+    </Invariant>
+
+    <Invariant>
+      EVENT JOURNAL IS NOT APPLICATION STATE.
+    </Invariant>
+
+    <Invariant>
+      AUDIT LOG IS NOT APPLICATION STATE.
+    </Invariant>
+
+    <Invariant>
+      DERIVED INDEX IS NEVER AUTHORITATIVE STATE.
+    </Invariant>
+
+    <Invariant>
+      A COMMITTED STATE MUTATION MUST SURVIVE PROCESS CRASH.
+    </Invariant>
+
+    <Invariant>
+      AN UNCOMMITTED STATE MUTATION MUST NOT APPEAR AFTER RECOVERY.
+    </Invariant>
+
+    <Invariant>
+      CAS SEMANTICS MUST SURVIVE PROCESS RESTART.
+    </Invariant>
+
+    <Invariant>
+      STATE AND REQUIRED NOTIFICATION INTENT MUST COMMIT ATOMICALLY
+      WHEN THE DOMAIN REQUIRES BOTH TO SURVIVE.
+    </Invariant>
+
+    <Invariant>
+      OUTBOX DELIVERY MAY BE AT-LEAST-ONCE;
+      EXACTLY-ONCE EXTERNAL EFFECTS ARE NOT CLAIMED.
+    </Invariant>
+
+    <Invariant>
+      OUTBOX REDELIVERY REUSES THE SAME LOGICAL EVENT IDENTITY.
+    </Invariant>
+
+    <Invariant>
+      PROCESS CRASH MUST NEVER TURN AN UNKNOWN EXTERNAL SIDE EFFECT
+      INTO A CLAIMED SUCCESS.
+    </Invariant>
+
+    <Invariant>
+      LARGE OR SECRET PAYLOADS DO NOT ENTER AUDIT LOG BY DEFAULT.
+    </Invariant>
+
+    <Invariant>
+      PRODUCTION STORAGE IMPLEMENTATION IS REPLACEABLE;
+      STORAGE SEMANTICS ARE NOT.
+    </Invariant>
+
+    <Invariant>
+      STORAGE FAILURE MUST BE EXPLICIT.
+      SILENT FALLBACK TO IN-MEMORY STORAGE IS FORBIDDEN.
+    </Invariant>
+
+    <Invariant>
+      BACKUP IS NOT VALID UNTIL RESTORE HAS BEEN PROVEN.
+    </Invariant>
+  </ArchitecturalInvariants>
+
+  <Goals>
+    <Goal>Выбрать и документировать production persistence boundary.</Goal>
+
+    <Goal>
+      Реализовать production StateBackend с crash-safe atomic transactions
+      и optimistic CAS.
+    </Goal>
+
+    <Goal>
+      Сохранить существующие InstallationId/state schema/migration semantics.
+    </Goal>
+
+    <Goal>
+      Реализовать transactional outbox для согласованной state mutation +
+      notification intent.
+    </Goal>
+
+    <Goal>
+      Реализовать production EventJournal для M0.4 Durable delivery contract.
+    </Goal>
+
+    <Goal>
+      Реализовать selective append-only audit/control-plane storage.
+    </Goal>
+
+    <Goal>
+      Реализовать content-addressed blob store для immutable large payloads.
+    </Goal>
+
+    <Goal>
+      Реализовать минимальные persistent scheduler/job primitives.
+    </Goal>
+
+    <Goal>
+      Определить schema/version/retention/backup/redaction/deletion contracts.
+    </Goal>
+
+    <Goal>
+      Добавить deterministic recovery failpoints и real child-process kill tests.
+    </Goal>
+
+    <Goal>
+      Усилить S1 production crash/restart evidence.
+    </Goal>
+  </Goals>
+
+  <NonGoals>
+    <NonGoal>Workspace product persistence.</NonGoal>
+    <NonGoal>Browser history implementation.</NonGoal>
+    <NonGoal>Downloads database.</NonGoal>
+    <NonGoal>Semantic/vector index.</NonGoal>
+    <NonGoal>Telemetry backend implementation beyond required contracts.</NonGoal>
+    <NonGoal>Cloud synchronization.</NonGoal>
+    <NonGoal>Distributed database.</NonGoal>
+    <NonGoal>Distributed scheduler.</NonGoal>
+    <NonGoal>Distributed transactions.</NonGoal>
+    <NonGoal>Exactly-once external side effects.</NonGoal>
+    <NonGoal>Global event sourcing.</NonGoal>
+    <NonGoal>Automatic event sourcing for all state.</NonGoal>
+    <NonGoal>Automatic retry of arbitrary external actions.</NonGoal>
+    <NonGoal>WASM persistence adapter.</NonGoal>
+    <NonGoal>Native IPC.</NonGoal>
+    <NonGoal>Full backup UX.</NonGoal>
+    <NonGoal>Automatic blob garbage collection across unknown domains.</NonGoal>
+  </NonGoals>
+
+  <RequiredADR>
+    <File>docs/adr/ADR-PERSISTENCE-RECOVERY-V1.md</File>
+
+    <RequiredSection>Persistence domains</RequiredSection>
+    <RequiredSection>Source-of-truth table</RequiredSection>
+    <RequiredSection>Kernel versus host/system boundary</RequiredSection>
+    <RequiredSection>Production backend selection</RequiredSection>
+    <RequiredSection>Transaction and durability semantics</RequiredSection>
+    <RequiredSection>Outbox semantics</RequiredSection>
+    <RequiredSection>Scheduler recovery semantics</RequiredSection>
+    <RequiredSection>Blob model</RequiredSection>
+    <RequiredSection>Backup and restore</RequiredSection>
+    <RequiredSection>Retention and deletion</RequiredSection>
+    <RequiredSection>Rejected alternatives</RequiredSection>
+    <RequiredSection>Known limitations</RequiredSection>
+    <RequiredSection>Reopen conditions</RequiredSection>
+
+    <Requirement>
+      ADR MUST explicitly explain why event sourcing is or is not selected for
+      each persisted domain introduced by this change.
+    </Requirement>
+
+    <Requirement>
+      Event sourcing MUST NOT be selected merely because an event transport
+      already exists.
+    </Requirement>
+  </RequiredADR>
+
+  <PersistenceDomainTable>
+    <Domain name="InstallationState">
+      <SourceOfTruth>Transactional State Store</SourceOfTruth>
+      <Mutation>CAS transaction</Mutation>
+    </Domain>
+
+    <Domain name="InstallationMetadata">
+      <SourceOfTruth>Transactional State Store</SourceOfTruth>
+      <Mutation>CAS metadata transition</Mutation>
+    </Domain>
+
+    <Domain name="NotificationIntent">
+      <SourceOfTruth>Transactional Outbox</SourceOfTruth>
+      <Mutation>Atomic with owning state transaction where required</Mutation>
+    </Domain>
+
+    <Domain name="DurableEventTransport">
+      <SourceOfTruth>Event Journal</SourceOfTruth>
+      <Note>
+        Source of truth only for transport acceptance/replay semantics,
+        not for application state.
+      </Note>
+    </Domain>
+
+    <Domain name="Audit">
+      <SourceOfTruth>Selective Append-Only Audit Store</SourceOfTruth>
+    </Domain>
+
+    <Domain name="Blob">
+      <SourceOfTruth>Content-Addressed Blob Store</SourceOfTruth>
+    </Domain>
+
+    <Domain name="ScheduledJob">
+      <SourceOfTruth>Persistent Job Store</SourceOfTruth>
+    </Domain>
+
+    <Domain name="DerivedIndex">
+      <SourceOfTruth>None</SourceOfTruth>
+      <Rule>
+        Index must always be rebuildable from authoritative domain state.
+      </Rule>
+    </Domain>
+  </PersistenceDomainTable>
+
+  <ProductionBackendSelection>
+    <Rule>
+      Change MUST land at least one real production storage implementation.
+    </Rule>
+
+    <Candidate>
+      SQLite is the preferred initial candidate for:
+        - state;
+        - metadata;
+        - outbox;
+        - audit records;
+        - durable event journal;
+        - scheduler job state.
+    </Candidate>
+
+    <Candidate>
+      Content-addressed blobs may use filesystem-backed storage independent from
+      the transactional metadata database.
+    </Candidate>
+
+    <Rule>
+      If SQLite is rejected, ADR must provide measured or architectural evidence
+      and the selected alternative must satisfy the same acceptance criteria.
+    </Rule>
+
+    <Rule>
+      Database-specific types MUST NOT leak through kernel/plugin contracts.
+    </Rule>
+
+    <Rule>
+      worldline-kernel MUST NOT expose SQLite connection handles to plugins.
+    </Rule>
+
+    <PreferredDependencyDirection>
+      host/storage implementation
+        -> kernel storage contracts
+
+      kernel
+        !-> product persistence domain
+    </PreferredDependencyDirection>
+  </ProductionBackendSelection>
+
+  <StateBackendV1>
+    <Requirements>
+      <Requirement>Crash-safe atomic transaction commit.</Requirement>
+      <Requirement>Monotonic StateRevision.</Requirement>
+      <Requirement>Optimistic CAS.</Requirement>
+      <Requirement>Atomic installation metadata transitions.</Requirement>
+      <Requirement>Directed migration support.</Requirement>
+      <Requirement>Explicit transaction failure.</Requirement>
+      <Requirement>Consistent prefix/key listing.</Requirement>
+      <Requirement>Restart persistence.</Requirement>
+      <Requirement>Corruption/open failure surfaced explicitly.</Requirement>
+    </Requirements>
+
+    <Rule>
+      State values remain opaque bytes to the storage backend.
+    </Rule>
+
+    <Rule>
+      State backend must not infer domain semantics from state keys.
+    </Rule>
+
+    <Rule>
+      Ordinary transaction may not mutate schema metadata.
+    </Rule>
+
+    <Rule>
+      Stale pre-crash transaction identity cannot be resurrected after restart.
+    </Rule>
+  </StateBackendV1>
+
+  <DurabilityContract>
+    <Requirement>
+      A successful commit acknowledgement means the implementation has crossed
+      its documented crash-durability boundary.
+    </Requirement>
+
+    <Requirement>
+      Process termination after successful commit must not lose committed state
+      under supported filesystem/storage assumptions.
+    </Requirement>
+
+    <Requirement>
+      Crash before commit acknowledgement may result only in:
+        - previous committed state;
+        - or new fully committed state if commit actually crossed durability
+          boundary before termination.
+
+      Torn logical transaction is forbidden.
+    </Requirement>
+
+    <Requirement>
+      Backend documentation states operating-system/filesystem assumptions.
+    </Requirement>
+
+    <Requirement>
+      If SQLite is selected, durability-related PRAGMA/configuration is explicit
+      and covered by ADR rather than relying on library defaults.
+    </Requirement>
+  </DurabilityContract>
+
+  <PersistentFormat>
+    <Requirement>
+      Storage layout/database schema has explicit format version.
+    </Requirement>
+
+    <Requirement>
+      Storage format version is independent from:
+        - Worldline product version;
+        - plugin version;
+        - capability version;
+        - installation state schema.
+    </Requirement>
+
+    <Requirement>
+      Unsupported newer format fails closed with explicit error.
+    </Requirement>
+
+    <Requirement>
+      No destructive automatic downgrade.
+    </Requirement>
+  </PersistentFormat>
+
+  <TransactionalOutbox>
+    <Purpose>
+      Prevent committed domain mutation from losing a required notification
+      because the process crashed between state commit and event publication.
+    </Purpose>
+
+    <OutboxRecord>
+      <Field>OutboxId</Field>
+      <Field>EventId</Field>
+      <Field>EventContract/version</Field>
+      <Field>Trusted producer identity</Field>
+      <Field>CorrelationId</Field>
+      <Field>CausationRef</Field>
+      <Field>Opaque payload</Field>
+      <Field>Status</Field>
+      <Field>Attempt count</Field>
+      <Field>Created sequence/time metadata</Field>
+    </OutboxRecord>
+
+    <States>
+      <State>Pending</State>
+      <State>Delivering</State>
+      <State>Delivered</State>
+      <State>Failed</State>
+    </States>
+
+    <Invariant>
+      State mutation and corresponding Pending outbox record are committed in one
+      atomic storage transaction.
+    </Invariant>
+
+    <Invariant>
+      Plugin payload cannot forge trusted producer/correlation/authority metadata.
+    </Invariant>
+
+    <Invariant>
+      Outbox admission authority is established at original operation admission.
+    </Invariant>
+
+    <Rule>
+      Restart delivery is completion of previously admitted durable intent;
+      it is not interpreted as a new arbitrary plugin publication.
+    </Rule>
+
+    <Rule>
+      Subscription authority is still evaluated according to event delivery
+      semantics.
+    </Rule>
+
+    <Rule>
+      Crash after publish but before marking Delivered may cause redelivery.
+    </Rule>
+
+    <Rule>
+      Redelivery MUST reuse the original EventId.
+    </Rule>
+
+    <Rule>
+      Exactly-once subscriber side effects are NOT guaranteed.
+    </Rule>
+
+    <Rule>
+      Outbox delivery state itself is persisted.
+    </Rule>
+  </TransactionalOutbox>
+
+  <EventJournalV1>
+    <Purpose>
+      Replace M0.4 test-only in-memory durable journal with a production
+      crash-safe implementation.
+    </Purpose>
+
+    <Requirements>
+      <Requirement>Append EventEnvelope atomically.</Requirement>
+      <Requirement>Replay by stable cursor.</Requirement>
+      <Requirement>Preserve EventId.</Requirement>
+      <Requirement>Preserve producer sequence.</Requirement>
+      <Requirement>Preserve correlation/causation.</Requirement>
+      <Requirement>Reject incompatible/corrupt records explicitly.</Requirement>
+      <Requirement>Restart-safe cursor semantics.</Requirement>
+    </Requirements>
+
+    <Invariant>
+      Event journal is NOT automatically read to rebuild installation state.
+    </Invariant>
+
+    <Invariant>
+      Event journal does not become a universal domain database.
+    </Invariant>
+
+    <Rule>
+      Journal retention is explicit.
+    </Rule>
+
+    <Rule>
+      M0.5 does not promise global ordering across producers.
+    </Rule>
+  </EventJournalV1>
+
+  <AuditStore>
+    <Purpose>
+      Persist selected security/lifecycle/control-plane facts that require
+      durable audit without storing arbitrary RPC/event payloads.
+    </Purpose>
+
+    <AuditRecord>
+      <Field>AuditId/sequence</Field>
+      <Field>RecordType</Field>
+      <Field>Principal identities where relevant</Field>
+      <Field>InstallationId/RuntimeId where relevant</Field>
+      <Field>Correlation/Causation</Field>
+      <Field>Outcome classification</Field>
+      <Field>Structured safe metadata</Field>
+    </AuditRecord>
+
+    <ForbiddenByDefault>
+      <Value>raw RPC request payload</Value>
+      <Value>raw RPC response payload</Value>
+      <Value>raw event payload</Value>
+      <Value>raw state value</Value>
+      <Value>credentials</Value>
+      <Value>tokens</Value>
+      <Value>approval secret material</Value>
+    </ForbiddenByDefault>
+
+    <Rule>
+      Audit failure policy is explicit per record class.
+    </Rule>
+
+    <Rule>
+      Audit log does not determine current authoritative runtime/state.
+    </Rule>
+  </AuditStore>
+
+  <BlobStore>
+    <Purpose>
+      Store immutable large payloads outside transactional metadata rows.
+    </Purpose>
+
+    <BlobId>
+      Versioned digest identity chosen by ADR.
+    </BlobId>
+
+    <Operations>
+      <Operation>put(bytes) -> BlobId</Operation>
+      <Operation>get(BlobId)</Operation>
+      <Operation>exists(BlobId)</Operation>
+      <Operation>verify(BlobId)</Operation>
+    </Operations>
+
+    <Requirements>
+      <Requirement>Identical bytes produce same BlobId.</Requirement>
+      <Requirement>Partial write never becomes visible as complete blob.</Requirement>
+      <Requirement>Read validates expected content identity.</Requirement>
+      <Requirement>Crash may leave removable temporary files only.</Requirement>
+      <Requirement>Corrupt blob is explicit failure.</Requirement>
+    </Requirements>
+
+    <Rule>
+      BlobId is content identity, not authority.
+    </Rule>
+
+    <Rule>
+      Knowledge of BlobId does not automatically grant plugin read access.
+    </Rule>
+
+    <Rule>
+      Cross-domain garbage collection is deferred until ownership/reference
+      policy exists.
+    </Rule>
+  </BlobStore>
+
+  <SchedulerPrimitives>
+    <Purpose>
+      Provide persistent generic work-state semantics without implementing
+      product background tasks or a distributed scheduler.
+    </Purpose>
+
+    <JobIdentity>
+      <Field>JobId</Field>
+      <Field>Owning principal/installation</Field>
+    </JobIdentity>
+
+    <JobState>
+      <State>Pending</State>
+      <State>Waiting</State>
+      <State>Runnable</State>
+      <State>Running</State>
+      <State>Completed</State>
+      <State>Cancelled</State>
+      <State>Failed</State>
+      <State>Interrupted</State>
+    </JobState>
+
+    <JobMetadata>
+      <Field>Deadline</Field>
+      <Field>Optional wakeup time</Field>
+      <Field>Cancellation state</Field>
+      <Field>Attempt</Field>
+      <Field>Resource budget</Field>
+      <Field>Recovery policy</Field>
+      <Field>Correlation/Causation</Field>
+    </JobMetadata>
+
+    <RecoveryPolicies>
+      <Policy>Manual</Policy>
+      <Policy>RetrySafe</Policy>
+      <Policy>Idempotent</Policy>
+    </RecoveryPolicies>
+
+    <Invariant>
+      Running job found after host restart is not silently assumed Completed.
+    </Invariant>
+
+    <Invariant>
+      Running job found after host restart is not blindly re-executed unless its
+      recovery policy allows it.
+    </Invariant>
+
+    <Rule>
+      Unknown external effect outcome becomes Interrupted/explicitly incomplete,
+      never synthetic success.
+    </Rule>
+
+    <Rule>
+      Scheduler state is authoritative in JobStore, not inferred from events.
+    </Rule>
+
+    <Rule>
+      M0.5 scheduler does not own browser/agent/workspace task semantics.
+    </Rule>
+  </SchedulerPrimitives>
+
+  <BackupRestore>
+    <Requirement>
+      Production persistence implementation exposes a consistent backup/snapshot
+      operation or documents the supported external mechanism.
+    </Requirement>
+
+    <Requirement>
+      Backup created while database is active must be transactionally consistent.
+    </Requirement>
+
+    <Requirement>
+      Restore is tested into a fresh storage location.
+    </Requirement>
+
+    <Requirement>
+      Restored store validates format/schema before boot.
+    </Requirement>
+
+    <Invariant>
+      COPY EXISTS != BACKUP WORKS.
+    </Invariant>
+  </BackupRestore>
+
+  <RetentionRedactionDeletion>
+    <Requirement>
+      Every store class documents its default retention policy.
+    </Requirement>
+
+    <Requirement>
+      Audit/event/blob stores do not inherit retention policy from each other.
+    </Requirement>
+
+    <Requirement>
+      State deletion and audit retention are separate concepts.
+    </Requirement>
+
+    <Requirement>
+      Sensitive fields are excluded at write time where possible rather than
+      relying on future redaction.
+    </Requirement>
+
+    <Requirement>
+      Automatic compaction must preserve authoritative semantics.
+    </Requirement>
+
+    <Rule>
+      M0.5 may use conservative no-auto-delete defaults where product ownership
+      rules do not yet exist.
+    </Rule>
+  </RetentionRedactionDeletion>
+
+  <RecoveryTesting>
+    <Purpose>
+      Prove persistence against actual process termination rather than only
+      returning injected errors in the same process.
+    </Purpose>
+
+    <Requirement>
+      Add a child-process recovery harness or equivalent executable acceptance
+      fixture.
+    </Requirement>
+
+    <Requirement>
+      Parent process can force termination at named deterministic persistence
+      failpoints.
+    </Requirement>
+
+    <Requirement>
+      Failpoint mechanism is test-only and cannot be enabled accidentally in
+      production build.
+    </Requirement>
+
+    <RequiredCrashPoints>
+      <CrashPoint>before state transaction commit</CrashPoint>
+      <CrashPoint>during/after durable commit boundary</CrashPoint>
+      <CrashPoint>after state + outbox commit before publish</CrashPoint>
+      <CrashPoint>after event publish before outbox Delivered mark</CrashPoint>
+      <CrashPoint>during migration</CrashPoint>
+      <CrashPoint>during uninstall metadata transition</CrashPoint>
+      <CrashPoint>after job marked Running before completion</CrashPoint>
+      <CrashPoint>during blob temporary write</CrashPoint>
+    </RequiredCrashPoints>
+
+    <Rule>
+      Recovery assertion runs in a new process/host instance.
+    </Rule>
+
+    <Rule>
+      Tests must not rely solely on graceful Drop/destructor execution.
+    </Rule>
+  </RecoveryTesting>
+
+  <RecoveryOutcomes>
+    <Outcome name="Committed">
+      Operation is durably present and internally consistent.
+    </Outcome>
+
+    <Outcome name="NotCommitted">
+      Previous authoritative state remains intact.
+    </Outcome>
+
+    <Outcome name="PendingDelivery">
+      State is committed and durable outbox proves notification still requires
+      delivery.
+    </Outcome>
+
+    <Outcome name="Interrupted">
+      Durable scheduler/control-plane metadata proves operation started but no
+      final outcome can be established.
+    </Outcome>
+
+    <Invariant>
+      Recovery must never invent a fifth ambiguous success state.
+    </Invariant>
+  </RecoveryOutcomes>
+
+  <S1PersistenceProvingSlice>
+    <Purpose>
+      Upgrade existing S1 from restart evidence to production
+      persistence/recovery evidence.
+    </Purpose>
+
+    <RequiredPath>
+      fresh persistent host profile
+        -> installation creation
+        -> runtime activation
+        -> explicit authority
+        -> capability RPC
+        -> authoritative state mutation
+        -> transactionally enqueue observation intent
+        -> commit
+        -> crash before outbox delivery
+        -> new host process
+        -> recover committed state
+        -> fresh RuntimeId
+        -> no inherited runtime authority
+        -> recover Pending outbox record
+        -> publish same EventId
+        -> observer receives event
+        -> mark outbox delivered
+        -> second restart
+        -> no lost committed state
+        -> no accidental duplicate pending intent
+    </RequiredPath>
+
+    <Requirement>
+      S1 production path uses selected production StateBackend.
+    </Requirement>
+
+    <Requirement>
+      InMemoryStateBackend remains available for unit tests but cannot satisfy
+      M0.5 exit criterion.
+    </Requirement>
+  </S1PersistenceProvingSlice>
+
+  <RequiredTests>
+    <Test>
+      Production backend survives clean host restart.
+    </Test>
+
+    <Test>
+      Successful committed state survives process kill.
+    </Test>
+
+    <Test>
+      Kill before commit exposes only previous committed state.
+    </Test>
+
+    <Test>
+      Transaction never recovers partially written key set.
+    </Test>
+
+    <Test>
+      StateRevision remains monotonic after restart.
+    </Test>
+
+    <Test>
+      CAS conflict is detected after independent process reopen.
+    </Test>
+
+    <Test>
+      Stale transaction cannot commit after restart.
+    </Test>
+
+    <Test>
+      Migration success survives process kill after commit.
+    </Test>
+
+    <Test>
+      Interrupted migration recovers to explicit retryable state.
+    </Test>
+
+    <Test>
+      Interrupted uninstall remains explicitly recoverable.
+    </Test>
+
+    <Test>
+      State mutation + outbox record commit atomically.
+    </Test>
+
+    <Test>
+      Crash after state/outbox commit before publication loses neither.
+    </Test>
+
+    <Test>
+      Restart dispatcher delivers pending outbox record.
+    </Test>
+
+    <Test>
+      Outbox redelivery preserves EventId.
+    </Test>
+
+    <Test>
+      Crash after publish before Delivered mark may redeliver but does not create
+      a new logical event identity.
+    </Test>
+
+    <Test>
+      Outbox implementation does not claim exactly-once subscriber effect.
+    </Test>
+
+    <Test>
+      Production EventJournal survives restart.
+    </Test>
+
+    <Test>
+      EventJournal replay cursor survives restart.
+    </Test>
+
+    <Test>
+      Event journal corruption is explicit failure.
+    </Test>
+
+    <Test>
+      Event journal is not consulted to reconstruct installation state.
+    </Test>
+
+    <Test>
+      Audit store persists selected metadata facts.
+    </Test>
+
+    <Test>
+      Audit records contain no raw state/RPC/event payload in protected cases.
+    </Test>
+
+    <Test>
+      Blob put is idempotent by content.
+    </Test>
+
+    <Test>
+      Partial blob write is never visible as valid blob.
+    </Test>
+
+    <Test>
+      Blob corruption is detected on verification/read.
+    </Test>
+
+    <Test>
+      Possession of BlobId does not bypass authority layer.
+    </Test>
+
+    <Test>
+      Pending/Waiting scheduler jobs survive restart.
+    </Test>
+
+    <Test>
+      Running job at crash recovers as Interrupted or according to explicit safe
+      recovery policy.
+    </Test>
+
+    <Test>
+      Manual recovery policy never automatically re-executes crashed job.
+    </Test>
+
+    <Test>
+      Cancelled job remains cancelled after restart.
+    </Test>
+
+    <Test>
+      Deadline/wakeup metadata survives restart.
+    </Test>
+
+    <Test>
+      Consistent backup can be restored into fresh profile.
+    </Test>
+
+    <Test>
+      Restored store rejects unsupported newer format.
+    </Test>
+
+    <Test>
+      S1 production persistence proving slice passes.
+    </Test>
+
+    <Test>
+      Existing S0 and M0.1-M0.4 acceptance suites remain green.
+    </Test>
+  </RequiredTests>
+
+  <StaticArchitectureChecks>
+    <Requirement>
+      worldline-kernel does not expose database-specific handles or types.
+    </Requirement>
+
+    <Requirement>
+      Product domain types do not enter generic persistence contracts.
+    </Requirement>
+
+    <Requirement>
+      Event transport is not used as StateBackend implementation.
+    </Requirement>
+
+    <Requirement>
+      Audit store is not used as StateBackend implementation.
+    </Requirement>
+
+    <Requirement>
+      No production persistence path silently instantiates InMemoryStateBackend
+      after open/configuration failure.
+    </Requirement>
+
+    <Requirement>
+      Blob storage path is bounded to configured profile/storage root.
+    </Requirement>
+
+    <Requirement>
+      Recovery test failpoints cannot be enabled in normal production feature
+      set.
+    </Requirement>
+  </StaticArchitectureChecks>
+
+  <SecurityRequirements>
+    <Requirement>
+      Storage path/profile root is host configuration, not arbitrary plugin input.
+    </Requirement>
+
+    <Requirement>
+      Plugins do not receive raw database/file handles.
+    </Requirement>
+
+    <Requirement>
+      Installation state remains installation-bound after persistence.
+    </Requirement>
+
+    <Requirement>
+      Runtime state lease semantics remain unchanged.
+    </Requirement>
+
+    <Requirement>
+      Host restart does not restore runtime grants.
+    </Requirement>
+
+    <Requirement>
+      Outbox persistence does not become authority persistence.
+    </Requirement>
+
+    <Requirement>
+      Durable event producer identity is immutable once admitted.
+    </Requirement>
+
+    <Requirement>
+      Blob hash/path traversal cannot escape configured blob root.
+    </Requirement>
+  </SecurityRequirements>
+
+  <Errors>
+    <Error>StorageOpenFailed</Error>
+    <Error>UnsupportedStorageFormat</Error>
+    <Error>StorageCorrupt</Error>
+    <Error>StorageIoFailure</Error>
+    <Error>StorageBusy</Error>
+    <Error>DurabilityFailure</Error>
+    <Error>PersistentCasConflict</Error>
+    <Error>BackupFailed</Error>
+    <Error>RestoreValidationFailed</Error>
+
+    <Error>OutboxAppendFailed</Error>
+    <Error>OutboxDeliveryFailed</Error>
+    <Error>OutboxRecordCorrupt</Error>
+
+    <Error>JournalAppendFailed</Error>
+    <Error>JournalReplayFailed</Error>
+    <Error>JournalCursorInvalid</Error>
+
+    <Error>BlobWriteFailed</Error>
+    <Error>BlobCorrupt</Error>
+    <Error>BlobNotFound</Error>
+
+    <Error>JobStoreFailure</Error>
+    <Error>JobInterrupted</Error>
+    <Error>UnsafeAutomaticRecovery</Error>
+  </Errors>
+
+  <AcceptanceCriteria>
+    <Criterion id="AC-01">
+      ADR-PERSISTENCE-RECOVERY-V1 exists and assigns one source of truth to each
+      introduced persistence domain.
+    </Criterion>
+
+    <Criterion id="AC-02">
+      A production StateBackend exists.
+    </Criterion>
+
+    <Criterion id="AC-03">
+      Production state transactions are crash-atomic.
+    </Criterion>
+
+    <Criterion id="AC-04">
+      CAS/revision semantics survive process restart.
+    </Criterion>
+
+    <Criterion id="AC-05">
+      Production backend never silently degrades to in-memory state.
+    </Criterion>
+
+    <Criterion id="AC-06">
+      State + required notification intent can commit atomically.
+    </Criterion>
+
+    <Criterion id="AC-07">
+      Outbox pending records survive crash.
+    </Criterion>
+
+    <Criterion id="AC-08">
+      Redelivery preserves logical EventId.
+    </Criterion>
+
+    <Criterion id="AC-09">
+      Exactly-once external delivery is not claimed.
+    </Criterion>
+
+    <Criterion id="AC-10">
+      Production EventJournal survives restart and supports replay cursor.
+    </Criterion>
+
+    <Criterion id="AC-11">
+      Event journal remains separate from authoritative application state.
+    </Criterion>
+
+    <Criterion id="AC-12">
+      Selective audit persistence exists without raw payload logging by default.
+    </Criterion>
+
+    <Criterion id="AC-13">
+      Content-addressed blob store performs atomic publication and corruption
+      detection.
+    </Criterion>
+
+    <Criterion id="AC-14">
+      Blob identity creates no authority.
+    </Criterion>
+
+    <Criterion id="AC-15">
+      Persistent job state survives restart.
+    </Criterion>
+
+    <Criterion id="AC-16">
+      Crash while Running never becomes synthetic Completed.
+    </Criterion>
+
+    <Criterion id="AC-17">
+      Unsafe job replay requires explicit recovery policy.
+    </Criterion>
+
+    <Criterion id="AC-18">
+      Backup is accepted only after successful restore validation.
+    </Criterion>
+
+    <Criterion id="AC-19">
+      Process-kill tests cover all required critical persistence points.
+    </Criterion>
+
+    <Criterion id="AC-20">
+      S1 uses production persistence in at least one required end-to-end path.
+    </Criterion>
+
+    <Criterion id="AC-21">
+      S1 proves state continuity and runtime authority discontinuity across crash.
+    </Criterion>
+
+    <Criterion id="AC-22">
+      Existing M0.1-M0.4 semantics remain green.
+    </Criterion>
+
+    <Criterion id="AC-23">
+      Existing repository-owned CI suite names remain stable.
+    </Criterion>
+
+    <Criterion id="AC-24">
+      Persistence/recovery acceptance is reachable through repository-owned CI.
+    </Criterion>
+
+    <Criterion id="AC-25">
+      ROADMAP marks M0.5 Done and M0.6 Next only after process-kill recovery
+      evidence exists.
+    </Criterion>
+  </AcceptanceCriteria>
+
+  <ImplementationGuidance>
+    <Guidance>
+      DO NOT start by replacing every in-memory store at once.
+    </Guidance>
+
+    <Guidance>
+      First freeze persistence semantics and source-of-truth decisions in ADR.
+    </Guidance>
+
+    <Guidance>
+      Implement production StateBackend before scheduler/blob expansion.
+    </Guidance>
+
+    <Guidance>
+      Keep InMemory implementations for fast deterministic unit tests.
+    </Guidance>
+
+    <Guidance>
+      Production and in-memory implementations MUST pass the same semantic
+      contract suite where applicable.
+    </Guidance>
+
+    <Guidance>
+      Prefer separate storage implementation crate over importing database code
+      throughout kernel modules.
+    </Guidance>
+
+    <Guidance>
+      Do not put opaque large blobs directly into audit rows merely because the
+      database can store BLOB columns.
+    </Guidance>
+
+    <Guidance>
+      Do not build a generic event-sourcing framework in this change.
+    </Guidance>
+
+    <Guidance>
+      Do not create a second event bus for outbox dispatch.
+    </Guidance>
+
+    <Guidance>
+      Outbox dispatcher feeds the existing M0.4 event transport.
+    </Guidance>
+
+    <Guidance>
+      Do not implement unsafe automatic retry for an Interrupted scheduler job.
+    </Guidance>
+
+    <Guidance>
+      Prefer deterministic child-process failpoints over timing-based
+      "kill after sleep" recovery tests.
+    </Guidance>
+
+    <Guidance>
+      CI workflow YAML remains orchestration only.
+      New recovery logic belongs in repository-owned tests/tools.
+    </Guidance>
+  </ImplementationGuidance>
+
+  <SuggestedExecutionOrder>
+    <Step index="1">
+      Inventory current StateBackend/EventJournal/trajectory/state ownership APIs.
+    </Step>
+
+    <Step index="2">
+      Write ADR-PERSISTENCE-RECOVERY-V1 and select production backend.
+    </Step>
+
+    <Step index="3">
+      Introduce explicit storage format/version metadata.
+    </Step>
+
+    <Step index="4">
+      Implement production StateBackend.
+    </Step>
+
+    <Step index="5">
+      Run existing StateBackend contract suite against both in-memory and
+      production backends.
+    </Step>
+
+    <Step index="6">
+      Add child-process crash harness and state commit failpoints.
+    </Step>
+
+    <Step index="7">
+      Implement transactional outbox integrated with state transaction boundary.
+    </Step>
+
+    <Step index="8">
+      Add outbox crash/redelivery tests.
+    </Step>
+
+    <Step index="9">
+      Implement production EventJournal behind existing M0.4 contract.
+    </Step>
+
+    <Step index="10">
+      Implement selective audit store.
+    </Step>
+
+    <Step index="11">
+      Implement content-addressed blob store.
+    </Step>
+
+    <Step index="12">
+      Implement persistent JobStore and minimal scheduler recovery semantics.
+    </Step>
+
+    <Step index="13">
+      Add backup/restore validation.
+    </Step>
+
+    <Step index="14">
+      Upgrade S1 to production persistence/crash path.
+    </Step>
+
+    <Step index="15">
+      Route recovery tests through existing repository-owned CI suites without
+      renaming the stable leaf suites.
+    </Step>
+
+    <Step index="16">
+      Run full local CI baseline.
+    </Step>
+
+    <Step index="17">
+      Update GRACE durable projection and ROADMAP only after evidence exists.
+    </Step>
+  </SuggestedExecutionOrder>
+
+  <ReviewQuestions>
+    <Question>
+      Для каждого persisted table/file можно ли назвать ровно один bounded domain
+      и source of truth?
+    </Question>
+
+    <Question>
+      Используется ли где-либо event log для восстановления mutable state без
+      явного event-sourcing ADR?
+    </Question>
+
+    <Question>
+      Может ли successful commit потеряться после process kill?
+    </Question>
+
+    <Question>
+      Может ли torn transaction стать видимой?
+    </Question>
+
+    <Question>
+      Может ли crash между state commit и notification потерять notification?
+    </Question>
+
+    <Question>
+      Может ли outbox retry создать новый EventId?
+    </Question>
+
+    <Question>
+      Есть ли где-нибудь ложное exactly-once обещание?
+    </Question>
+
+    <Question>
+      Может ли plugin получить raw database connection или filesystem storage
+      root?
+    </Question>
+
+    <Question>
+      Может ли storage open failure незаметно перейти на in-memory backend?
+    </Question>
+
+    <Question>
+      Содержит ли audit store raw sensitive payloads?
+    </Question>
+
+    <Question>
+      Может ли Running job после crash автоматически стать Completed?
+    </Question>
+
+    <Question>
+      Может ли unsafe external action быть автоматически повторено?
+    </Question>
+
+    <Question>
+      Проверяли ли backup настоящим restore?
+    </Question>
+
+    <Question>
+      Process-kill tests действительно убивают process, или всего лишь возвращают
+      injected Result::Err?
+    </Question>
+
+    <Question>
+      Не внедряем ли мы преждевременно browser/workspace persistence в kernel?
+    </Question>
+  </ReviewQuestions>
+
+  <FailureConditions>
+    <Failure>
+      Production state backend теряет acknowledged commit после supported crash.
+    </Failure>
+
+    <Failure>
+      Partial transaction становится visible.
+    </Failure>
+
+    <Failure>
+      Production failure silently falls back to memory.
+    </Failure>
+
+    <Failure>
+      Event bus становится authoritative state database.
+    </Failure>
+
+    <Failure>
+      Audit log становится authoritative state database.
+    </Failure>
+
+    <Failure>
+      State commit и required notification могут рассинхронизироваться без
+      explicit recoverable record.
+    </Failure>
+
+    <Failure>
+      Outbox replay меняет EventId.
+    </Failure>
+
+    <Failure>
+      System claims exactly-once side effects.
+    </Failure>
+
+    <Failure>
+      Crash-running job silently retries unsafe work.
+    </Failure>
+
+    <Failure>
+      Raw database/storage handle пересекает plugin boundary.
+    </Failure>
+
+    <Failure>
+      Process recovery is tested only through graceful shutdown.
+    </Failure>
+
+    <Failure>
+      Product-domain persistence types leak into worldline-kernel.
+    </Failure>
+  </FailureConditions>
+
+  <CIIntegration>
+    <Invariant>
+      Stable repository-owned leaf suite names remain:
+        Source,
+        Correctness,
+        ArchitectureSecurity,
+        ProvingSlice.
+    </Invariant>
+
+    <Requirement>
+      Persistence unit/contract/recovery tests are integrated under existing
+      suites rather than creating ad-hoc GitHub-only commands.
+    </Requirement>
+
+    <Requirement>
+      Production S1 crash path belongs to ProvingSlice.
+    </Requirement>
+
+    <Requirement>
+      Architecture/storage boundary guards belong to ArchitectureSecurity.
+    </Requirement>
+
+    <Requirement>
+      Backend contract tests belong to Correctness.
+    </Requirement>
+  </CIIntegration>
+
+  <Verification>
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source
+    </Command>
+
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness
+    </Command>
+
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity
+    </Command>
+
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice
+    </Command>
+
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All
+    </Command>
+  </Verification>
+
+  <VerificationExpectations>
+    <Expectation>
+      Repository-owned CI remains canonical verification entrypoint.
+    </Expectation>
+
+    <Expectation>
+      Production storage backend is exercised by process restart/kill tests.
+    </Expectation>
+
+    <Expectation>
+      In-memory and production backend implementations satisfy shared semantic
+      contract tests.
+    </Expectation>
+
+    <Expectation>
+      S0 remains green.
+    </Expectation>
+
+    <Expectation>
+      S1 passes production persistence recovery path.
+    </Expectation>
+
+    <Expectation>
+      M0.1-M0.4 acceptance suites remain green.
+    </Expectation>
+
+    <Expectation>
+      No browser, agent, UI or model persistence types enter kernel.
+    </Expectation>
+  </VerificationExpectations>
+
+  <ExitCriteria>
+    <Criterion>
+      Worldline has one production crash-safe persistence implementation.
+    </Criterion>
+
+    <Criterion>
+      Authoritative installation state survives process crash with atomic CAS
+      semantics.
+    </Criterion>
+
+    <Criterion>
+      Committed state and required notification intent cannot be lost between
+      each other.
+    </Criterion>
+
+    <Criterion>
+      Pending notification survives restart and preserves EventId on redelivery.
+    </Criterion>
+
+    <Criterion>
+      Durable event journal has real crash persistence without becoming domain
+      state.
+    </Criterion>
+
+    <Criterion>
+      Audit storage remains selective and metadata-oriented.
+    </Criterion>
+
+    <Criterion>
+      Blob store provides atomic content-addressed immutable storage.
+    </Criterion>
+
+    <Criterion>
+      Persistent job state distinguishes Completed from Interrupted after crash.
+    </Criterion>
+
+    <Criterion>
+      Backup/restore path is demonstrated.
+    </Criterion>
+
+    <Criterion>
+      Recovery behavior is proven using real process termination.
+    </Criterion>
+
+    <Criterion>
+      Every persisted domain explicitly names its source of truth.
+    </Criterion>
+
+    <Criterion>
+      No domain accidentally became event-sourced.
+    </Criterion>
+
+    <Criterion>
+      S1 demonstrates production boot -> mutation -> crash -> recovery ->
+      observation -> restart.
+    </Criterion>
+
+    <Criterion>
+      Kernel is ready for M0.6 native-process/WASM boundaries without another
+      persistence semantics redesign.
+    </Criterion>
+  </ExitCriteria>
+
+  <Assumptions>
+    <Assumption>
+      Single-host local persistence is sufficient for M0.
+    </Assumption>
+
+    <Assumption>
+      Distributed consensus is unnecessary.
+    </Assumption>
+
+    <Assumption>
+      One Worldline profile owns its configured storage root.
+    </Assumption>
+
+    <Assumption>
+      Persistent storage is local by default.
+    </Assumption>
+
+    <Assumption>
+      Cloud sync, if ever added, will be a separate capability/domain.
+    </Assumption>
+
+    <Assumption>
+      SQLite is the initial production candidate, not a public ABI.
+    </Assumption>
+
+    <Assumption>
+      In-memory storage remains useful for tests.
+    </Assumption>
+  </Assumptions>
+
+  <NextChange>
+    C-KERNEL-STABLE-IPC-WASM-COMPONENT-BOUNDARY-*
+  </NextChange>
+  </C-KERNEL-PERSISTENCE-RECOVERY-MODEL-20260828>
+</GraceChangeSpec>

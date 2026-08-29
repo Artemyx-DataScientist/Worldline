@@ -7,6 +7,7 @@
         <M-REFERENCE-PROVING-SLICE />
         <M-GRACE-CONTROL-LAYER />
         <M-CI-BASELINE />
+        <M-PERSISTENCE-RECOVERY />
       </Owns>
     </GD-MAIN>
   </GraphDocuments>

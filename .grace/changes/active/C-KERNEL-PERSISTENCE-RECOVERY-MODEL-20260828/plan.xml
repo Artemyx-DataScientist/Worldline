@@ -1,0 +1,260 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-KERNEL-PERSISTENCE-RECOVERY-MODEL-20260828>
+    <IntentSummary>Establish the first production persistence and recovery boundary: generic kernel-owned storage contracts, replaceable SQLite/filesystem implementations outside the kernel, transactional state plus outbox semantics, durable event journal, selective audit, content-addressed blobs, persistent job primitives, process-kill recovery evidence, and a production-backed S1 proving path.</IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-KERNEL-CAPABILITY-RUNTIME</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>crates/worldline-kernel/src/state.rs</Value>
+        <Value>crates/worldline-kernel/src/events.rs</Value>
+        <Value>crates/worldline-reference/src/s1.rs</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>.grace/graph/index.xml</Value>
+        <Value>.grace/verification/index.xml</Value>
+      </MustExist>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>docs/adr/ADR-PERSISTENCE-RECOVERY-V1.md</Value>
+        <Value>crates/worldline-kernel/src/persistence.rs</Value>
+        <Value>crates/worldline-storage/Cargo.toml</Value>
+        <Value>crates/worldline-storage/src/lib.rs</Value>
+        <Value>crates/worldline-storage/src/sqlite.rs</Value>
+        <Value>crates/worldline-storage/src/blob.rs</Value>
+        <Value>crates/worldline-storage/tests/contract_acceptance.rs</Value>
+        <Value>crates/worldline-storage/tests/recovery_acceptance.rs</Value>
+        <Value>crates/worldline-storage/src/bin/persistence-recovery-child.rs</Value>
+      </MustExist>
+      <MustVerify>
+        <Module>M-PERSISTENCE-RECOVERY</Module>
+        <Module>M-KERNEL-CAPABILITY-RUNTIME</Module>
+        <Module>M-REFERENCE-PROVING-SLICE</Module>
+        <Module>M-CI-BASELINE</Module>
+      </MustVerify>
+      <MustPassCommand>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-PERSISTENCE-RECOVERY />
+        <M-KERNEL-CAPABILITY-RUNTIME />
+        <M-REFERENCE-PROVING-SLICE />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-PERSISTENCE-RECOVERY />
+        <V-M-KERNEL-CAPABILITY-RUNTIME />
+        <V-M-REFERENCE-PROVING-SLICE />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>docs/adr/ADR-PERSISTENCE-RECOVERY-V1.md</File>
+      <File>Cargo.toml</File>
+      <File>Cargo.lock</File>
+      <File>crates/worldline-kernel/Cargo.toml</File>
+      <File>crates/worldline-kernel/src/lib.rs</File>
+      <File>crates/worldline-kernel/src/error.rs</File>
+      <File>crates/worldline-kernel/src/state.rs</File>
+      <File>crates/worldline-kernel/src/events.rs</File>
+      <File>crates/worldline-kernel/src/persistence.rs</File>
+      <File>crates/worldline-kernel/tests/persistence_acceptance.rs</File>
+      <File>crates/worldline-storage/Cargo.toml</File>
+      <File>crates/worldline-storage/src/lib.rs</File>
+      <File>crates/worldline-storage/src/sqlite.rs</File>
+      <File>crates/worldline-storage/src/blob.rs</File>
+      <File>crates/worldline-storage/src/failpoints.rs</File>
+      <File>crates/worldline-storage/src/bin/persistence-recovery-child.rs</File>
+      <File>crates/worldline-storage/tests/contract_acceptance.rs</File>
+      <File>crates/worldline-storage/tests/recovery_acceptance.rs</File>
+      <File>crates/worldline-reference/Cargo.toml</File>
+      <File>crates/worldline-reference/src/s1.rs</File>
+      <File>crates/worldline-reference/tests/persistence_acceptance.rs</File>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      <File>README.md</File>
+      <File>ROADMAP.md</File>
+      <File>.grace/graph/index.xml</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.grace/verification/index.xml</File>
+      <File>.grace/verification/main.xml</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Freeze the persistence boundary and production backend decision in the ADR</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>ADR-PERSISTENCE-RECOVERY-V1 documents every bounded persistence domain, exactly one source of truth, kernel versus host boundary, explicit event-sourcing decisions, SQLite selection, durability PRAGMAs and filesystem assumptions, schema versioning, outbox, journal, audit, blob, scheduler, backup/restore, retention/deletion, rejected alternatives, limitations, and reopen conditions.</Criterion>
+          <Criterion>The ADR preserves EVENT BUS IS NOT RPC, rejects global event sourcing, rejects exactly-once external side effects, and states that production failures never silently fall back to in-memory storage.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Define generic kernel persistence contracts and explicit recovery errors</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Kernel-owned contracts expose opaque state values, format/version checks, transactional state plus outbox admission, journal cursors, selective audit records, content-addressed blob identity, persistent job states and backup/restore validation without database handles or product-domain types.</Criterion>
+          <Criterion>Existing in-memory state and event implementations continue to satisfy the applicable contracts, preserve installation/runtime identity separation, and keep stale transactions invalid after restart.</Criterion>
+          <Criterion>Storage-open, corruption, durability, CAS, outbox, journal, blob, job, backup and unsafe-recovery failures are explicit typed or structured errors with no implicit fallback.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Implement the production SQLite metadata and StateBackend boundary</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-storage opens a configured profile root with an explicit independent storage format version, validates or fails closed on corruption/newer formats, configures documented durability behavior, and never constructs InMemoryStateBackend after open failure.</Criterion>
+          <Criterion>The production StateBackend provides atomic crash-safe create, snapshot, CAS commit, metadata transition, delete and record listing while preserving StateRevision, opaque values, migration semantics, consistent key ordering and restart persistence.</Criterion>
+          <Criterion>Database-specific connections remain private to worldline-storage and no SQLite type or filesystem root crosses the kernel/plugin contracts.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-storage --test contract_acceptance</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Implement transactional outbox and production EventJournal</Title>
+        <DependsOn>
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>State mutation and required Pending outbox intent commit atomically, including trusted producer, original EventId, contract/version, correlation/causation, opaque payload, status, attempt and creation metadata.</Criterion>
+          <Criterion>Restart delivery completes previously admitted intent, persists delivery state, reuses the original EventId after redelivery, and makes no exactly-once external-effect claim.</Criterion>
+          <Criterion>The production journal atomically appends envelopes, preserves EventId/producer sequence/correlation/causation, supports stable restart-safe cursors and explicit corruption/retention errors without becoming application state.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-storage --test contract_acceptance</Command>
+        </Verification>
+      </T-004>
+
+      <T-005>
+        <Title>Implement selective audit, content-addressed blobs, and persistent job primitives</Title>
+        <DependsOn>
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Audit persistence stores only selected structured control-plane metadata and excludes raw state, RPC/event payloads, credentials, tokens and approval secrets by default; its failure policy is explicit and it never determines authoritative state.</Criterion>
+          <Criterion>Blob publication is content-addressed, idempotent, atomically visible only after complete write, validates identity on read/verify, rejects corruption, confines paths to the configured root, and grants no authority through BlobId possession.</Criterion>
+          <Criterion>Job state persists all required metadata, distinguishes Completed from Interrupted after crash, preserves cancellation/deadlines/wakeup, and never automatically re-executes unsafe work without an explicit safe recovery policy.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-storage --test contract_acceptance</Command>
+        </Verification>
+      </T-005>
+
+      <T-006>
+        <Title>Integrate production persistence with kernel lifecycle and the S1 proving path</Title>
+        <DependsOn>
+          <T-004 />
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The production host can boot from a configured worldline-storage backend, preserve InstallationId/state continuity and directed migration/uninstall recovery semantics, and allocate fresh runtime identity and authority after restart.</Criterion>
+          <Criterion>S1 executes production StateBackend plus transactional outbox and existing event transport through boot, mutation, crash, recovery, redelivery, observation, Delivered marking and second restart, without reading the journal to rebuild installation state.</Criterion>
+          <Criterion>Existing S0 and M0.1-M0.4 behavior remains green and in-memory backends remain usable for deterministic unit coverage.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+        </Verification>
+      </T-006>
+
+      <T-007>
+        <Title>Add deterministic test-only failpoints and real child-process termination harness</Title>
+        <DependsOn>
+          <T-003 />
+          <T-004 />
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The parent test process can launch a repository-owned child fixture, select named failpoints and force hard termination at every required persistence boundary.</Criterion>
+          <Criterion>Recovery assertions reopen storage in a new process and distinguish Committed, NotCommitted, PendingDelivery and Interrupted outcomes; tests do not rely only on Drop, graceful shutdown or injected Result::Err.</Criterion>
+          <Criterion>Failpoints are unavailable in the normal production feature set and cannot be enabled by plugin input.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-storage --test recovery_acceptance</Command>
+        </Verification>
+      </T-007>
+
+      <T-008>
+        <Title>Complete backend contract, corruption, backup/restore, security and recovery acceptance tests</Title>
+        <DependsOn>
+          <T-006 />
+          <T-007 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Contract tests cover clean restart, acknowledged commit durability, pre-acknowledgement outcomes, atomic key sets, monotonic revisions, independent-process CAS conflicts, stale transaction rejection, migrations, uninstall recovery, outbox redelivery/EventId stability, journal replay/corruption, audit redaction, blob atomicity/corruption/path confinement, job recovery and backup restored into a fresh profile.</Criterion>
+          <Criterion>Architecture/security tests prove no database handle or product persistence type enters worldline-kernel, no silent in-memory fallback exists, event transport and audit are not StateBackend implementations, BlobId does not bypass authority, and runtime grants are not restored.</Criterion>
+          <Criterion>Unsupported newer storage format and unsupported unsafe recovery fail explicitly before boot or execution.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        </Verification>
+      </T-008>
+
+      <T-009>
+        <Title>Route persistence evidence through the stable repository-owned CI suites</Title>
+        <DependsOn>
+          <T-008 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Source, Correctness, ArchitectureSecurity and ProvingSlice retain their exact stable names; backend contracts and recovery tests run under those suites without ad-hoc GitHub-only logic.</Criterion>
+          <Criterion>ArchitectureSecurity checks storage dependency direction, private database boundaries, failpoint gating, configured-root confinement and no silent fallback; ProvingSlice runs the production S1 crash path.</Criterion>
+          <Criterion>CI command failures propagate nonzero and no critical test is silently skipped or marked continue-on-error.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-009>
+
+      <T-010>
+        <Title>Reconcile durable GRACE projections and roadmap after fresh evidence</Title>
+        <DependsOn>
+          <T-009 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>M-PERSISTENCE-RECOVERY and V-M-PERSISTENCE-RECOVERY are routed exactly once and describe the actual production implementation, recovery scenarios, named local evidence and remaining unverified hosted/device/manual boundaries.</Criterion>
+          <Criterion>ROADMAP marks M0.5 Done and M0.6 Next only after process-kill and production S1 evidence exists; README and CI documentation distinguish local evidence from hosted CI.</Criterion>
+          <Criterion>No current context, graph, verification or active plan artifact is mutated to hide an implementation gap.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-010>
+
+      <T-011>
+        <Title>Run the final all-suite acceptance packet</Title>
+        <DependsOn>
+          <T-010 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>All four stable suites and the aggregate All suite pass with fresh local evidence, S1 uses the production backend, and the completion packet reports operation identity, scope, exact files, commands, scaffolded/wired/verified claims, unrun checks, risks and rollback notes.</Criterion>
+          <Criterion>Final persistence claims do not promote local evidence to hosted CI, device or manual-product evidence, and no required acceptance criterion is left silently unverified.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-011>
+    </ImplementationPlan>
+  </C-KERNEL-PERSISTENCE-RECOVERY-MODEL-20260828>
+</GraceChangePlan>

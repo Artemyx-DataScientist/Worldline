@@ -46,5 +46,23 @@
       <Scenario>Repository-owned local CI runs pinned source and correctness gates, architecture-security checks, and permanent S0/S1 proving evidence; PR and master workflows remain thin hosted orchestration.</Scenario>
       <TraceAssertion>Every required workflow job calls the same local runner, kernel dependency direction remains outward-only, and local evidence is not promoted to an unobserved GitHub run.</TraceAssertion>
     </V-M-CI-BASELINE>
+    <V-M-PERSISTENCE-RECOVERY>
+      <TestFiles>
+        <File>docs/adr/ADR-PERSISTENCE-RECOVERY-V1.md</File>
+        <File>crates/worldline-kernel/tests/persistence_acceptance.rs</File>
+        <File>crates/worldline-storage/tests/contract_acceptance.rs</File>
+        <File>crates/worldline-storage/tests/recovery_acceptance.rs</File>
+        <File>crates/worldline-reference/tests/persistence_acceptance.rs</File>
+        <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+        <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      </TestFiles>
+      <Command>cargo test -p worldline-kernel --test persistence_acceptance</Command>
+      <Command>cargo test -p worldline-storage --test contract_acceptance</Command>
+      <Command>cargo test -p worldline-storage --features test-failpoints --test recovery_acceptance -- --test-threads=1</Command>
+      <Command>cargo test -p worldline-reference --test persistence_acceptance</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      <Scenario>Production SQLite state and outbox survive process termination at commit, delivery, migration, uninstall, job, and blob temporary-write boundaries; restart reconstructs state, pending delivery, journal continuity, interrupted jobs, and verified content-addressed blobs.</Scenario>
+      <TraceAssertion>State and pending outbox records commit atomically, event identity and causal metadata survive journal replay, audit records remain metadata-only, backups restore into a validated fresh profile, and recovery never upgrades an interrupted job to Completed.</TraceAssertion>
+    </V-M-PERSISTENCE-RECOVERY>
   </VD-MAIN>
 </GraceVerificationDocument>

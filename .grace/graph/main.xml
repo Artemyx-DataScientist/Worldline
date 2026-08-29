@@ -20,5 +20,25 @@
       <M-KERNEL-CAPABILITY-RUNTIME />
       <M-REFERENCE-PROVING-SLICE />
     </M-CI-BASELINE>
+    <M-PERSISTENCE-RECOVERY>
+      <Summary>Production persistence and recovery boundary: generic kernel contracts, SQLite StateBackend, transactional outbox, durable EventJournal, selective audit, CAS blobs, persistent jobs, online backup/restore, hard-kill recovery evidence, and production-backed S1.</Summary>
+      <Path>docs/adr/ADR-PERSISTENCE-RECOVERY-V1.md</Path>
+      <Path>crates/worldline-kernel/src/persistence.rs</Path>
+      <Path>crates/worldline-kernel/src/state.rs</Path>
+      <Path>crates/worldline-storage/Cargo.toml</Path>
+      <Path>crates/worldline-storage/src/lib.rs</Path>
+      <Path>crates/worldline-storage/src/sqlite.rs</Path>
+      <Path>crates/worldline-storage/src/blob.rs</Path>
+      <Path>crates/worldline-storage/src/failpoints.rs</Path>
+      <Path>crates/worldline-storage/src/bin/persistence-recovery-child.rs</Path>
+      <Path>crates/worldline-storage/tests/contract_acceptance.rs</Path>
+      <Path>crates/worldline-storage/tests/recovery_acceptance.rs</Path>
+      <Path>crates/worldline-kernel/tests/persistence_acceptance.rs</Path>
+      <Path>crates/worldline-reference/src/s1.rs</Path>
+      <Path>crates/worldline-reference/tests/persistence_acceptance.rs</Path>
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+    </M-PERSISTENCE-RECOVERY>
   </GD-MAIN>
 </GraceGraphDocument>
