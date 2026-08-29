@@ -13,6 +13,7 @@ mod error;
 mod events;
 mod invocation;
 mod kernel;
+mod persistence;
 mod plugin;
 mod rpc;
 mod runtime;
@@ -36,6 +37,11 @@ pub use events::{
 };
 pub use invocation::{CapabilityHandle, InvocationContext, MAX_NESTED_INVOCATION_DEPTH};
 pub use kernel::{Kernel, ReconcileReport, RuntimeMetadata};
+pub use persistence::{
+    AuditOutcome, AuditRecord, AuditStore, BlobId, BlobStore, CURRENT_STORAGE_FORMAT_VERSION,
+    JobId, JobRecord, JobRecoveryPolicy, JobState, JobStore, OutboxId, OutboxRecord, OutboxStatus,
+    OutboxStore, PersistenceError, StorageFormatVersion,
+};
 pub use plugin::{
     ActivationContext, NoopRuntime, Plugin, PluginDefinition, PluginId, PluginRuntime,
 };

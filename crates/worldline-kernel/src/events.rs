@@ -147,6 +147,52 @@ pub struct InvocationCompletedMetadata {
 }
 
 impl InvocationCompletedMetadata {
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_parts(
+        request_id: crate::RpcRequestId,
+        invocation_id: InvocationId,
+        caller: PrincipalId,
+        provider_runtime_id: RuntimeId,
+        capability: CapabilityContract,
+        operation: OperationId,
+        outcome: RpcOutcomeClass,
+    ) -> Self {
+        Self {
+            request_id,
+            invocation_id,
+            caller,
+            provider_runtime_id,
+            capability,
+            operation,
+            outcome,
+        }
+    }
+
+    /// Reconstructs invocation metadata from trusted durable runtime fields.
+    /// The reconstructed identity is metadata only and does not restore live
+    /// runtime authority.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_storage_parts(
+        request_id: crate::RpcRequestId,
+        invocation_id: InvocationId,
+        caller: PrincipalId,
+        provider_runtime_incarnation: u64,
+        provider_runtime_sequence: u64,
+        capability: CapabilityContract,
+        operation: OperationId,
+        outcome: RpcOutcomeClass,
+    ) -> Self {
+        Self::from_parts(
+            request_id,
+            invocation_id,
+            caller,
+            RuntimeId::new(provider_runtime_incarnation, provider_runtime_sequence),
+            capability,
+            operation,
+            outcome,
+        )
+    }
+
     pub(crate) fn new(
         request_id: crate::RpcRequestId,
         invocation_id: InvocationId,
@@ -211,6 +257,66 @@ pub struct EventEnvelope {
 }
 
 impl EventEnvelope {
+    /// Reconstructs an envelope from trusted journal storage. The constructor
+    /// creates metadata, not authority; publication still goes through the
+    /// kernel event transport.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_parts(
+        event_id: EventId,
+        contract: EventContract,
+        producer: PrincipalId,
+        producer_runtime_id: Option<RuntimeId>,
+        sequence: u64,
+        correlation_id: CorrelationId,
+        causation: Option<CausationRef>,
+        delivery_mode: DeliveryMode,
+        payload: Vec<u8>,
+        invocation_completed: Option<InvocationCompletedMetadata>,
+    ) -> Self {
+        Self {
+            event_id,
+            contract,
+            producer,
+            producer_runtime_id,
+            sequence,
+            correlation_id,
+            causation,
+            delivery_mode,
+            payload,
+            invocation_completed,
+        }
+    }
+
+    /// Reconstructs an envelope from trusted durable runtime fields. The
+    /// reconstructed identity is metadata only and does not restore authority.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_storage_parts(
+        event_id: EventId,
+        contract: EventContract,
+        producer: PrincipalId,
+        producer_runtime_parts: Option<(u64, u64)>,
+        sequence: u64,
+        correlation_id: CorrelationId,
+        causation: Option<CausationRef>,
+        delivery_mode: DeliveryMode,
+        payload: Vec<u8>,
+        invocation_completed: Option<InvocationCompletedMetadata>,
+    ) -> Self {
+        Self::from_parts(
+            event_id,
+            contract,
+            producer,
+            producer_runtime_parts
+                .map(|(incarnation, sequence)| RuntimeId::new(incarnation, sequence)),
+            sequence,
+            correlation_id,
+            causation,
+            delivery_mode,
+            payload,
+            invocation_completed,
+        )
+    }
+
     pub fn event_id(&self) -> &EventId {
         &self.event_id
     }

@@ -10,6 +10,7 @@ use std::{
 
 use crate::{
     PluginId,
+    persistence::{OutboxId, OutboxRecord, OutboxStatus, OutboxStore, PersistenceError},
     trajectory::{Trajectory, TrajectoryEventKind},
 };
 
@@ -18,6 +19,10 @@ use crate::{
 pub struct InstallationId(String);
 
 impl InstallationId {
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -140,6 +145,10 @@ pub type StateValue = Vec<u8>;
 pub struct StateTransactionId(String);
 
 impl StateTransactionId {
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -265,6 +274,26 @@ impl InstallationRecord {
         }
     }
 
+    /// Reconstructs persisted installation metadata inside a storage adapter.
+    /// Runtime authority is intentionally absent from this record.
+    pub fn from_parts(
+        installation_id: InstallationId,
+        plugin_id: PluginId,
+        state_schema_version: StateSchemaVersion,
+        status: InstallationStatus,
+        revision: StateRevision,
+        runtime_generation: u64,
+    ) -> Self {
+        Self {
+            installation_id,
+            plugin_id,
+            state_schema_version,
+            status,
+            revision,
+            runtime_generation,
+        }
+    }
+
     fn with_revision(&self, revision: StateRevision) -> Self {
         let mut record = self.clone();
         record.revision = revision;
@@ -387,6 +416,7 @@ pub enum StateError {
         operation: &'static str,
         message: String,
     },
+    Persistence(PersistenceError),
 }
 
 impl fmt::Display for StateError {
@@ -492,6 +522,7 @@ impl fmt::Display for StateError {
             Self::BackendFailure { operation, message } => {
                 write!(formatter, "state backend {operation} failed: {message}")
             }
+            Self::Persistence(error) => error.fmt(formatter),
         }
     }
 }
@@ -577,6 +608,25 @@ pub trait StateBackend: Send + Sync {
         state: BackendState,
     ) -> Result<(), StateError>;
 
+    /// Atomically commits state and an already-admitted notification intent.
+    /// Backends that do not provide an outbox fail explicitly instead of
+    /// splitting the operation into two non-atomic writes.
+    fn commit_if_revision_with_outbox(
+        &self,
+        installation: &InstallationId,
+        transaction: &StateTransactionId,
+        expected_revision: StateRevision,
+        state: BackendState,
+        outbox: &OutboxRecord,
+    ) -> Result<(), StateError> {
+        let _ = (installation, transaction, expected_revision, state, outbox);
+        Err(StateError::Persistence(
+            PersistenceError::OutboxAppendFailed {
+                message: "backend does not support atomic state plus outbox commit".to_owned(),
+            },
+        ))
+    }
+
     fn update_record_if_revision(
         &self,
         expected_revision: StateRevision,
@@ -590,8 +640,14 @@ pub trait StateBackend: Send + Sync {
 
 /// Deterministic in-memory StateBackend used by the bootstrap kernel and tests.
 #[derive(Default)]
+struct InMemoryBackendData {
+    installations: BTreeMap<InstallationId, BackendState>,
+    outbox: BTreeMap<OutboxId, OutboxRecord>,
+}
+
+#[derive(Default)]
 pub struct InMemoryStateBackend {
-    installations: RwLock<BTreeMap<InstallationId, BackendState>>,
+    data: RwLock<InMemoryBackendData>,
     fail_next_commit: AtomicBool,
     fail_record_update_after: AtomicU64,
     fail_next_delete: AtomicBool,
@@ -655,10 +711,11 @@ impl InMemoryStateBackend {
 impl StateBackend for InMemoryStateBackend {
     fn create(&self, state: BackendState) -> Result<(), StateError> {
         let installation = state.record.installation_id.clone();
-        let mut installations = self
-            .installations
+        let mut data = self
+            .data
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let installations = &mut data.installations;
         if installations.contains_key(&installation) {
             return Err(StateError::InstallationAlreadyExists { installation });
         }
@@ -667,9 +724,10 @@ impl StateBackend for InMemoryStateBackend {
     }
 
     fn snapshot(&self, installation: &InstallationId) -> Result<BackendState, StateError> {
-        self.installations
+        self.data
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .installations
             .get(installation)
             .cloned()
             .ok_or_else(|| StateError::UnknownInstallation {
@@ -690,10 +748,11 @@ impl StateBackend for InMemoryStateBackend {
                 message: "injected commit failure".to_owned(),
             });
         }
-        let mut installations = self
-            .installations
+        let mut data = self
+            .data
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let installations = &mut data.installations;
         let Some(current) = installations.get(installation) else {
             return Err(StateError::UnknownInstallation {
                 installation: installation.clone(),
@@ -722,6 +781,74 @@ impl StateBackend for InMemoryStateBackend {
         Ok(())
     }
 
+    fn commit_if_revision_with_outbox(
+        &self,
+        installation: &InstallationId,
+        transaction: &StateTransactionId,
+        expected_revision: StateRevision,
+        state: BackendState,
+        outbox: &OutboxRecord,
+    ) -> Result<(), StateError> {
+        if self.fail_next_commit.swap(false, Ordering::SeqCst) {
+            return Err(StateError::BackendFailure {
+                operation: "commit",
+                message: "injected commit failure".to_owned(),
+            });
+        }
+        validate_outbox_record(installation, outbox)?;
+        if state.record.installation_id() != installation {
+            return Err(StateError::BackendFailure {
+                operation: "commit",
+                message: "state installation does not match commit target".to_owned(),
+            });
+        }
+        let expected_next_revision = expected_revision.next();
+        if state.record.state_revision() != expected_next_revision {
+            return Err(StateError::BackendFailure {
+                operation: "commit",
+                message: format!(
+                    "commit revision must advance from {expected_revision} to {expected_next_revision}, got {}",
+                    state.record.state_revision()
+                ),
+            });
+        }
+
+        let mut data = self
+            .data
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let actual_revision = data
+            .installations
+            .get(installation)
+            .ok_or_else(|| StateError::UnknownInstallation {
+                installation: installation.clone(),
+            })?
+            .record
+            .state_revision();
+        if actual_revision != expected_revision {
+            return Err(StateError::TransactionConflict {
+                installation: installation.clone(),
+                transaction: transaction.clone(),
+                expected_revision,
+                actual_revision,
+            });
+        }
+        if data.outbox.contains_key(outbox.outbox_id()) {
+            return Err(StateError::Persistence(
+                PersistenceError::OutboxAppendFailed {
+                    message: format!("outbox '{}' already exists", outbox.outbox_id()),
+                },
+            ));
+        }
+
+        // Both inserts occur while the same write lock is held. The lock is
+        // the in-memory equivalent of the production backend transaction.
+        data.installations.insert(installation.clone(), state);
+        data.outbox
+            .insert(outbox.outbox_id().clone(), outbox.clone());
+        Ok(())
+    }
+
     fn update_record_if_revision(
         &self,
         expected_revision: StateRevision,
@@ -734,10 +861,11 @@ impl StateBackend for InMemoryStateBackend {
             });
         }
         let installation = record.installation_id.clone();
-        let mut installations = self
-            .installations
+        let mut data = self
+            .data
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let installations = &mut data.installations;
         let Some(state) = installations.get_mut(&installation) else {
             return Err(StateError::UnknownInstallation { installation });
         };
@@ -770,10 +898,11 @@ impl StateBackend for InMemoryStateBackend {
                 message: "injected delete failure".to_owned(),
             });
         }
-        let mut installations = self
-            .installations
+        let mut data = self
+            .data
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let installations = &mut data.installations;
         if installations.remove(installation).is_none() {
             return Err(StateError::UnknownInstallation {
                 installation: installation.clone(),
@@ -784,13 +913,167 @@ impl StateBackend for InMemoryStateBackend {
 
     fn list_records(&self) -> Result<Vec<InstallationRecord>, StateError> {
         Ok(self
-            .installations
+            .data
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .installations
             .values()
             .map(|state| state.record.clone())
             .collect())
     }
+}
+
+impl OutboxStore for InMemoryStateBackend {
+    fn append(&self, record: OutboxRecord) -> Result<(), PersistenceError> {
+        validate_outbox_record(record.installation(), &record).map_err(|error| match error {
+            StateError::Persistence(persistence) => persistence,
+            other => PersistenceError::OutboxAppendFailed {
+                message: other.to_string(),
+            },
+        })?;
+        let mut data = self
+            .data
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if !data.installations.contains_key(record.installation()) {
+            return Err(PersistenceError::OutboxAppendFailed {
+                message: format!("installation '{}' does not exist", record.installation()),
+            });
+        }
+        if data.outbox.contains_key(record.outbox_id()) {
+            return Err(PersistenceError::OutboxAppendFailed {
+                message: format!("outbox '{}' already exists", record.outbox_id()),
+            });
+        }
+        data.outbox.insert(record.outbox_id().clone(), record);
+        Ok(())
+    }
+
+    fn get(&self, id: &OutboxId) -> Result<Option<OutboxRecord>, PersistenceError> {
+        Ok(self
+            .data
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .outbox
+            .get(id)
+            .cloned())
+    }
+
+    fn list_pending(&self, limit: usize) -> Result<Vec<OutboxRecord>, PersistenceError> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+        let mut records = self
+            .data
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .outbox
+            .values()
+            .filter(|record| {
+                matches!(
+                    record.status(),
+                    OutboxStatus::Pending | OutboxStatus::Delivering
+                )
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        records.sort_by(|left, right| {
+            (left.created_sequence(), left.outbox_id())
+                .cmp(&(right.created_sequence(), right.outbox_id()))
+        });
+        records.truncate(limit);
+        Ok(records)
+    }
+
+    fn mark_delivering(&self, id: &OutboxId) -> Result<OutboxRecord, PersistenceError> {
+        let mut data = self
+            .data
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let record =
+            data.outbox
+                .get_mut(id)
+                .ok_or_else(|| PersistenceError::OutboxDeliveryFailed {
+                    message: format!("outbox '{id}' does not exist"),
+                })?;
+        let attempt_count = record.attempt_count().checked_add(1).ok_or_else(|| {
+            PersistenceError::OutboxDeliveryFailed {
+                message: format!("outbox '{id}' attempt counter exhausted"),
+            }
+        })?;
+        *record = record.with_status(OutboxStatus::Delivering, attempt_count);
+        Ok(record.clone())
+    }
+
+    fn mark_delivered(&self, id: &OutboxId) -> Result<(), PersistenceError> {
+        let mut data = self
+            .data
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let record =
+            data.outbox
+                .get_mut(id)
+                .ok_or_else(|| PersistenceError::OutboxDeliveryFailed {
+                    message: format!("outbox '{id}' does not exist"),
+                })?;
+        *record = record.with_status(OutboxStatus::Delivered, record.attempt_count());
+        Ok(())
+    }
+
+    fn mark_failed(&self, id: &OutboxId, message: &str) -> Result<(), PersistenceError> {
+        let mut data = self
+            .data
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let record =
+            data.outbox
+                .get_mut(id)
+                .ok_or_else(|| PersistenceError::OutboxDeliveryFailed {
+                    message: format!("outbox '{id}' does not exist: {message}"),
+                })?;
+        *record = record.with_status(OutboxStatus::Failed, record.attempt_count());
+        Ok(())
+    }
+}
+
+fn validate_outbox_record(
+    installation: &InstallationId,
+    outbox: &OutboxRecord,
+) -> Result<(), StateError> {
+    if outbox.installation() != installation {
+        return Err(StateError::Persistence(
+            PersistenceError::OutboxRecordCorrupt {
+                message: format!(
+                    "outbox '{}' belongs to installation '{}', expected '{}'",
+                    outbox.outbox_id(),
+                    outbox.installation(),
+                    installation
+                ),
+            },
+        ));
+    }
+    if outbox.status() != OutboxStatus::Pending {
+        return Err(StateError::Persistence(
+            PersistenceError::OutboxAppendFailed {
+                message: format!(
+                    "outbox '{}' must enter storage as Pending, got {}",
+                    outbox.outbox_id(),
+                    outbox.status()
+                ),
+            },
+        ));
+    }
+    if outbox.event().delivery_mode() != crate::DeliveryMode::Durable {
+        return Err(StateError::Persistence(
+            PersistenceError::OutboxAppendFailed {
+                message: format!(
+                    "outbox '{}' contains a non-durable event",
+                    outbox.outbox_id()
+                ),
+            },
+        ));
+    }
+    Ok(())
 }
 
 /// Directed migration with a kernel-controlled state-only execution context.
@@ -1305,6 +1588,61 @@ impl StateTransaction {
                 target_schema: None,
                 values,
                 changed_key_count,
+                outbox: None,
+            },
+        )
+    }
+
+    /// Commits this regular state transaction together with one Pending
+    /// outbox record in the same backend transaction.
+    pub fn commit_with_outbox(self, outbox: OutboxRecord) -> Result<(), StateError> {
+        let mut transaction = self;
+        if transaction.kind != StateTransactionKind::Regular {
+            transaction.active = false;
+            transaction
+                .store
+                .log_transaction_rollback(&transaction.installation, &transaction.transaction);
+            return Err(StateError::StateAccessDenied {
+                installation: transaction.installation.clone(),
+            });
+        }
+        if let Err(error) = transaction.ensure_lease_active() {
+            transaction.active = false;
+            transaction
+                .store
+                .log_transaction_rollback(&transaction.installation, &transaction.transaction);
+            return Err(error);
+        }
+        if outbox.installation() != &transaction.installation {
+            transaction.active = false;
+            transaction
+                .store
+                .log_transaction_rollback(&transaction.installation, &transaction.transaction);
+            return Err(StateError::Persistence(
+                PersistenceError::OutboxRecordCorrupt {
+                    message: format!(
+                        "outbox '{}' belongs to installation '{}', expected '{}'",
+                        outbox.outbox_id(),
+                        outbox.installation(),
+                        transaction.installation
+                    ),
+                },
+            ));
+        }
+        let values = std::mem::take(&mut transaction.values);
+        let changed_key_count = changed_key_count(&transaction.original_values, &values);
+        transaction.active = false;
+        transaction.store.commit_transaction(
+            &transaction.installation,
+            &transaction.transaction,
+            TransactionCommit {
+                kind: transaction.kind,
+                base_schema: transaction.base_schema,
+                base_revision: transaction.base_revision,
+                target_schema: None,
+                values,
+                changed_key_count,
+                outbox: Some(outbox),
             },
         )
     }
@@ -1340,6 +1678,7 @@ impl StateTransaction {
                 target_schema: Some(target_schema),
                 values,
                 changed_key_count,
+                outbox: None,
             },
         )
     }
@@ -1383,6 +1722,7 @@ struct TransactionCommit {
     target_schema: Option<StateSchemaVersion>,
     values: BTreeMap<StateKey, StateValue>,
     changed_key_count: usize,
+    outbox: Option<OutboxRecord>,
 }
 
 pub(crate) struct StateStore {
@@ -1909,6 +2249,7 @@ impl StateStore {
             target_schema,
             values,
             changed_key_count,
+            outbox,
         } = commit;
         let current = match self.backend.snapshot(installation) {
             Ok(snapshot) => snapshot,
@@ -1966,12 +2307,21 @@ impl StateStore {
             .with_schema_and_status(next_schema, InstallationStatus::Ready)
             .with_revision(base_revision.next());
         let backend_state = BackendState::new(next_record.clone(), values);
-        let commit_result = self.backend.commit_if_revision(
-            installation,
-            transaction,
-            base_revision,
-            backend_state,
-        );
+        let commit_result = match outbox.as_ref() {
+            Some(outbox) => self.backend.commit_if_revision_with_outbox(
+                installation,
+                transaction,
+                base_revision,
+                backend_state,
+                outbox,
+            ),
+            None => self.backend.commit_if_revision(
+                installation,
+                transaction,
+                base_revision,
+                backend_state,
+            ),
+        };
         if let Err(error) = commit_result {
             self.log_transaction_rollback(installation, transaction);
             return Err(match error {
