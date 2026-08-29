@@ -1,0 +1,16 @@
+[package]
+name = "worldline-storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Host-side production persistence adapters for Worldline"
+
+[features]
+default = []
+test-failpoints = []
+
+[dependencies]
+rusqlite = { version = "0.32.1", features = ["backup", "bundled"] }
+sha2 = "0.10.9"
+worldline-kernel = { path = "../worldline-kernel" }
