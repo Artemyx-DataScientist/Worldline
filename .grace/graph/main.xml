@@ -86,5 +86,30 @@
       <M-PERSISTENCE-RECOVERY />
       <M-CI-BASELINE />
     </M-OPERABILITY-COMPATIBILITY-UPGRADE>
+    <M-BROWSER-CONTRACT-ENGINE-SPIKE>
+      <Summary>Engine-neutral browser capability contracts v1, authority separation (observation vs mutation), element references scoped to document revision, executable engine spike with deterministic local test pages, crash containment, and ADR-BROWSER-ENGINE-V1 selecting Chromium/CEF as first provider.</Summary>
+      <Path>docs/adr/ADR-BROWSER-ENGINE-V1.md</Path>
+      <Path>crates/worldline-browser-contract/Cargo.toml</Path>
+      <Path>crates/worldline-browser-contract/src/lib.rs</Path>
+      <Path>crates/worldline-browser-contract/src/identity.rs</Path>
+      <Path>crates/worldline-browser-contract/src/contracts.rs</Path>
+      <Path>crates/worldline-browser-contract/src/authority.rs</Path>
+      <Path>crates/worldline-browser-contract/src/query.rs</Path>
+      <Path>crates/worldline-browser-contract/src/action.rs</Path>
+      <Path>crates/worldline-browser-contract/src/events.rs</Path>
+      <Path>crates/worldline-browser-contract/src/error.rs</Path>
+      <Path>crates/worldline-browser-contract/tests/contract_acceptance.rs</Path>
+      <Path>crates/worldline-browser-spike/Cargo.toml</Path>
+      <Path>crates/worldline-browser-spike/src/lib.rs</Path>
+      <Path>crates/worldline-browser-spike/src/engine.rs</Path>
+      <Path>crates/worldline-browser-spike/src/provider.rs</Path>
+      <Path>crates/worldline-browser-spike/src/harness.rs</Path>
+      <Path>crates/worldline-browser-spike/tests/spike_acceptance.rs</Path>
+      <Path>crates/worldline-browser-spike/tests/measurement_suite.rs</Path>
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-PERSISTENCE-RECOVERY />
+      <M-CI-BASELINE />
+    </M-BROWSER-CONTRACT-ENGINE-SPIKE>
   </GD-MAIN>
 </GraceGraphDocument>

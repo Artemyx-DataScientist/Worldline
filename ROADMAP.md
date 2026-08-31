@@ -35,6 +35,15 @@
 - **M0 — Complete.** Базовая архитектура платформы Worldline (M0.1–M0.7)
   полностью построена, проверена сквозными CI-гейтами и готова к разработке
   первого прикладного плагина — браузерного движка (Milestone M1).
+- **M1.1 — Done.** Browser Contract v1 and engine spike закрыты
+  [ADR-BROWSER-ENGINE-V1](docs/adr/ADR-BROWSER-ENGINE-V1.md),
+  engine-neutral capability contracts (`worldline-browser-contract`),
+  строгим разделением authority (observation vs mutation),
+  revision-scoped `ElementRef`, исполняемым спайком движка
+  (`worldline-browser-spike`) с детерминированной локальной навигацией,
+  изоляцией профилей/хранилищ, доказательством выживания хоста при сбое
+  дочернего процесса и выбором Chromium/CEF в качестве первого провайдера.
+- **M1.2 — Active.** Browser engine provider process.
 
 ## 1. Куда идёт Worldline
 
@@ -580,32 +589,29 @@ workspace plugin внутри одного runtime. На этом этапе age
 отсутствовать; никакой browser component при этом не получает особого пути в
 kernel.
 
-### M1.1 — Browser contract and engine spike
+### M1.1 — Browser contract and engine spike — Done
 
-До фиксации provider провести короткий engine spike и измерить кандидатов по
-обязательным критериям: embedding, process isolation, accessibility/DOM access,
-network interception, downloads, profiles, licensing, packaging и crash
-recovery. Chromium/CEF является исходным кандидатом, но выбор закрепляется ADR
-после работающего spike.
+Рубеж закрыт:
+- Разработан `worldline-browser-contract`: 8 versioned capability contracts
+  (`browser.context`, `browser.page`, `browser.navigate`, `browser.observe`,
+  `browser.query`, `browser.act`, `browser.download`, `browser.permission`).
+- Строго разделены права: `ObservePage`, `QueryDocument`, `NavigatePage`,
+  `ActOnPage`, `ControlDownload`, `ManagePermission`.
+- Ссылки `ElementRef` привязаны к `(PageId, DocumentRevision)`; устаревшие
+  ссылки отклоняются с явной ошибкой.
+- Реализован исполняемый спайк `worldline-browser-spike`: детерминированная
+  локальная навигация, извлечение AX-дерева, интерактивные действия (ввод текста,
+  отправка форм), изоляция профилей и куки между контекстами, локализация сбоев
+  дочерних процессов с сохранением работоспособности хоста.
+- Оформлен [ADR-BROWSER-ENGINE-V1](docs/adr/ADR-BROWSER-ENGINE-V1.md),
+  выбравший Chromium/CEF в качестве первого провайдера для M1.2 на основе
+  эмпирических измерений.
 
-Спроектировать версии browser capabilities, например:
-
-```text
-browser.context
-browser.page
-browser.navigate
-browser.observe
-browser.query
-browser.act
-browser.download
-browser.permission
-```
-
-Контракты должны одинаково обслуживать human UI и agent consumers. Доступ к DOM
-не означает право на click/input; observation и mutation выдаются раздельно.
-Navigation/click/input являются capability RPC. События вроде
-`navigation.committed` публикуются как observations после outcome и никогда не
-служат способом отправить browser command.
+Exit criterion: browser contracts компилируются без зависимостей от движков;
+kernel не содержит типов браузера; спайк доказывает изоляцию и навигацию без
+публичной сети; ADR обосновывает выбор движка. Evidence: `worldline-browser-contract`
+acceptance suite, `worldline-browser-spike` acceptance and measurement suites,
+сохраненные M0 CI gates.
 
 ### M1.2 — Browser engine provider process
 

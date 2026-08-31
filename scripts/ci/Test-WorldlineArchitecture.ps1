@@ -277,4 +277,39 @@ foreach ($consumerContractCrate in @('worldline-kernel', 'worldline-reference-ex
     }
 }
 
-Write-Host 'Architecture guard passed: GRACE layout and kernel dependency direction are valid.'
+Write-Host 'Checking browser contract and engine anti-corruption boundaries.'
+[void](Require-RepositoryPath -RelativePath 'docs/adr/ADR-BROWSER-ENGINE-V1.md' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-contract/Cargo.toml' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-spike/Cargo.toml' -Kind File)
+
+$kernelManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-kernel/Cargo.toml') -Raw
+foreach ($forbiddenToken in @('worldline-browser-contract', 'worldline-browser-spike', 'cef', 'chromium', 'webview')) {
+    Assert-Condition (-not $kernelManifest.Contains($forbiddenToken)) "worldline-kernel manifest must not mention browser/engine token '${forbiddenToken}'."
+}
+
+$kernelSourceFiles = @(Get-ChildItem -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-kernel/src') -Filter '*.rs' -File -Recurse)
+foreach ($sourceFile in $kernelSourceFiles) {
+    $sourceText = Get-Content -LiteralPath $sourceFile.FullName -Raw
+    foreach ($forbiddenToken in @('worldline_browser_contract', 'worldline_browser_spike', 'cef', 'chromium')) {
+        Assert-Condition (-not $sourceText.Contains($forbiddenToken)) "Kernel source '$($sourceFile.Name)' must not mention '${forbiddenToken}'."
+    }
+}
+
+$browserContractManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-contract/Cargo.toml') -Raw
+foreach ($forbiddenToken in @('cef', 'chromium', 'webview2', 'wpe', 'webkit', 'gecko', 'servo')) {
+    Assert-Condition (-not $browserContractManifest.Contains($forbiddenToken)) "worldline-browser-contract manifest must not depend on engine token '${forbiddenToken}'."
+}
+
+$browserContractSourceFiles = @(Get-ChildItem -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-contract/src') -Filter '*.rs' -File -Recurse)
+foreach ($sourceFile in $browserContractSourceFiles) {
+    $sourceText = Get-Content -LiteralPath $sourceFile.FullName -Raw
+    foreach ($forbiddenToken in @('cef', 'chromium', 'webview2', 'wpewebkit')) {
+        Assert-Condition (-not $sourceText.ToLowerInvariant().Contains($forbiddenToken)) "Browser contract source '$($sourceFile.Name)' must not reference engine '${forbiddenToken}'."
+    }
+}
+
+$browserSpikeManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-spike/Cargo.toml') -Raw
+Assert-Condition ($browserSpikeManifest.Contains('worldline-browser-contract')) 'worldline-browser-spike must depend on worldline-browser-contract.'
+Assert-Condition ($browserSpikeManifest.Contains('worldline-kernel')) 'worldline-browser-spike must depend on worldline-kernel.'
+
+Write-Host 'Architecture guard passed: GRACE layout, kernel dependency direction, and browser contracts are valid.'

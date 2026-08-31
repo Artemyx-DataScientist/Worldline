@@ -1,0 +1,221 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-BROWSER-CONTRACT-ENGINE-SPIKE-20260831>
+    <IntentSummary>Define engine-neutral Browser Contract v1 capabilities (browser.context, browser.page, browser.navigate, browser.observe, browser.query, browser.act, browser.download, browser.permission), strict authority separation between observation and mutation, typed browser events, element references scoped to PageId and DocumentRevision, executable engine spike with deterministic local test pages, profile storage isolation, process crash containment, host survival proof, comprehensive ADR-BROWSER-ENGINE-V1 selecting Chromium/CEF as first M1.2 provider from empirical measurements, and complete CI/GRACE integration.</IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-KERNEL-CAPABILITY-RUNTIME</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>M-PERSISTENCE-RECOVERY</Value>
+        <Value>M-EXTERNAL-PLUGIN-BOUNDARY</Value>
+        <Value>M-OPERABILITY-COMPATIBILITY-UPGRADE</Value>
+        <Value>crates/worldline-kernel/src/lib.rs</Value>
+        <Value>crates/worldline-plugin-protocol/src/lib.rs</Value>
+        <Value>crates/worldline-storage/src/lib.rs</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>.grace/graph/index.xml</Value>
+        <Value>.grace/verification/index.xml</Value>
+      </MustExist>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>docs/adr/ADR-BROWSER-ENGINE-V1.md</Value>
+        <Value>crates/worldline-browser-contract/Cargo.toml</Value>
+        <Value>crates/worldline-browser-contract/src/lib.rs</Value>
+        <Value>crates/worldline-browser-contract/src/identity.rs</Value>
+        <Value>crates/worldline-browser-contract/src/contracts.rs</Value>
+        <Value>crates/worldline-browser-contract/src/authority.rs</Value>
+        <Value>crates/worldline-browser-contract/src/query.rs</Value>
+        <Value>crates/worldline-browser-contract/src/action.rs</Value>
+        <Value>crates/worldline-browser-contract/src/events.rs</Value>
+        <Value>crates/worldline-browser-contract/src/error.rs</Value>
+        <Value>crates/worldline-browser-contract/tests/contract_acceptance.rs</Value>
+        <Value>crates/worldline-browser-spike/Cargo.toml</Value>
+        <Value>crates/worldline-browser-spike/src/lib.rs</Value>
+        <Value>crates/worldline-browser-spike/src/engine.rs</Value>
+        <Value>crates/worldline-browser-spike/src/provider.rs</Value>
+        <Value>crates/worldline-browser-spike/src/harness.rs</Value>
+        <Value>crates/worldline-browser-spike/tests/spike_acceptance.rs</Value>
+        <Value>crates/worldline-browser-spike/tests/measurement_suite.rs</Value>
+      </MustExist>
+      <MustVerify>
+        <Module>M-BROWSER-CONTRACT-ENGINE-SPIKE</Module>
+        <Module>M-KERNEL-CAPABILITY-RUNTIME</Module>
+        <Module>M-REFERENCE-PROVING-SLICE</Module>
+        <Module>M-PERSISTENCE-RECOVERY</Module>
+        <Module>M-EXTERNAL-PLUGIN-BOUNDARY</Module>
+        <Module>M-OPERABILITY-COMPATIBILITY-UPGRADE</Module>
+        <Module>M-CI-BASELINE</Module>
+      </MustVerify>
+      <MustPassCommand>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <M-KERNEL-CAPABILITY-RUNTIME />
+        <M-REFERENCE-PROVING-SLICE />
+        <M-PERSISTENCE-RECOVERY />
+        <M-EXTERNAL-PLUGIN-BOUNDARY />
+        <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <V-M-KERNEL-CAPABILITY-RUNTIME />
+        <V-M-REFERENCE-PROVING-SLICE />
+        <V-M-PERSISTENCE-RECOVERY />
+        <V-M-EXTERNAL-PLUGIN-BOUNDARY />
+        <V-M-OPERABILITY-COMPATIBILITY-UPGRADE />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>docs/adr/ADR-BROWSER-ENGINE-V1.md</File>
+      <File>Cargo.toml</File>
+      <File>Cargo.lock</File>
+      <File>crates/worldline-browser-contract/Cargo.toml</File>
+      <File>crates/worldline-browser-contract/src/lib.rs</File>
+      <File>crates/worldline-browser-contract/src/identity.rs</File>
+      <File>crates/worldline-browser-contract/src/contracts.rs</File>
+      <File>crates/worldline-browser-contract/src/authority.rs</File>
+      <File>crates/worldline-browser-contract/src/query.rs</File>
+      <File>crates/worldline-browser-contract/src/action.rs</File>
+      <File>crates/worldline-browser-contract/src/events.rs</File>
+      <File>crates/worldline-browser-contract/src/error.rs</File>
+      <File>crates/worldline-browser-contract/tests/contract_acceptance.rs</File>
+      <File>crates/worldline-browser-spike/Cargo.toml</File>
+      <File>crates/worldline-browser-spike/src/lib.rs</File>
+      <File>crates/worldline-browser-spike/src/engine.rs</File>
+      <File>crates/worldline-browser-spike/src/provider.rs</File>
+      <File>crates/worldline-browser-spike/src/harness.rs</File>
+      <File>crates/worldline-browser-spike/tests/spike_acceptance.rs</File>
+      <File>crates/worldline-browser-spike/tests/measurement_suite.rs</File>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      <File>ROADMAP.md</File>
+      <File>.grace/graph/index.xml</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.grace/verification/index.xml</File>
+      <File>.grace/verification/main.xml</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Draft ADR-BROWSER-ENGINE-V1 covering all 17 required sections and candidate matrix</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>docs/adr/ADR-BROWSER-ENGINE-V1.md is written with all 17 required sections: Browser contract boundary, Engine candidates, Spike methodology, Embedding model, Process isolation, DOM and accessibility access, Network interception, Downloads, Profiles and contexts, Crash recovery, Packaging and distribution, Licensing, Upgrade cost, OSR/windowed tradeoff, Selected first provider, Rejected alternatives, Reopen conditions.</Criterion>
+          <Criterion>Selection of Chromium/CEF for M1.2 is justified by executable evidence rather than assumption.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Implement worldline-browser-contract crate with engine-neutral vocabulary</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-browser-contract defines BrowserContextId, PageId, NavigationId, DocumentRevision, DownloadId, ElementRef, and ResourceId helpers.</Criterion>
+          <Criterion>worldline-browser-contract defines capability IDs and request/result schemas for browser.context, browser.page, browser.navigate, browser.observe, browser.query, browser.act, browser.download, browser.permission.</Criterion>
+          <Criterion>worldline-browser-contract defines typed event payload schemas and engine-neutral BrowserError taxonomy.</Criterion>
+          <Criterion>worldline-browser-contract contains zero engine dependencies and compiles cleanly.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-contract</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Implement browser contract acceptance tests and authority separation</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Acceptance tests verify that ObservePage cannot execute navigation operations.</Criterion>
+          <Criterion>Acceptance tests verify that QueryDocument cannot execute click or input operations.</Criterion>
+          <Criterion>Acceptance tests verify that ActOnPage is scoped strictly to the authorized PageId.</Criterion>
+          <Criterion>Acceptance tests verify that stale ElementRef across document revisions is deterministically rejected.</Criterion>
+          <Criterion>Acceptance tests verify that browser events cannot serve as command transports.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-contract</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Implement worldline-browser-spike engine supervisor and capability provider</Title>
+        <DependsOn>
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-browser-spike implements SpikeBrowserProvider exposing all 8 capability contracts to worldline-kernel broker.</Criterion>
+          <Criterion>Engine supervisor manages isolated browser contexts with explicit storage roots, multi-page state, DOM/accessibility queries, and form actions.</Criterion>
+          <Criterion>Deterministic local test pages run in-memory/loopback without requiring external network connectivity.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-spike</Command>
+        </Verification>
+      </T-004>
+
+      <T-005>
+        <Title>Implement executable engine spike acceptance tests and crash recovery evidence</Title>
+        <DependsOn>
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Spike navigates deterministic local test page, observes committed navigation, and queries structured accessibility/document tree.</Criterion>
+          <Criterion>Spike executes authorized action (text input, button click) and observes resulting page state and revision increment.</Criterion>
+          <Criterion>Spike proves profile storage and cookie isolation between distinct contexts.</Criterion>
+          <Criterion>Deliberate child process termination/crash does not crash the Worldline host; provider emits browser.engine.crashed event; subsequent calls fail explicitly; restart mints fresh runtime identity without grant inheritance.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-spike --test spike_acceptance</Command>
+        </Verification>
+      </T-005>
+
+      <T-006>
+        <Title>Implement spike measurement suite and empirical metrics</Title>
+        <DependsOn>
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Measurement suite records startup latency, memory footprint, query latency, and IPC round-trip metrics.</Criterion>
+          <Criterion>ADR-BROWSER-ENGINE-V1 records the empirical findings.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-spike --test measurement_suite</Command>
+        </Verification>
+      </T-006>
+
+      <T-007>
+        <Title>Integrate CI suites, architecture guards, GRACE projection and update roadmap</Title>
+        <DependsOn>
+          <T-006 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>scripts/ci/Invoke-WorldlineCi.ps1 and scripts/ci/Test-WorldlineArchitecture.ps1 enforce browser contract isolation and run all suites.</Criterion>
+          <Criterion>.grace/graph and .grace/verification include M-BROWSER-CONTRACT-ENGINE-SPIKE and V-M-BROWSER-CONTRACT-ENGINE-SPIKE.</Criterion>
+          <Criterion>ROADMAP.md updates M1.1 to Done and sets M1.2 as active.</Criterion>
+          <Criterion>All CI suites (Source, Correctness, ArchitectureSecurity, ProvingSlice, All) and GRACE lint pass cleanly.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-007>
+    </ImplementationPlan>
+  </C-BROWSER-CONTRACT-ENGINE-SPIKE-20260831>
+</GraceChangePlan>

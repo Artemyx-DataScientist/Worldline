@@ -1,0 +1,959 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-BROWSER-CONTRACT-ENGINE-SPIKE-20260831>
+    <ChangeId>C-BROWSER-CONTRACT-ENGINE-SPIKE-20260831</ChangeId>
+
+    <Title>
+      Browser Contract v1 and Engine Spike:
+      Engine-Neutral Capabilities, Authority Separation and Provider Selection
+    </Title>
+
+    <Constraints>
+      <Constraint>BROWSER IS A PLUGIN FAMILY, NOT A KERNEL SUBSYSTEM.</Constraint>
+      <Constraint>ENGINE IMPLEMENTATION IS NOT PART OF THE LOGICAL BROWSER CONTRACT.</Constraint>
+      <Constraint>HUMAN AND AGENT CONSUMERS USE THE SAME BROWSER CONTRACTS.</Constraint>
+      <Constraint>OBSERVATION AUTHORITY DOES NOT IMPLY MUTATION AUTHORITY.</Constraint>
+      <Constraint>DOM ACCESS DOES NOT IMPLY CLICK OR INPUT AUTHORITY.</Constraint>
+      <Constraint>NAVIGATION, CLICK, INPUT AND DOWNLOAD CONTROL ARE RPC OPERATIONS.</Constraint>
+      <Constraint>BROWSER EVENTS REPORT FACTS; THEY DO NOT DISPATCH COMMANDS.</Constraint>
+      <Constraint>ENGINE-SPECIFIC TYPES MUST NOT CROSS THE BROWSER CONTRACT.</Constraint>
+      <Constraint>PAGE IDENTITY IS WORLDLINE IDENTITY, NOT A RAW ENGINE POINTER/HANDLE.</Constraint>
+      <Constraint>ENGINE CRASH MUST BE REPRESENTABLE WITHOUT INVALIDATING INSTALLATION STATE OR THE HOST.</Constraint>
+      <Constraint>PROFILE/CONTEXT IDENTITY AND PAGE RUNTIME IDENTITY ARE DISTINCT.</Constraint>
+      <Constraint>NETWORK INTERCEPTION DOES NOT CREATE UNBOUNDED NETWORK AUTHORITY.</Constraint>
+      <Constraint>FIRST ENGINE CHOICE DOES NOT PREVENT A FUTURE SECOND ENGINE PROVIDER.</Constraint>
+    </Constraints>
+
+    <AffectedAreas>
+      <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-PERSISTENCE-RECOVERY />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+
+    <VerificationIntent>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+      <ExpectedEvidence>Fresh local evidence proves browser contracts compile without engine dependency, observation authority cannot mutate or navigate, stale element references are rejected, browser events cannot serve as RPC commands, executable engine spike navigates deterministic local pages, executes authorized form actions, isolates profile storage across contexts, contains child crashes with host survival, and ADR-BROWSER-ENGINE-V1 selects Chromium/CEF from empirical measurements.</ExpectedEvidence>
+    </VerificationIntent>
+
+    <AcceptanceCriteria>
+      <Criterion>Browser Contract v1 exists and is engine-neutral.</Criterion>
+      <Criterion>Observation/query and mutation authority are independently enforced.</Criterion>
+      <Criterion>Commands remain RPC and observations remain events.</Criterion>
+      <Criterion>Browser IDs and error semantics do not expose provider implementation.</Criterion>
+      <Criterion>Working engine spike embeds and navigates a real engine against a local deterministic page.</Criterion>
+      <Criterion>DOM/accessibility observation and one explicit action are demonstrated.</Criterion>
+      <Criterion>Crash containment and profile/context isolation characteristics are measured.</Criterion>
+      <Criterion>Packaging/licensing/update implications are documented.</Criterion>
+      <Criterion>ADR selects the first engine provider from evidence.</Criterion>
+      <Criterion>Existing M0 invariants and CI remain green.</Criterion>
+      <Criterion>M1.2 can implement the selected engine without changing logical browser contracts.</Criterion>
+    </AcceptanceCriteria>
+
+    <Summary>
+      Начать M1 первым настоящим product-family contract поверх завершённого M0.
+
+      Change имеет две связанные, но разные цели:
+
+        1. Спроектировать browser capability contracts, которые не зависят от
+           Chromium, CEF, WebView, Firefox или конкретной embedding technology.
+
+        2. Провести короткий executable engine spike и на основании измерений
+           выбрать первый browser engine provider для M1.2.
+
+      Browser НЕ получает специального kernel path.
+
+      Human UI и future agent consumer используют одни и те же logical browser
+      capabilities и различаются только principal/authority.
+
+      Observation и mutation разделены:
+
+        browser.observe / browser.query
+          !=
+        browser.navigate / browser.act
+
+      Возможность прочитать DOM/AX/page state НЕ создаёт права:
+
+        - кликать;
+        - вводить текст;
+        - отправлять формы;
+        - навигировать;
+        - скачивать;
+        - менять permissions.
+
+      Commands используют capability RPC.
+
+      Browser events являются post-outcome observations и никогда не используются
+      как command transport.
+
+      Engine spike должен закончиться ADR с реальными evidence, а не выбором
+      "Chromium потому что все используют Chromium".
+    </Summary>
+
+    <RoadmapAlignment>
+      <Milestone>M1.1 — Browser contract and engine spike</Milestone>
+
+      <Preconditions>
+        <Precondition>M0.1-M0.7 — Done.</Precondition>
+        <Precondition>M0 — Complete.</Precondition>
+        <Precondition>
+          Builtin/native/WASM plugin semantics, authority, state, recovery and
+          compatibility contracts остаются обязательными.
+        </Precondition>
+      </Preconditions>
+
+      <Postcondition>
+        После закрытия M1.1 активным milestone становится
+        M1.2 — Browser engine provider process.
+      </Postcondition>
+    </RoadmapAlignment>
+
+    <ArchitecturalInvariants>
+      <Invariant>
+        BROWSER IS A PLUGIN FAMILY, NOT A KERNEL SUBSYSTEM.
+      </Invariant>
+
+      <Invariant>
+        ENGINE IMPLEMENTATION IS NOT PART OF THE LOGICAL BROWSER CONTRACT.
+      </Invariant>
+
+      <Invariant>
+        HUMAN AND AGENT CONSUMERS USE THE SAME BROWSER CONTRACTS.
+      </Invariant>
+
+      <Invariant>
+        OBSERVATION AUTHORITY DOES NOT IMPLY MUTATION AUTHORITY.
+      </Invariant>
+
+      <Invariant>
+        DOM ACCESS DOES NOT IMPLY CLICK OR INPUT AUTHORITY.
+      </Invariant>
+
+      <Invariant>
+        NAVIGATION, CLICK, INPUT AND DOWNLOAD CONTROL ARE RPC OPERATIONS.
+      </Invariant>
+
+      <Invariant>
+        BROWSER EVENTS REPORT FACTS; THEY DO NOT DISPATCH COMMANDS.
+      </Invariant>
+
+      <Invariant>
+        ENGINE-SPECIFIC TYPES MUST NOT CROSS THE BROWSER CONTRACT.
+      </Invariant>
+
+      <Invariant>
+        PAGE IDENTITY IS WORLDLINE IDENTITY, NOT A RAW ENGINE POINTER/HANDLE.
+      </Invariant>
+
+      <Invariant>
+        ENGINE CRASH MUST BE REPRESENTABLE WITHOUT INVALIDATING INSTALLATION STATE
+        OR THE HOST.
+      </Invariant>
+
+      <Invariant>
+        PROFILE/CONTEXT IDENTITY AND PAGE RUNTIME IDENTITY ARE DISTINCT.
+      </Invariant>
+
+      <Invariant>
+        NETWORK INTERCEPTION DOES NOT CREATE UNBOUNDED NETWORK AUTHORITY.
+      </Invariant>
+
+      <Invariant>
+        FIRST ENGINE CHOICE DOES NOT PREVENT A FUTURE SECOND ENGINE PROVIDER.
+      </Invariant>
+    </ArchitecturalInvariants>
+
+    <Goals>
+      <Goal>Define Browser Contract v1 vocabulary.</Goal>
+      <Goal>Define browser authority/resource scopes.</Goal>
+      <Goal>Define browser event vocabulary.</Goal>
+      <Goal>Define page/context identity semantics.</Goal>
+      <Goal>Define engine-neutral error taxonomy.</Goal>
+      <Goal>Define crash/recovery semantics expected from any engine provider.</Goal>
+
+      <Goal>
+        Build at least one executable engine embedding spike.
+      </Goal>
+
+      <Goal>
+        Measure embedding, process isolation, DOM/accessibility access,
+        network interception, downloads, profiles, licensing, packaging,
+        crash recovery and upgrade cost.
+      </Goal>
+
+      <Goal>
+        Produce ADR selecting first M1.2 provider from evidence.
+      </Goal>
+
+      <Goal>
+        Demonstrate one minimal browser contract path without product UI.
+      </Goal>
+    </Goals>
+
+    <NonGoals>
+      <NonGoal>Full browser implementation.</NonGoal>
+      <NonGoal>Tabs service.</NonGoal>
+      <NonGoal>History service.</NonGoal>
+      <NonGoal>Downloads UI.</NonGoal>
+      <NonGoal>Bookmarks.</NonGoal>
+      <NonGoal>Password manager.</NonGoal>
+      <NonGoal>Ad blocker.</NonGoal>
+      <NonGoal>DevTools UX.</NonGoal>
+      <NonGoal>Worldline Shell.</NonGoal>
+      <NonGoal>Liquid glass UI.</NonGoal>
+      <NonGoal>Agent browser control.</NonGoal>
+      <NonGoal>OSR + wgpu production compositor.</NonGoal>
+      <NonGoal>Multi-engine production support.</NonGoal>
+      <NonGoal>Firefox integration unless selected as explicit spike candidate.</NonGoal>
+    </NonGoals>
+
+    <RequiredADR>
+      <File>docs/adr/ADR-BROWSER-ENGINE-V1.md</File>
+
+      <RequiredSection>Browser contract boundary</RequiredSection>
+      <RequiredSection>Engine candidates</RequiredSection>
+      <RequiredSection>Spike methodology</RequiredSection>
+      <RequiredSection>Embedding model</RequiredSection>
+      <RequiredSection>Process isolation</RequiredSection>
+      <RequiredSection>DOM and accessibility access</RequiredSection>
+      <RequiredSection>Network interception</RequiredSection>
+      <RequiredSection>Downloads</RequiredSection>
+      <RequiredSection>Profiles and contexts</RequiredSection>
+      <RequiredSection>Crash recovery</RequiredSection>
+      <RequiredSection>Packaging and distribution</RequiredSection>
+      <RequiredSection>Licensing</RequiredSection>
+      <RequiredSection>Upgrade cost</RequiredSection>
+      <RequiredSection>OSR/windowed tradeoff</RequiredSection>
+      <RequiredSection>Selected first provider</RequiredSection>
+      <RequiredSection>Rejected alternatives</RequiredSection>
+      <RequiredSection>Reopen conditions</RequiredSection>
+
+      <Requirement>
+        Selection requires executable evidence.
+      </Requirement>
+
+      <Requirement>
+        Chromium/CEF may be selected, but candidate status must not be treated as
+        pre-existing architectural approval.
+      </Requirement>
+    </RequiredADR>
+
+    <BrowserCapabilityContracts>
+      <Contract name="browser.context" version="1">
+        Create/open/close isolated browser contexts or profiles.
+
+        Context is a Worldline resource identity.
+
+        Engine profile objects remain provider-private.
+      </Contract>
+
+      <Contract name="browser.page" version="1">
+        Create/close/list page surfaces inside an authorized context.
+      </Contract>
+
+      <Contract name="browser.navigate" version="1">
+        Mutating navigation operations:
+          open URL,
+          reload,
+          stop,
+          history navigation.
+      </Contract>
+
+      <Contract name="browser.observe" version="1">
+        Read bounded page observations:
+          current URL,
+          title,
+          loading state,
+          security/navigation metadata,
+          viewport/basic page state.
+      </Contract>
+
+      <Contract name="browser.query" version="1">
+        Structured document/accessibility queries without mutation.
+      </Contract>
+
+      <Contract name="browser.act" version="1">
+        Explicit page mutation:
+          click,
+          focus,
+          input,
+          submit,
+          scroll where treated as interaction.
+      </Contract>
+
+      <Contract name="browser.download" version="1">
+        Download admission/control metadata.
+      </Contract>
+
+      <Contract name="browser.permission" version="1">
+        Site permission decisions and observation.
+      </Contract>
+    </BrowserCapabilityContracts>
+
+    <AuthorityModel>
+      <ResourceScopes>
+        <Scope>browser-context/{ContextId}</Scope>
+        <Scope>browser-page/{PageId}</Scope>
+        <Scope>browser-download/{DownloadId}</Scope>
+      </ResourceScopes>
+
+      <RequiredSeparation>
+        <Authority>ObservePage</Authority>
+        <Authority>QueryDocument</Authority>
+        <Authority>NavigatePage</Authority>
+        <Authority>ActOnPage</Authority>
+        <Authority>ControlDownload</Authority>
+        <Authority>ManagePermission</Authority>
+      </RequiredSeparation>
+
+      <Invariant>
+        QueryDocument does not satisfy ActOnPage.
+      </Invariant>
+
+      <Invariant>
+        ObservePage does not satisfy NavigatePage.
+      </Invariant>
+
+      <Invariant>
+        Navigation to one authorized PageId does not imply authority over another
+        PageId in same process.
+      </Invariant>
+
+      <Invariant>
+        Plugin/provider knowledge of engine identifiers does not create Worldline
+        authority.
+      </Invariant>
+    </AuthorityModel>
+
+    <IdentityModel>
+      <Type>BrowserContextId</Type>
+      <Type>PageId</Type>
+      <Type>NavigationId</Type>
+      <Type>DocumentRevision</Type>
+      <Type>DownloadId</Type>
+
+      <Invariant>
+        BrowserContextId survives engine child-process restart where policy allows.
+      </Invariant>
+
+      <Invariant>
+        PageId lifecycle is controlled by browser provider contract rather than raw
+        HWND/CEF/browser pointer identity.
+      </Invariant>
+
+      <Invariant>
+        NavigationId identifies logical navigation attempt/outcome.
+      </Invariant>
+
+      <Rule>
+        Engine-specific numeric/browser/process/frame identifiers may appear only
+        in diagnostics, never as trusted consumer authority.
+      </Rule>
+    </IdentityModel>
+
+    <BrowserEvents>
+      <Event>browser.navigation.started</Event>
+      <Event>browser.navigation.committed</Event>
+      <Event>browser.navigation.failed</Event>
+      <Event>browser.page.ready</Event>
+      <Event>browser.page.closed</Event>
+      <Event>browser.engine.crashed</Event>
+      <Event>browser.download.started</Event>
+      <Event>browser.download.completed</Event>
+
+      <Invariant>
+        Event publication occurs after corresponding outcome/fact.
+      </Invariant>
+
+      <Invariant>
+        Publishing browser.navigation.requested does not cause navigation.
+      </Invariant>
+
+      <Invariant>
+        Event subscriber cannot become browser command provider merely by
+        subscribing.
+      </Invariant>
+    </BrowserEvents>
+
+    <BrowserQueryModel>
+      <Requirement>
+        Query result has bounded serialized representation.
+      </Requirement>
+
+      <Requirement>
+        Initial query vocabulary supports at least:
+          document metadata,
+          accessibility tree or equivalent structured semantic tree,
+          element lookup,
+          text extraction.
+      </Requirement>
+
+      <Rule>
+        Full raw engine DOM object is never returned through capability boundary.
+      </Rule>
+
+      <Rule>
+        Query result may include stable-within-document element references, but
+        references are scoped to PageId + DocumentRevision.
+      </Rule>
+
+      <Invariant>
+        Element reference becomes stale after incompatible document/navigation
+        revision.
+      </Invariant>
+    </BrowserQueryModel>
+
+    <BrowserActionModel>
+      <Operations>
+        <Operation>click(element-ref)</Operation>
+        <Operation>focus(element-ref)</Operation>
+        <Operation>input(element-ref, text)</Operation>
+        <Operation>submit(element-ref)</Operation>
+      </Operations>
+
+      <Requirement>
+        Action validates PageId, DocumentRevision and authority before provider
+        dispatch.
+      </Requirement>
+
+      <Requirement>
+        Stale element reference fails explicitly.
+      </Requirement>
+
+      <Invariant>
+        Text/data passed to action payload cannot forge caller principal or browser
+        authority.
+      </Invariant>
+    </BrowserActionModel>
+
+    <EngineSpike>
+      <Purpose>
+        Resolve the highest-risk browser embedding decisions before M1.2.
+      </Purpose>
+
+      <MinimumCandidate>
+        Chromium/CEF.
+      </MinimumCandidate>
+
+      <Rule>
+        At least one realistic alternative SHOULD be assessed where feasible, but
+        no fake implementation work is required merely to satisfy candidate count.
+      </Rule>
+
+      <RequiredMeasurements>
+        <Measurement>host embedding complexity</Measurement>
+        <Measurement>native window/headful support</Measurement>
+        <Measurement>off-screen rendering feasibility</Measurement>
+        <Measurement>renderer/process isolation model</Measurement>
+        <Measurement>process crash containment</Measurement>
+        <Measurement>DOM access quality</Measurement>
+        <Measurement>accessibility tree access</Measurement>
+        <Measurement>JavaScript execution boundary</Measurement>
+        <Measurement>network request/response interception</Measurement>
+        <Measurement>download interception/control</Measurement>
+        <Measurement>cookie/profile/context isolation</Measurement>
+        <Measurement>persistent profile location control</Measurement>
+        <Measurement>DevTools/debugging access</Measurement>
+        <Measurement>binary/package footprint</Measurement>
+        <Measurement>build complexity</Measurement>
+        <Measurement>runtime startup latency</Measurement>
+        <Measurement>upgrade cadence/cost</Measurement>
+        <Measurement>licensing/distribution constraints</Measurement>
+      </RequiredMeasurements>
+
+      <Requirement>
+        Measurements and observations are written into ADR/spike report.
+      </Requirement>
+
+      <Requirement>
+        "Works on developer machine" is insufficient evidence for packaging and
+        process recovery criteria.
+      </Requirement>
+    </EngineSpike>
+
+    <SpikeExecutablePath>
+      <RequiredPath>
+        Worldline host/test harness
+          -> browser capability consumer
+          -> broker
+          -> spike engine provider boundary
+          -> create context
+          -> create page
+          -> navigate to deterministic local test page
+          -> observe committed navigation
+          -> query title/text/semantic element
+          -> execute one authorized interaction
+          -> observe resulting page state
+          -> terminate/crash engine child where supported
+          -> host remains alive
+          -> report exact recovery capability/limitation
+      </RequiredPath>
+
+      <Rule>
+        Test page is local/deterministic and does not require public Internet.
+      </Rule>
+    </SpikeExecutablePath>
+
+    <AntiCorruptionBoundary>
+      <Invariant>
+        No CEF/Chromium/WebView/Firefox type enters worldline-kernel.
+      </Invariant>
+
+      <Invariant>
+        No engine-specific type enters public browser capability contracts.
+      </Invariant>
+
+      <Allowed>
+        Selected engine provider crate/process may contain arbitrary provider-private
+        engine types.
+      </Allowed>
+
+      <Requirement>
+        ADR names the exact boundary at which provider-specific errors/identities are
+        translated into Browser Contract v1 vocabulary.
+      </Requirement>
+    </AntiCorruptionBoundary>
+
+    <CrashAndRecovery>
+      <Requirement>
+        Spike deliberately terminates at least one engine-owned process if selected
+        engine architecture exposes process separation.
+      </Requirement>
+
+      <Requirement>
+        Host survival is verified.
+      </Requirement>
+
+      <Requirement>
+        Provider returns/records explicit crash outcome.
+      </Requirement>
+
+      <Requirement>
+        No browser runtime authority is silently inherited by replacement process.
+      </Requirement>
+
+      <Rule>
+        M1.1 does not need full automatic page restoration; it must determine and
+        document what M1.2 needs to implement.
+      </Rule>
+    </CrashAndRecovery>
+
+    <ProfilePrivacyBoundary>
+      <Requirement>
+        Spike proves host can control profile/context storage root or documents why
+        candidate cannot satisfy this requirement.
+      </Requirement>
+
+      <Requirement>
+        Two test contexts can be created without accidental cookie/storage sharing
+        where isolation is claimed.
+      </Requirement>
+
+      <Invariant>
+        Engine default profile location must not silently become Worldline's
+        authoritative profile model.
+      </Invariant>
+    </ProfilePrivacyBoundary>
+
+    <RequiredTests>
+      <Test>
+        Browser contracts compile without engine dependency.
+      </Test>
+
+      <Test>
+        Kernel has no browser domain dependency after contract introduction.
+      </Test>
+
+      <Test>
+        Observe authority cannot navigate.
+      </Test>
+
+      <Test>
+        Query authority cannot click/input.
+      </Test>
+
+      <Test>
+        Act authority is scoped to authorized PageId.
+      </Test>
+
+      <Test>
+        Stale element reference after navigation is rejected.
+      </Test>
+
+      <Test>
+        Browser event cannot satisfy browser RPC invocation.
+      </Test>
+
+      <Test>
+        navigation.committed is emitted only after navigation outcome.
+      </Test>
+
+      <Test>
+        Browser payload cannot spoof caller/runtime/trusted event metadata.
+      </Test>
+
+      <Test>
+        Engine-specific identity never becomes authorization resource identity.
+      </Test>
+
+      <Test>
+        Minimal engine spike navigates deterministic local page.
+      </Test>
+
+      <Test>
+        Spike reads title/text or structured accessibility/document representation.
+      </Test>
+
+      <Test>
+        Spike performs one explicitly authorized action.
+      </Test>
+
+      <Test>
+        Separate contexts demonstrate claimed storage/profile isolation.
+      </Test>
+
+      <Test>
+        Engine crash/termination does not terminate Worldline host.
+      </Test>
+
+      <Test>
+        Existing M0 acceptance/security/proving suites remain green.
+      </Test>
+    </RequiredTests>
+
+    <DecisionMatrix>
+      <Criterion name="Embedding" weight="required" />
+      <Criterion name="ProcessIsolation" weight="required" />
+      <Criterion name="DOMAccess" weight="required" />
+      <Criterion name="Accessibility" weight="required" />
+      <Criterion name="NetworkInterception" weight="required" />
+      <Criterion name="Downloads" weight="required" />
+      <Criterion name="Profiles" weight="required" />
+      <Criterion name="CrashRecovery" weight="required" />
+      <Criterion name="Packaging" weight="required" />
+      <Criterion name="Licensing" weight="required" />
+      <Criterion name="UpgradeCost" weight="required" />
+
+      <Criterion name="OffscreenRendering" weight="important-not-blocking" />
+      <Criterion name="GPUCompositionIntegration" weight="important-not-blocking" />
+      <Criterion name="CrossPlatformUniformity" weight="important" />
+    </DecisionMatrix>
+
+    <OSRPolicy>
+      <Rule>
+        M1.1 measures OSR but does not require production OSR.
+      </Rule>
+
+      <Rule>
+        A native/windowed first provider is acceptable if it significantly reduces
+        compatibility risk.
+      </Rule>
+
+      <Rule>
+        OSR + wgpu becomes a separate measured experiment and must not block first
+        functional browser provider.
+      </Rule>
+    </OSRPolicy>
+
+    <StaticArchitectureChecks>
+      <Requirement>
+        worldline-kernel contains no BrowserContext/Page/DOM/Navigation domain
+        implementation.
+      </Requirement>
+
+      <Requirement>
+        Engine SDK crates are absent from worldline-kernel dependency graph.
+      </Requirement>
+
+      <Requirement>
+        Browser event names are not used as RPC operation dispatch mechanism.
+      </Requirement>
+
+      <Requirement>
+        browser.observe/query and browser.act/navigate authority remain separately
+        addressable.
+      </Requirement>
+    </StaticArchitectureChecks>
+
+    <CIIntegration>
+      <Mapping>
+        <Suite name="Source">
+          browser contracts/documentation/ADR formatting and static source gates.
+        </Suite>
+
+        <Suite name="Correctness">
+          browser contract semantics and identity tests.
+        </Suite>
+
+        <Suite name="ArchitectureSecurity">
+          observation-vs-action authority tests and forbidden dependency checks.
+        </Suite>
+
+        <Suite name="ProvingSlice">
+          bounded deterministic browser engine spike when CI environment can package
+          selected spike reproducibly.
+        </Suite>
+      </Mapping>
+
+      <Rule>
+        Existing stable CI suite names remain unchanged.
+      </Rule>
+
+      <Rule>
+        Engine spike must not require public Internet.
+      </Rule>
+    </CIIntegration>
+
+    <ImplementationGuidance>
+      <Guidance>
+        DO NOT start M1 by implementing tabs/history/download manager.
+      </Guidance>
+
+      <Guidance>
+        DO NOT expose CEF objects and call them "browser contract".
+      </Guidance>
+
+      <Guidance>
+        Freeze the smallest useful engine-neutral contract first.
+      </Guidance>
+
+      <Guidance>
+        Keep browser domain outside worldline-kernel.
+      </Guidance>
+
+      <Guidance>
+        Prefer structured AX/document queries over exporting mutable raw DOM objects.
+      </Guidance>
+
+      <Guidance>
+        Do not solve future agent UX in M1.1.
+        Merely ensure agent and human can later be principals of the same contracts.
+      </Guidance>
+
+      <Guidance>
+        Do not commit to multi-engine production implementation yet.
+        Make the boundary capable of it.
+      </Guidance>
+
+      <Guidance>
+        If CEF wins, first M1.2 implementation SHOULD prefer the simplest
+        high-compatibility headful/windowed route unless spike data justifies OSR.
+      </Guidance>
+    </ImplementationGuidance>
+
+    <SuggestedExecutionOrder>
+      <Step index="1">
+        Inventory M0 external process/RPC/event/state contracts reusable by browser.
+      </Step>
+
+      <Step index="2">
+        Define browser IDs, errors and capability contracts without engine imports.
+      </Step>
+
+      <Step index="3">
+        Define authority matrix for observe/query/navigate/act/download/permission.
+      </Step>
+
+      <Step index="4">
+        Add browser contract acceptance/security tests with fake provider.
+      </Step>
+
+      <Step index="5">
+        Select engine spike candidates and freeze evaluation matrix.
+      </Step>
+
+      <Step index="6">
+        Build minimal CEF/primary candidate executable spike.
+      </Step>
+
+      <Step index="7">
+        Prove deterministic local navigation + observation/query.
+      </Step>
+
+      <Step index="8">
+        Prove one authorized browser action.
+      </Step>
+
+      <Step index="9">
+        Measure profile/context isolation and controlled storage root.
+      </Step>
+
+      <Step index="10">
+        Exercise process crash/termination path.
+      </Step>
+
+      <Step index="11">
+        Measure/record network/download/packaging/licensing/accessibility findings.
+      </Step>
+
+      <Step index="12">
+        Assess realistic alternative(s) sufficiently to reject/select with evidence.
+      </Step>
+
+      <Step index="13">
+        Write ADR-BROWSER-ENGINE-V1 with selected M1.2 provider.
+      </Step>
+
+      <Step index="14">
+        Route bounded browser contract/spike evidence through existing CI suites.
+      </Step>
+
+      <Step index="15">
+        Update GRACE projection and ROADMAP only after decision evidence exists.
+      </Step>
+    </SuggestedExecutionOrder>
+
+    <ReviewQuestions>
+      <Question>
+        Есть ли хоть один CEF/Chromium-specific type в logical browser contract?
+      </Question>
+
+      <Question>
+        Может ли observer/query consumer кликнуть или ввести текст?
+      </Question>
+
+      <Question>
+        Используется ли browser event как скрытая command queue?
+      </Question>
+
+      <Question>
+        Может ли engine-supplied page/frame ID стать authority без Worldline broker?
+      </Question>
+
+      <Question>
+        Одинаковы ли contracts для human и будущего agent consumer?
+      </Question>
+
+      <Question>
+        Можно ли теоретически заменить выбранный engine, не переписывая consumer?
+      </Question>
+
+      <Question>
+        Выбор engine подтверждён работающим spike или только сравнительной таблицей?
+      </Question>
+
+      <Question>
+        Проверили ли crash process path?
+      </Question>
+
+      <Question>
+        Проверили ли profile storage isolation?
+      </Question>
+
+      <Question>
+        Не начали ли преждевременно строить весь браузер вместо engine boundary?
+      </Question>
+    </ReviewQuestions>
+
+    <FailureConditions>
+      <Failure>
+        Browser-specific code появляется в kernel.
+      </Failure>
+
+      <Failure>
+        Public browser contract содержит engine-specific pointer/object/handle.
+      </Failure>
+
+      <Failure>
+        DOM/query capability позволяет mutation без отдельного grant.
+      </Failure>
+
+      <Failure>
+        Browser command отправляется через event bus.
+      </Failure>
+
+      <Failure>
+        Engine selection сделан до работающего spike.
+      </Failure>
+
+      <Failure>
+        Spike не проверяет process crash/recovery characteristics.
+      </Failure>
+
+      <Failure>
+        Profile isolation основана на предположении о engine defaults.
+      </Failure>
+
+      <Failure>
+        Первый provider архитектурно делает второй engine невозможным.
+      </Failure>
+    </FailureConditions>
+
+    <Verification>
+      <Command>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source
+      </Command>
+
+      <Command>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness
+      </Command>
+
+      <Command>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity
+      </Command>
+
+      <Command>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice
+      </Command>
+    </Verification>
+
+    <ExitCriteria>
+      <Criterion>
+        Browser Contract v1 exists and is engine-neutral.
+      </Criterion>
+
+      <Criterion>
+        Observation/query and mutation authority are independently enforced.
+      </Criterion>
+
+      <Criterion>
+        Commands remain RPC and observations remain events.
+      </Criterion>
+
+      <Criterion>
+        Browser IDs and error semantics do not expose provider implementation.
+      </Criterion>
+
+      <Criterion>
+        Working engine spike embeds and navigates a real engine against a local
+        deterministic page.
+      </Criterion>
+
+      <Criterion>
+        DOM/accessibility observation and one explicit action are demonstrated.
+      </Criterion>
+
+      <Criterion>
+        Crash containment and profile/context isolation characteristics are
+        measured.
+      </Criterion>
+
+      <Criterion>
+        Packaging/licensing/update implications are documented.
+      </Criterion>
+
+      <Criterion>
+        ADR selects the first engine provider from evidence.
+      </Criterion>
+
+      <Criterion>
+        Existing M0 invariants and CI remain green.
+      </Criterion>
+
+      <Criterion>
+        M1.2 can implement the selected engine without changing logical browser
+        contracts.
+      </Criterion>
+    </ExitCriteria>
+
+    <NextChange>
+      C-BROWSER-ENGINE-PROVIDER-PROCESS-*
+    </NextChange>
+  </C-BROWSER-CONTRACT-ENGINE-SPIKE-20260831>
+</GraceChangeSpec>

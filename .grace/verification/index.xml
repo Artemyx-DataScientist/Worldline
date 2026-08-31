@@ -10,6 +10,7 @@
         <V-M-PERSISTENCE-RECOVERY />
         <V-M-EXTERNAL-PLUGIN-BOUNDARY />
         <V-M-OPERABILITY-COMPATIBILITY-UPGRADE />
+        <V-M-BROWSER-CONTRACT-ENGINE-SPIKE />
       </Owns>
     </VD-MAIN>
   </VerificationDocuments>

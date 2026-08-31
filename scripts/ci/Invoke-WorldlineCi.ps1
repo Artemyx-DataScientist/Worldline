@@ -87,6 +87,9 @@ function Invoke-CorrectnessSuite {
     Invoke-WorldlineCommand -Label 'compatibility acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-kernel', '--test', 'compatibility_acceptance')
     Invoke-WorldlineCommand -Label 'upgrade and rollback acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-kernel', '--test', 'upgrade_acceptance')
     Invoke-WorldlineCommand -Label 'cross-mode logical conformance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'cross_mode_conformance')
+    Invoke-WorldlineCommand -Label 'browser contract acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-contract', '--test', 'contract_acceptance')
+    Invoke-WorldlineCommand -Label 'browser engine spike acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'spike_acceptance')
+    Invoke-WorldlineCommand -Label 'browser engine spike measurements' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'measurement_suite')
 }
 
 function Invoke-ArchitectureSecuritySuite {
@@ -100,6 +103,7 @@ function Invoke-ArchitectureSecuritySuite {
     Invoke-WorldlineCommand -Label 'storage contract tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-storage', '--test', 'contract_acceptance')
     Invoke-WorldlineCommand -Label 'malicious wasm acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'malicious_wasm_acceptance')
     Invoke-WorldlineCommand -Label 'external protocol robustness' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'protocol_robustness')
+    Invoke-WorldlineCommand -Label 'browser authority separation tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-contract')
 }
 
 function Invoke-ProvingSliceSuite {
@@ -109,6 +113,7 @@ function Invoke-ProvingSliceSuite {
     Invoke-WorldlineCommand -Label 'production persistence S1 acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 'persistence_acceptance')
     Invoke-WorldlineCommand -Label 'worldline-demo S0/S1 proving slice' -FilePath 'cargo' -Arguments @('run', '-p', 'worldline-demo')
     Invoke-WorldlineCommand -Label 'external-provider S1 proving path' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'external_s1_proving')
+    Invoke-WorldlineCommand -Label 'browser engine spike proving path' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'spike_acceptance')
 }
 
 switch ($Suite) {

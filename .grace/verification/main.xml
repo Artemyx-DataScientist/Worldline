@@ -118,5 +118,20 @@
       <Scenario>Kernel evaluates contract compatibility without granting authority, rejects incompatible updates before switch, isolates staged migrations on copy, validates pre-switch health, switches active revision atomically, rolls back to LastKnownGood upon post-switch failure, quarantines crashing plugins, executes safe mode with core composition, bisects candidate sets, gathers payload-free telemetry, and flags diagnostic gaps.</Scenario>
       <TraceAssertion>Staged updates possess zero authority prior to switch, migrations execute on copy, failed validation never replaces LastKnownGood, rollback mints fresh RuntimeId without grant inheritance, and unprovable external side effects remain explicitly Incomplete without synthetic retry.</TraceAssertion>
     </V-M-OPERABILITY-COMPATIBILITY-UPGRADE>
+    <V-M-BROWSER-CONTRACT-ENGINE-SPIKE>
+      <TestFiles>
+        <File>docs/adr/ADR-BROWSER-ENGINE-V1.md</File>
+        <File>crates/worldline-browser-contract/tests/contract_acceptance.rs</File>
+        <File>crates/worldline-browser-spike/tests/spike_acceptance.rs</File>
+        <File>crates/worldline-browser-spike/tests/measurement_suite.rs</File>
+        <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+        <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      </TestFiles>
+      <Command>cargo test -p worldline-browser-contract</Command>
+      <Command>cargo test -p worldline-browser-spike</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      <Scenario>Browser Contract v1 compiles without engine types, enforces strict separation between observation and mutation, validates revision-scoped element references, and prevents browser events from dispatching commands. Executable engine spike navigates deterministic local pages, extracts accessibility trees, executes form interactions, proves context profile isolation, and verifies host survival under child process crash.</Scenario>
+      <TraceAssertion>Observation and query authority cannot navigate or act, stale element references are rejected, browser events report facts rather than commands, profile storage remains strictly partitioned across contexts, and child crash containment preserves host and installation state.</TraceAssertion>
+    </V-M-BROWSER-CONTRACT-ENGINE-SPIKE>
   </VD-MAIN>
 </GraceVerificationDocument>

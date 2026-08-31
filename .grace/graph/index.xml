@@ -10,6 +10,7 @@
         <M-PERSISTENCE-RECOVERY />
         <M-EXTERNAL-PLUGIN-BOUNDARY />
         <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+        <M-BROWSER-CONTRACT-ENGINE-SPIKE />
       </Owns>
     </GD-MAIN>
   </GraphDocuments>

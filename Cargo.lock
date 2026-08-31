@@ -1750,6 +1750,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "worldline-browser-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "worldline-browser-spike"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "worldline-browser-contract",
+ "worldline-kernel",
+ "worldline-plugin-protocol",
+ "worldline-storage",
+]
+
+[[package]]
 name = "worldline-demo"
 version = "0.1.0"
 dependencies = [

@@ -8,6 +8,8 @@ members = [
     "crates/worldline-native-host",
     "crates/worldline-wasm-host",
     "crates/worldline-reference-external",
+    "crates/worldline-browser-contract",
+    "crates/worldline-browser-spike",
 ]
 exclude = ["crates/worldline-wasm-host/tests/components"]
 resolver = "3"
