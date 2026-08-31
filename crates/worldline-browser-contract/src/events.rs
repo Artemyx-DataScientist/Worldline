@@ -5,6 +5,7 @@ use crate::identity::{BrowserContextId, DocumentRevision, DownloadId, Navigation
 pub const EVENT_NAVIGATION_STARTED: &str = "browser.navigation.started";
 pub const EVENT_NAVIGATION_COMMITTED: &str = "browser.navigation.committed";
 pub const EVENT_NAVIGATION_FAILED: &str = "browser.navigation.failed";
+pub const EVENT_PAGE_CREATED: &str = "browser.page.created";
 pub const EVENT_PAGE_READY: &str = "browser.page.ready";
 pub const EVENT_PAGE_CLOSED: &str = "browser.page.closed";
 pub const EVENT_ENGINE_CRASHED: &str = "browser.engine.crashed";
@@ -37,6 +38,14 @@ pub struct NavigationFailedEvent {
     pub navigation_id: NavigationId,
     pub url: String,
     pub error: String,
+    pub document_revision: DocumentRevision,
+}
+
+/// Published when a page surface is created.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PageCreatedEvent {
+    pub context_id: BrowserContextId,
+    pub page_id: PageId,
     pub document_revision: DocumentRevision,
 }
 

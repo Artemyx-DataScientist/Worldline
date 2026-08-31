@@ -101,10 +101,13 @@
       <Path>crates/worldline-browser-contract/tests/contract_acceptance.rs</Path>
       <Path>crates/worldline-browser-spike/Cargo.toml</Path>
       <Path>crates/worldline-browser-spike/src/lib.rs</Path>
+      <Path>crates/worldline-browser-spike/src/cdp.rs</Path>
+      <Path>crates/worldline-browser-spike/src/chromium.rs</Path>
       <Path>crates/worldline-browser-spike/src/engine.rs</Path>
       <Path>crates/worldline-browser-spike/src/provider.rs</Path>
       <Path>crates/worldline-browser-spike/src/harness.rs</Path>
       <Path>crates/worldline-browser-spike/tests/spike_acceptance.rs</Path>
+      <Path>crates/worldline-browser-spike/tests/real_chromium_acceptance.rs</Path>
       <Path>crates/worldline-browser-spike/tests/measurement_suite.rs</Path>
       <M-KERNEL-CAPABILITY-RUNTIME />
       <M-EXTERNAL-PLUGIN-BOUNDARY />

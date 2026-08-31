@@ -37,12 +37,16 @@
   первого прикладного плагина — браузерного движка (Milestone M1).
 - **M1.1 — Done.** Browser Contract v1 and engine spike закрыты
   [ADR-BROWSER-ENGINE-V1](docs/adr/ADR-BROWSER-ENGINE-V1.md),
-  engine-neutral capability contracts (`worldline-browser-contract`),
+  8 engine-neutral capability contracts (`worldline-browser-contract`),
   строгим разделением authority (observation vs mutation),
-  revision-scoped `ElementRef`, исполняемым спайком движка
-  (`worldline-browser-spike`) с детерминированной локальной навигацией,
-  изоляцией профилей/хранилищ, доказательством выживания хоста при сбое
-  дочернего процесса и выбором Chromium/CEF в качестве первого провайдера.
+  защитой от confused-deputy привязкой `InvocationContext` к целевым `PageId`/`ContextId`,
+  бюджетированными запросами (`QueryBounds` с флагами `is_truncated`),
+  логическими идентификаторами профилей без утечки путей хоста,
+  публикацией типизированных событий через M0.4 транспорт,
+  реальным out-of-process спайком Chromium на Windows с навигацией по локальным HTML,
+  извлечением дерева доступности Blink, действиями в DOM и изоляцией сбоя рендерера,
+  а также детерминированным контрактным эталоном со всеми 8 рабочими контрактами
+  и обоснованным выбором Chromium/CEF для M1.2.
 - **M1.2 — Active.** Browser engine provider process.
 
 ## 1. Куда идёт Worldline
@@ -597,20 +601,29 @@ kernel.
   `browser.query`, `browser.act`, `browser.download`, `browser.permission`).
 - Строго разделены права: `ObservePage`, `QueryDocument`, `NavigatePage`,
   `ActOnPage`, `ControlDownload`, `ManagePermission`.
+- Предотвращены confused-deputy атаки: провайдер строго проверяет совпадение
+  admitted `ResourceId` из `InvocationContext` с целевым ресурсом полезной нагрузки.
+- Введены бюджетные ограничения `QueryBounds` с флагами `is_truncated` и подсчетом отсеченных узлов.
 - Ссылки `ElementRef` привязаны к `(PageId, DocumentRevision)`; устаревшие
   ссылки отклоняются с явной ошибкой.
-- Реализован исполняемый спайк `worldline-browser-spike`: детерминированная
-  локальная навигация, извлечение AX-дерева, интерактивные действия (ввод текста,
-  отправка форм), изоляция профилей и куки между контекстами, локализация сбоев
-  дочерних процессов с сохранением работоспособности хоста.
+- Логические идентификаторы профилей (`profile_id`) изолируют пользовательские данные
+  без утечки путей файловой системы хоста в ABI.
+- Реализована публикация типизированных событий через M0.4 транспорт ядра
+  (`browser.page.created`, `browser.navigation.committed`, `browser.page.closed`, `browser.download.started`).
+- Реализован настоящий out-of-process спайк Chromium на Windows (`worldline-browser-spike/src/chromium.rs`):
+  автоматическое обнаружение браузера, запуск headless-процесса, управление по CDP через WebSocket,
+  навигация по локальным HTML-фикстурам, извлечение дерева доступности Blink, действия в DOM
+  и изоляция сбоя рендерера с гарантированным выживанием супервизора и хоста Worldline.
+- Сохранен детерминированный in-memory эталон (`ReferenceBrowserSupervisor`) с полной
+  поддержкой всех 8 контрактов для быстрых регрессионных проверок.
 - Оформлен [ADR-BROWSER-ENGINE-V1](docs/adr/ADR-BROWSER-ENGINE-V1.md),
-  выбравший Chromium/CEF в качестве первого провайдера для M1.2 на основе
-  эмпирических измерений.
+  в котором четко разделены измеренные эмпирические факты (холодный старт ~580 ms, RAM ~135 MB)
+  и качественный анализ кандидатов, обосновавший выбор Chromium/CEF для M1.2.
 
 Exit criterion: browser contracts компилируются без зависимостей от движков;
-kernel не содержит типов браузера; спайк доказывает изоляцию и навигацию без
-публичной сети; ADR обосновывает выбор движка. Evidence: `worldline-browser-contract`
-acceptance suite, `worldline-browser-spike` acceptance and measurement suites,
+kernel не содержит типов браузера; спайк доказывает реальную изоляцию процессов и навигацию без
+публичной сети; ADR обосновывает выбор движка на основе прямых измерений. Evidence: `worldline-browser-contract`
+acceptance suite, `worldline-browser-spike` real Chromium and reference acceptance and measurement suites,
 сохраненные M0 CI gates.
 
 ### M1.2 — Browser engine provider process

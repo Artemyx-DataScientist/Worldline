@@ -1,17 +1,22 @@
 use worldline_browser_contract::{
     action::{ClickActionRequest, InputActionRequest},
     authority::{
-        OP_CLICK, OP_CREATE_CONTEXT, OP_CREATE_PAGE, OP_INPUT, OP_NAVIGATE, OP_OBSERVE,
-        OP_QUERY_DOCUMENT,
+        OP_CLICK, OP_CREATE_CONTEXT, OP_CREATE_PAGE, OP_DOWNLOAD_START, OP_EXTRACT_TEXT,
+        OP_FIND_ELEMENTS, OP_INPUT, OP_NAVIGATE, OP_OBSERVE, OP_PERMISSION_QUERY,
+        OP_PERMISSION_SET, OP_QUERY_DOCUMENT, OP_RELOAD,
     },
     contracts::{
-        CONTRACT_ACT, CONTRACT_CONTEXT, CONTRACT_NAVIGATE, CONTRACT_OBSERVE, CONTRACT_PAGE,
-        CONTRACT_QUERY, CreateContextRequest, CreateContextResponse, CreatePageRequest,
-        CreatePageResponse, NavigateRequest, NavigateResponse, ObservePageRequest, PageObservation,
-        QueryDocumentRequest,
+        CONTRACT_ACT, CONTRACT_CONTEXT, CONTRACT_DOWNLOAD, CONTRACT_NAVIGATE, CONTRACT_OBSERVE,
+        CONTRACT_PAGE, CONTRACT_PERMISSION, CONTRACT_QUERY, CreateContextRequest,
+        CreateContextResponse, CreatePageRequest, CreatePageResponse, DownloadStatusResponse,
+        ElementQueryKind, ExtractTextRequest, ExtractTextResponse, FindElementsRequest,
+        FindElementsResponse, NavigateRequest, NavigateResponse, ObservePageRequest,
+        PageObservation, PermissionDecision, PermissionResponse, PermissionType,
+        QueryDocumentRequest, ReloadRequest, ReloadResponse, SetPermissionRequest,
+        StartDownloadRequest,
     },
     identity::{BrowserContextId, ElementRef, PageId, context_resource, page_resource},
-    query::DocumentSnapshot,
+    query::{DocumentSnapshot, QueryBounds},
 };
 use worldline_kernel::{
     GrantLifetime, InvocationRequest, Kernel, PluginId, PrincipalId, PrincipalKind, ResourceId,
@@ -19,38 +24,47 @@ use worldline_kernel::{
 };
 
 use crate::{
-    engine::SpikeEngineSupervisor,
-    provider::{SpikeBrowserPlugin, browser_capability},
+    engine::ReferenceBrowserSupervisor,
+    provider::{EmittedBrowserEvent, SpikeBrowserPlugin, browser_capability},
 };
 
 /// Harness orchestrating full end-to-end execution of the browser capability path.
 pub struct BrowserSpikeFixture {
     kernel: Kernel,
     plugin_id: PluginId,
-    supervisor: SpikeEngineSupervisor,
+    plugin: SpikeBrowserPlugin,
+    supervisor: ReferenceBrowserSupervisor,
     caller: PrincipalId,
 }
 
 impl BrowserSpikeFixture {
     pub fn boot() -> Result<Self, String> {
         let mut kernel = Kernel::new();
-        let supervisor = SpikeEngineSupervisor::new();
+        let supervisor = ReferenceBrowserSupervisor::new();
         let plugin = SpikeBrowserPlugin::new("spike.browser.provider", supervisor.clone());
 
-        let plugin_id = kernel.register(plugin).map_err(|e| e.to_string())?;
+        let plugin_id = kernel.register(plugin.clone()).map_err(|e| e.to_string())?;
         let caller = PrincipalId::new("spike-caller-agent");
         kernel
             .register_principal_id(caller.clone(), PrincipalKind::Agent)
             .map_err(|e| e.to_string())?;
 
-        // Grant the caller capability access to browser contracts
+        // Grant the caller capability access to browser contracts with Any resource scope
         for (contract, ops) in [
             (CONTRACT_CONTEXT, vec![OP_CREATE_CONTEXT]),
             (CONTRACT_PAGE, vec![OP_CREATE_PAGE]),
-            (CONTRACT_NAVIGATE, vec![OP_NAVIGATE]),
+            (CONTRACT_NAVIGATE, vec![OP_NAVIGATE, OP_RELOAD]),
             (CONTRACT_OBSERVE, vec![OP_OBSERVE]),
-            (CONTRACT_QUERY, vec![OP_QUERY_DOCUMENT]),
+            (
+                CONTRACT_QUERY,
+                vec![OP_QUERY_DOCUMENT, OP_EXTRACT_TEXT, OP_FIND_ELEMENTS],
+            ),
             (CONTRACT_ACT, vec![OP_CLICK, OP_INPUT]),
+            (CONTRACT_DOWNLOAD, vec![OP_DOWNLOAD_START]),
+            (
+                CONTRACT_PERMISSION,
+                vec![OP_PERMISSION_QUERY, OP_PERMISSION_SET],
+            ),
         ] {
             let cap = browser_capability(contract);
             kernel
@@ -68,6 +82,7 @@ impl BrowserSpikeFixture {
         Ok(Self {
             kernel,
             plugin_id,
+            plugin,
             supervisor,
             caller,
         })
@@ -89,17 +104,21 @@ impl BrowserSpikeFixture {
         &self.caller
     }
 
-    pub fn supervisor(&self) -> &SpikeEngineSupervisor {
+    pub fn supervisor(&self) -> &ReferenceBrowserSupervisor {
         &self.supervisor
+    }
+
+    pub fn emitted_events(&self) -> Vec<EmittedBrowserEvent> {
+        self.plugin.emitted_events().lock().unwrap().clone()
     }
 
     pub fn create_context(
         &mut self,
-        storage_path: Option<String>,
+        profile_id: Option<String>,
         incognito: bool,
     ) -> Result<BrowserContextId, String> {
         let req = CreateContextRequest {
-            profile_storage_path: storage_path,
+            profile_id,
             incognito,
             user_agent: None,
         };
@@ -160,6 +179,22 @@ impl BrowserSpikeFixture {
         serde_json::from_slice(&outcome).map_err(|e| e.to_string())
     }
 
+    pub fn reload(&mut self, page_id: &PageId) -> Result<ReloadResponse, String> {
+        let req = ReloadRequest {
+            page_id: page_id.clone(),
+            ignore_cache: true,
+        };
+        let payload = serde_json::to_vec(&req).map_err(|e| e.to_string())?;
+        let cap = browser_capability(CONTRACT_NAVIGATE);
+        let resource = ResourceId::parse(&page_resource(page_id)).map_err(|e| e.to_string())?;
+
+        let invocation =
+            InvocationRequest::new(self.caller.clone(), cap, OP_RELOAD, resource, payload);
+
+        let outcome = self.kernel.invoke(invocation).map_err(|e| e.to_string())?;
+        serde_json::from_slice(&outcome).map_err(|e| e.to_string())
+    }
+
     pub fn observe(&mut self, page_id: &PageId) -> Result<PageObservation, String> {
         let req = ObservePageRequest {
             page_id: page_id.clone(),
@@ -175,9 +210,14 @@ impl BrowserSpikeFixture {
         serde_json::from_slice(&outcome).map_err(|e| e.to_string())
     }
 
-    pub fn query_document(&mut self, page_id: &PageId) -> Result<DocumentSnapshot, String> {
+    pub fn query_document(
+        &mut self,
+        page_id: &PageId,
+        bounds: Option<QueryBounds>,
+    ) -> Result<DocumentSnapshot, String> {
         let req = QueryDocumentRequest {
             page_id: page_id.clone(),
+            bounds,
         };
         let payload = serde_json::to_vec(&req).map_err(|e| e.to_string())?;
         let cap = browser_capability(CONTRACT_QUERY);
@@ -187,6 +227,53 @@ impl BrowserSpikeFixture {
             self.caller.clone(),
             cap,
             OP_QUERY_DOCUMENT,
+            resource,
+            payload,
+        );
+
+        let outcome = self.kernel.invoke(invocation).map_err(|e| e.to_string())?;
+        serde_json::from_slice(&outcome).map_err(|e| e.to_string())
+    }
+
+    pub fn extract_text(
+        &mut self,
+        page_id: &PageId,
+        target_element: Option<ElementRef>,
+    ) -> Result<ExtractTextResponse, String> {
+        let req = ExtractTextRequest {
+            page_id: page_id.clone(),
+            target_element,
+        };
+        let payload = serde_json::to_vec(&req).map_err(|e| e.to_string())?;
+        let cap = browser_capability(CONTRACT_QUERY);
+        let resource = ResourceId::parse(&page_resource(page_id)).map_err(|e| e.to_string())?;
+
+        let invocation =
+            InvocationRequest::new(self.caller.clone(), cap, OP_EXTRACT_TEXT, resource, payload);
+
+        let outcome = self.kernel.invoke(invocation).map_err(|e| e.to_string())?;
+        serde_json::from_slice(&outcome).map_err(|e| e.to_string())
+    }
+
+    pub fn find_elements(
+        &mut self,
+        page_id: &PageId,
+        query: &str,
+        kind: ElementQueryKind,
+    ) -> Result<FindElementsResponse, String> {
+        let req = FindElementsRequest {
+            page_id: page_id.clone(),
+            query: query.to_string(),
+            kind,
+        };
+        let payload = serde_json::to_vec(&req).map_err(|e| e.to_string())?;
+        let cap = browser_capability(CONTRACT_QUERY);
+        let resource = ResourceId::parse(&page_resource(page_id)).map_err(|e| e.to_string())?;
+
+        let invocation = InvocationRequest::new(
+            self.caller.clone(),
+            cap,
+            OP_FIND_ELEMENTS,
             resource,
             payload,
         );
@@ -231,6 +318,88 @@ impl BrowserSpikeFixture {
 
         let invocation =
             InvocationRequest::new(self.caller.clone(), cap, OP_CLICK, resource, payload);
+
+        let outcome = self.kernel.invoke(invocation).map_err(|e| e.to_string())?;
+        serde_json::from_slice(&outcome).map_err(|e| e.to_string())
+    }
+
+    /// Invokes an action with a potentially mismatched resource to test confused-deputy protection.
+    pub fn invoke_confused_deputy_act(
+        &mut self,
+        admitted_page_id: &PageId,
+        targeted_element_ref: &ElementRef,
+    ) -> Result<worldline_browser_contract::ActionResult, String> {
+        let req = ClickActionRequest {
+            element_ref: targeted_element_ref.clone(),
+        };
+        let payload = serde_json::to_vec(&req).map_err(|e| e.to_string())?;
+        let cap = browser_capability(CONTRACT_ACT);
+        let admitted_resource =
+            ResourceId::parse(&page_resource(admitted_page_id)).map_err(|e| e.to_string())?;
+
+        let invocation = InvocationRequest::new(
+            self.caller.clone(),
+            cap,
+            OP_CLICK,
+            admitted_resource,
+            payload,
+        );
+
+        let outcome = self.kernel.invoke(invocation).map_err(|e| e.to_string())?;
+        serde_json::from_slice(&outcome).map_err(|e| e.to_string())
+    }
+
+    pub fn start_download(
+        &mut self,
+        page_id: &PageId,
+        url: &str,
+    ) -> Result<DownloadStatusResponse, String> {
+        let req = StartDownloadRequest {
+            page_id: page_id.clone(),
+            url: url.to_string(),
+            destination_path: None,
+        };
+        let payload = serde_json::to_vec(&req).map_err(|e| e.to_string())?;
+        let cap = browser_capability(CONTRACT_DOWNLOAD);
+        let resource = ResourceId::parse(&page_resource(page_id)).map_err(|e| e.to_string())?;
+
+        let invocation = InvocationRequest::new(
+            self.caller.clone(),
+            cap,
+            OP_DOWNLOAD_START,
+            resource,
+            payload,
+        );
+
+        let outcome = self.kernel.invoke(invocation).map_err(|e| e.to_string())?;
+        serde_json::from_slice(&outcome).map_err(|e| e.to_string())
+    }
+
+    pub fn set_permission(
+        &mut self,
+        context_id: &BrowserContextId,
+        origin: &str,
+        perm_type: PermissionType,
+        decision: PermissionDecision,
+    ) -> Result<PermissionResponse, String> {
+        let req = SetPermissionRequest {
+            context_id: context_id.clone(),
+            origin: origin.to_string(),
+            permission_type: perm_type,
+            decision,
+        };
+        let payload = serde_json::to_vec(&req).map_err(|e| e.to_string())?;
+        let cap = browser_capability(CONTRACT_PERMISSION);
+        let resource =
+            ResourceId::parse(&context_resource(context_id)).map_err(|e| e.to_string())?;
+
+        let invocation = InvocationRequest::new(
+            self.caller.clone(),
+            cap,
+            OP_PERMISSION_SET,
+            resource,
+            payload,
+        );
 
         let outcome = self.kernel.invoke(invocation).map_err(|e| e.to_string())?;
         serde_json::from_slice(&outcome).map_err(|e| e.to_string())

@@ -1,0 +1,173 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-BROWSER-M1-1-REAL-ENGINE-EVIDENCE-HARDENING-20260831>
+    <IntentSummary>Harden Milestone M1.1 with real Chromium out-of-process engine spike, confused-deputy resource scope enforcement, M0.4 typed browser event publication, bounded query snapshots, complete v1 operation coverage, logical profile identifiers, and empirical ADR measurements.</IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-KERNEL-CAPABILITY-RUNTIME</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>M-PERSISTENCE-RECOVERY</Value>
+        <Value>M-EXTERNAL-PLUGIN-BOUNDARY</Value>
+        <Value>M-BROWSER-CONTRACT-ENGINE-SPIKE</Value>
+        <Value>crates/worldline-kernel/src/lib.rs</Value>
+        <Value>crates/worldline-browser-contract/src/lib.rs</Value>
+        <Value>crates/worldline-browser-spike/src/lib.rs</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+      </MustExist>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>docs/adr/ADR-BROWSER-ENGINE-V1.md</Value>
+        <Value>crates/worldline-browser-spike/src/cdp.rs</Value>
+        <Value>crates/worldline-browser-spike/src/chromium.rs</Value>
+        <Value>crates/worldline-browser-spike/tests/real_chromium_acceptance.rs</Value>
+      </MustExist>
+      <MustPassCommand>
+        <Command>cargo test -p worldline-browser-contract</Command>
+        <Command>cargo test -p worldline-browser-spike</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <M-KERNEL-CAPABILITY-RUNTIME />
+        <M-EXTERNAL-PLUGIN-BOUNDARY />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <V-M-KERNEL-CAPABILITY-RUNTIME />
+        <V-M-EXTERNAL-PLUGIN-BOUNDARY />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>docs/adr/ADR-BROWSER-ENGINE-V1.md</File>
+      <File>crates/worldline-browser-contract/Cargo.toml</File>
+      <File>crates/worldline-browser-contract/src/lib.rs</File>
+      <File>crates/worldline-browser-contract/src/identity.rs</File>
+      <File>crates/worldline-browser-contract/src/error.rs</File>
+      <File>crates/worldline-browser-contract/src/query.rs</File>
+      <File>crates/worldline-browser-contract/src/action.rs</File>
+      <File>crates/worldline-browser-contract/src/events.rs</File>
+      <File>crates/worldline-browser-contract/src/contracts.rs</File>
+      <File>crates/worldline-browser-contract/src/authority.rs</File>
+      <File>crates/worldline-browser-contract/tests/contract_acceptance.rs</File>
+      <File>crates/worldline-browser-spike/Cargo.toml</File>
+      <File>crates/worldline-browser-spike/src/lib.rs</File>
+      <File>crates/worldline-browser-spike/src/cdp.rs</File>
+      <File>crates/worldline-browser-spike/src/chromium.rs</File>
+      <File>crates/worldline-browser-spike/src/engine.rs</File>
+      <File>crates/worldline-browser-spike/src/provider.rs</File>
+      <File>crates/worldline-browser-spike/src/harness.rs</File>
+      <File>crates/worldline-browser-spike/tests/spike_acceptance.rs</File>
+      <File>crates/worldline-browser-spike/tests/real_chromium_acceptance.rs</File>
+      <File>crates/worldline-browser-spike/tests/measurement_suite.rs</File>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      <File>ROADMAP.md</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.grace/verification/main.xml</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Harden Browser Contracts: Bounded Query, Logical Profiles and Complete Operations</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Update crates/worldline-browser-contract with QueryBounds, truncation markers, ResourceMismatch error, logical profile IDs in CreateContextRequest, and complete v1 request/response schemas.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-contract</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Implement Minimal Safe CDP Client for Out-of-Process Chromium</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Implement crates/worldline-browser-spike/src/cdp.rs providing safe WebSocket communication to Chromium DevTools Protocol over TCP stream without external dependencies.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-spike</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Implement Real Chromium Engine Supervisor and Process Management</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Implement crates/worldline-browser-spike/src/chromium.rs to discover host browser, spawn headless process, navigate local HTML, extract Blink AX tree, dispatch inputs, kill renderer, and measure performance.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-spike</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Harden Reference Engine Supervisor, Resource Scope Binding and Real Event Publication</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Update engine.rs and provider.rs to enforce ResourceId vs payload matching, publish real M0.4 browser events, and implement all v1 capability operations cleanly.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-spike</Command>
+        </Verification>
+      </T-004>
+
+      <T-005>
+        <Title>Implement Real Chromium Acceptance Tests and Confused-Deputy Security Tests</Title>
+        <DependsOn>
+          <T-003 />
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Create real_chromium_acceptance.rs testing real Chromium process execution. Update spike_acceptance.rs to test confused-deputy rejection and event transport reception.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-spike --test real_chromium_acceptance</Command>
+          <Command>cargo test -p worldline-browser-spike --test spike_acceptance</Command>
+        </Verification>
+      </T-005>
+
+      <T-006>
+        <Title>Update Architecture Decision Record with Measured Empirical Facts</Title>
+        <DependsOn>
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Update docs/adr/ADR-BROWSER-ENGINE-V1.md to record actual measured metrics from real Chromium spike and clearly delineate from literature assessment.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-006>
+
+      <T-007>
+        <Title>CI/CD Integration, Verification and Milestone Completion</Title>
+        <DependsOn>
+          <T-006 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Update CI runners, run all test suites, verify GRACE integrity, update projections and ROADMAP.md.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-007>
+    </ImplementationPlan>
+  </C-BROWSER-M1-1-REAL-ENGINE-EVIDENCE-HARDENING-20260831>
+</GraceChangePlan>

@@ -15,7 +15,7 @@ fn engine_spike_empirical_measurements() {
 
     let ctx_start = Instant::now();
     let ctx = harness
-        .create_context(Some("/worldline/storage/bench".to_string()), false)
+        .create_context(Some("bench-profile".to_string()), false)
         .expect("create context");
     let ctx_duration = ctx_start.elapsed();
     println!(
@@ -34,7 +34,7 @@ fn engine_spike_empirical_measurements() {
     );
 
     let query_start = Instant::now();
-    let doc = harness.query_document(&page).expect("query doc");
+    let doc = harness.query_document(&page, None).expect("query doc");
     let query_duration = query_start.elapsed();
     println!(
         "Measurement - Document & AX Tree Query Duration: {:?}",

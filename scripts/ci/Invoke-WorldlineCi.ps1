@@ -89,6 +89,7 @@ function Invoke-CorrectnessSuite {
     Invoke-WorldlineCommand -Label 'cross-mode logical conformance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'cross_mode_conformance')
     Invoke-WorldlineCommand -Label 'browser contract acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-contract', '--test', 'contract_acceptance')
     Invoke-WorldlineCommand -Label 'browser engine spike acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'spike_acceptance')
+    Invoke-WorldlineCommand -Label 'real chromium engine spike acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'real_chromium_acceptance')
     Invoke-WorldlineCommand -Label 'browser engine spike measurements' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'measurement_suite')
 }
 

@@ -6,7 +6,7 @@ use crate::{
         SubmitActionRequest,
     },
     identity::{BrowserContextId, DocumentRevision, DownloadId, ElementRef, NavigationId, PageId},
-    query::SemanticElement,
+    query::{QueryBounds, SemanticElement},
 };
 
 pub const BROWSER_NAMESPACE: &str = "browser";
@@ -27,7 +27,7 @@ pub const INTERFACE_MINOR_V1: u16 = 0;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CreateContextRequest {
-    pub profile_storage_path: Option<String>,
+    pub profile_id: Option<String>,
     pub incognito: bool,
     pub user_agent: Option<String>,
 }
@@ -35,7 +35,7 @@ pub struct CreateContextRequest {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CreateContextResponse {
     pub context_id: BrowserContextId,
-    pub profile_storage_path: Option<String>,
+    pub profile_id: Option<String>,
     pub incognito: bool,
 }
 
@@ -122,14 +122,34 @@ pub struct ReloadRequest {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ReloadResponse {
+    pub page_id: PageId,
+    pub reloaded: bool,
+    pub document_revision: DocumentRevision,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct StopRequest {
     pub page_id: PageId,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct StopResponse {
+    pub page_id: PageId,
+    pub stopped: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct HistoryNavRequest {
     pub page_id: PageId,
     pub delta: i32,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct HistoryNavResponse {
+    pub page_id: PageId,
+    pub success: bool,
+    pub document_revision: DocumentRevision,
 }
 
 // --- browser.observe requests / responses ---
@@ -167,11 +187,30 @@ pub struct PageObservation {
     pub viewport: Option<ViewportInfo>,
 }
 
-// --- browser.query requests / responses ---
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetTitleResponse {
+    pub page_id: PageId,
+    pub title: String,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetUrlResponse {
+    pub page_id: PageId,
+    pub url: String,
+}
+
+// --- browser.query requests / responses ---
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct QueryDocumentRequest {
     pub page_id: PageId,
+    pub bounds: Option<QueryBounds>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct QueryAccessibilityRequest {
+    pub page_id: PageId,
+    pub bounds: Option<QueryBounds>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -263,7 +302,7 @@ pub struct DownloadStatusResponse {
 
 // --- browser.permission requests / responses ---
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub enum PermissionType {
     Geolocation,
     Notifications,
@@ -272,7 +311,7 @@ pub enum PermissionType {
     ClipboardRead,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub enum PermissionDecision {
     Prompt,
     Granted,

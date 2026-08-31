@@ -123,6 +123,7 @@
         <File>docs/adr/ADR-BROWSER-ENGINE-V1.md</File>
         <File>crates/worldline-browser-contract/tests/contract_acceptance.rs</File>
         <File>crates/worldline-browser-spike/tests/spike_acceptance.rs</File>
+        <File>crates/worldline-browser-spike/tests/real_chromium_acceptance.rs</File>
         <File>crates/worldline-browser-spike/tests/measurement_suite.rs</File>
         <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
         <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>

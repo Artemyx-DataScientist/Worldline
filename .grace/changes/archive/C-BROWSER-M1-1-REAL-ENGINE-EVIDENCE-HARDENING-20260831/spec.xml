@@ -1,0 +1,80 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-BROWSER-M1-1-REAL-ENGINE-EVIDENCE-HARDENING-20260831>
+    <ChangeId>C-BROWSER-M1-1-REAL-ENGINE-EVIDENCE-HARDENING-20260831</ChangeId>
+
+    <Title>
+      Browser M1.1 Real Engine Evidence and Hardening:
+      Real Chromium Spike, Confused-Deputy Security, Event Transport,
+      Bounded Query, Complete V1 Operations and Empirical ADR Measurements
+    </Title>
+
+    <Summary>
+      Harden Milestone M1.1 deliverables with genuine empirical evidence and
+      strict security enforcement:
+      1. Execute a real out-of-process Chromium/Edge browser engine spike navigating
+         local HTML fixtures, extracting real Blink AX trees, dispatching real inputs,
+         and testing real renderer process crash containment.
+      2. Retain the deterministic in-memory provider as a fast reference/test fixture.
+      3. Eliminate confused-deputy vulnerability by strictly binding InvocationContext
+         resource scope to payload PageId/ContextId/ElementRef.
+      4. Publish real M0.4 typed browser events post-outcome via Kernel event transport.
+      5. Implement bounded query snapshots (depth, node count, text length budgets)
+         with explicit truncation markers.
+      6. Fully wire all advertised v1 capability operations so none returns unsupported.
+      7. Replace raw filesystem paths in CreateContextRequest with logical profile IDs.
+      8. Update ADR-BROWSER-ENGINE-V1 to cleanly separate measured empirical numbers
+         from literature assessment.
+    </Summary>
+
+    <Goals>
+      <Goal>Execute a real out-of-process Chromium engine spike on local HTML fixtures and measure real process/RAM metrics.</Goal>
+      <Goal>Prevent confused-deputy payload spoofing by checking admitted ResourceId against request payload targets.</Goal>
+      <Goal>Publish typed browser events via M0.4 kernel event transport post-outcome.</Goal>
+      <Goal>Bound query/accessibility snapshots with depth and node budget limits.</Goal>
+      <Goal>Fully implement all 8 capability contracts without unsupported operations.</Goal>
+    </Goals>
+
+    <NonGoals>
+      <NonGoal>Full production CEF embedding in M1.1 (reserved for M1.2 based on this spike's measurements).</NonGoal>
+      <NonGoal>Public internet network crawling or remote web page dependencies.</NonGoal>
+      <NonGoal>Kernel-level browser domain policies.</NonGoal>
+    </NonGoals>
+
+    <Constraints>
+      <Constraint>BROWSER ENGINE SPIKE MUST EXECUTE A REAL OUT-OF-PROCESS BROWSER ENGINE.</Constraint>
+      <Constraint>KERNEL ADMITTED RESOURCE SCOPE MUST STRICTLY MATCH PAYLOAD TARGET IDENTITIES.</Constraint>
+      <Constraint>BROWSER EVENTS ARE OBSERVATIONS PUBLISHED POST-OUTCOME VIA M0.4 TRANSPORT.</Constraint>
+      <Constraint>QUERY AND ACCESSIBILITY SNAPSHOTS MUST BE BOUNDED TO PREVENT UNBOUNDED IPC ALLOCATIONS.</Constraint>
+      <Constraint>NO CAPABILITY CONTRACT SHALL BE PUBLISHED WITHOUT FULL CONCRETE IMPLEMENTATION.</Constraint>
+      <Constraint>ARBITRARY HOST FILESYSTEM PATHS SHALL NOT BE PART OF BROWSER CAPABILITY ABI.</Constraint>
+      <Constraint>KERNEL REMAINS 100% ENGINE-NEUTRAL AND IMPORTS ZERO BROWSER TYPES.</Constraint>
+    </Constraints>
+
+    <AffectedAreas>
+      <Area>docs/adr/ADR-BROWSER-ENGINE-V1.md</Area>
+      <Area>crates/worldline-browser-contract</Area>
+      <Area>crates/worldline-browser-spike</Area>
+      <Area>scripts/ci/Invoke-WorldlineCi.ps1</Area>
+      <Area>scripts/ci/Test-WorldlineArchitecture.ps1</Area>
+      <Area>ROADMAP.md</Area>
+    </AffectedAreas>
+
+    <VerificationIntent>
+      Verify that real Chromium process executes local navigation, AX extraction,
+      and renderer crash containment on Windows. Verify that confused-deputy resource
+      mismatches are rejected by the capability provider. Verify that browser events
+      are received by kernel event subscribers. Verify query bounding and all v1 operations.
+    </VerificationIntent>
+
+    <AcceptanceCriteria>
+      <Criterion>Real out-of-process Chromium process executes local HTML navigation and Blink AX extraction.</Criterion>
+      <Criterion>Killing renderer process leaves Worldline host process alive and yields typed EngineCrashed error.</Criterion>
+      <Criterion>Payload targeting PageId different from admitted ResourceId is rejected as ResourceMismatch.</Criterion>
+      <Criterion>Navigation and crash events are published to kernel event transport and received by subscribers.</Criterion>
+      <Criterion>Query snapshots respect depth, node count, and text budget bounds with truncation flags.</Criterion>
+      <Criterion>All 8 contracts and operations are fully implemented without unsupported stubs.</Criterion>
+      <Criterion>ADR-BROWSER-ENGINE-V1 documents real measured numbers from the Chromium spike.</Criterion>
+      <Criterion>All CI suites (Source, Correctness, ArchitectureSecurity, ProvingSlice, All) pass.</Criterion>
+    </AcceptanceCriteria>
+  </C-BROWSER-M1-1-REAL-ENGINE-EVIDENCE-HARDENING-20260831>
+</GraceChangeSpec>

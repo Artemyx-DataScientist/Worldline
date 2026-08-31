@@ -5,21 +5,26 @@ use std::{
 
 use worldline_browser_contract::{
     action::{ActionResult, InteractionKind},
-    contracts::{LoadingState, PageObservation, ViewportInfo},
+    contracts::{
+        DownloadAction, DownloadState, DownloadStatusResponse, ElementQueryKind, LoadingState,
+        PageObservation, PageSummary, PermissionDecision, PermissionType, ViewportInfo,
+    },
     error::BrowserError,
-    identity::{BrowserContextId, DocumentRevision, ElementRef, NavigationId, PageId},
+    identity::{BrowserContextId, DocumentRevision, DownloadId, ElementRef, NavigationId, PageId},
     query::{
-        AccessibilityNode, AccessibilityRole, AccessibilityTree, DocumentMetadata, DocumentSnapshot,
+        AccessibilityNode, AccessibilityRole, AccessibilityTree, DocumentMetadata,
+        DocumentSnapshot, QueryBounds, SemanticElement,
     },
 };
 
-/// Internal state of an isolated browser context/profile.
+/// Internal state of an isolated browser context/profile in the reference model.
 #[derive(Clone, Debug)]
 pub struct ContextState {
     pub id: BrowserContextId,
-    pub storage_path: Option<String>,
+    pub profile_id: Option<String>,
     pub incognito: bool,
     pub cookies: HashMap<String, String>,
+    pub permissions: HashMap<(String, PermissionType), PermissionDecision>,
     pub pages: Vec<PageId>,
 }
 
@@ -33,7 +38,7 @@ pub struct FormElementState {
     pub value: String,
 }
 
-/// Internal state of a browser page surface.
+/// Internal state of a browser page surface in the reference model.
 #[derive(Clone, Debug)]
 pub struct PageState {
     pub page_id: PageId,
@@ -131,17 +136,13 @@ impl PageState {
 
         root = root.with_child(form_group);
 
-        AccessibilityTree {
-            page_id: self.page_id.clone(),
-            document_revision: self.document_revision,
-            root,
-        }
+        AccessibilityTree::new(self.page_id.clone(), self.document_revision, root)
     }
 }
 
-/// Out-of-process engine spike supervisor managing isolated contexts and pages.
+/// In-memory reference browser supervisor managing isolated contexts, pages, downloads and permissions.
 #[derive(Clone, Debug, Default)]
-pub struct SpikeEngineSupervisor {
+pub struct ReferenceBrowserSupervisor {
     inner: Arc<Mutex<SupervisorInner>>,
 }
 
@@ -149,12 +150,14 @@ pub struct SpikeEngineSupervisor {
 struct SupervisorInner {
     contexts: HashMap<BrowserContextId, ContextState>,
     pages: HashMap<PageId, PageState>,
+    downloads: HashMap<DownloadId, DownloadStatusResponse>,
     next_context_id: u64,
     next_page_id: u64,
     next_nav_id: u64,
+    next_download_id: u64,
 }
 
-impl SpikeEngineSupervisor {
+impl ReferenceBrowserSupervisor {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(SupervisorInner::default())),
@@ -164,7 +167,7 @@ impl SpikeEngineSupervisor {
     pub fn create_context(
         &self,
         requested_id: Option<BrowserContextId>,
-        storage_path: Option<String>,
+        profile_id: Option<String>,
         incognito: bool,
     ) -> Result<BrowserContextId, BrowserError> {
         let mut inner = self
@@ -183,9 +186,10 @@ impl SpikeEngineSupervisor {
             context_id.clone(),
             ContextState {
                 id: context_id.clone(),
-                storage_path,
+                profile_id,
                 incognito,
                 cookies: HashMap::new(),
+                permissions: HashMap::new(),
                 pages: Vec::new(),
             },
         );
@@ -205,6 +209,14 @@ impl SpikeEngineSupervisor {
             inner.pages.remove(&page_id);
         }
         Ok(())
+    }
+
+    pub fn list_contexts(&self) -> Vec<BrowserContextId> {
+        if let Ok(inner) = self.inner.lock() {
+            inner.contexts.keys().cloned().collect()
+        } else {
+            Vec::new()
+        }
     }
 
     pub fn set_cookie(
@@ -291,6 +303,32 @@ impl SpikeEngineSupervisor {
         Ok(())
     }
 
+    pub fn list_pages(
+        &self,
+        context_id: &BrowserContextId,
+    ) -> Result<Vec<PageSummary>, BrowserError> {
+        let inner = self
+            .inner
+            .lock()
+            .map_err(|_| BrowserError::EngineHung("lock poisoned".to_string()))?;
+        let ctx = inner
+            .contexts
+            .get(context_id)
+            .ok_or_else(|| BrowserError::ContextNotFound(context_id.clone()))?;
+        let mut summaries = Vec::new();
+        for page_id in &ctx.pages {
+            if let Some(p) = inner.pages.get(page_id) {
+                summaries.push(PageSummary {
+                    page_id: p.page_id.clone(),
+                    url: p.current_url.clone(),
+                    title: p.title.clone(),
+                    document_revision: p.document_revision,
+                });
+            }
+        }
+        Ok(summaries)
+    }
+
     pub fn navigate(
         &self,
         page_id: &PageId,
@@ -316,6 +354,63 @@ impl SpikeEngineSupervisor {
 
         page.load_local_fixture(url);
         Ok((nav_id, page.document_revision))
+    }
+
+    pub fn reload(&self, page_id: &PageId) -> Result<DocumentRevision, BrowserError> {
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| BrowserError::EngineHung("lock poisoned".to_string()))?;
+        let page = inner
+            .pages
+            .get_mut(page_id)
+            .ok_or_else(|| BrowserError::PageNotFound(page_id.clone()))?;
+        if page.is_crashed {
+            return Err(BrowserError::EngineCrashed(
+                "page renderer process has terminated".to_string(),
+            ));
+        }
+        page.document_revision = page.document_revision.next();
+        Ok(page.document_revision)
+    }
+
+    pub fn stop(&self, page_id: &PageId) -> Result<(), BrowserError> {
+        let inner = self
+            .inner
+            .lock()
+            .map_err(|_| BrowserError::EngineHung("lock poisoned".to_string()))?;
+        let page = inner
+            .pages
+            .get(page_id)
+            .ok_or_else(|| BrowserError::PageNotFound(page_id.clone()))?;
+        if page.is_crashed {
+            return Err(BrowserError::EngineCrashed(
+                "page renderer process has terminated".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn history_nav(
+        &self,
+        page_id: &PageId,
+        _delta: i32,
+    ) -> Result<DocumentRevision, BrowserError> {
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| BrowserError::EngineHung("lock poisoned".to_string()))?;
+        let page = inner
+            .pages
+            .get_mut(page_id)
+            .ok_or_else(|| BrowserError::PageNotFound(page_id.clone()))?;
+        if page.is_crashed {
+            return Err(BrowserError::EngineCrashed(
+                "page renderer process has terminated".to_string(),
+            ));
+        }
+        page.document_revision = page.document_revision.next();
+        Ok(page.document_revision)
     }
 
     pub fn observe(&self, page_id: &PageId) -> Result<PageObservation, BrowserError> {
@@ -350,7 +445,11 @@ impl SpikeEngineSupervisor {
         })
     }
 
-    pub fn query_document(&self, page_id: &PageId) -> Result<DocumentSnapshot, BrowserError> {
+    pub fn query_document(
+        &self,
+        page_id: &PageId,
+        bounds: Option<&QueryBounds>,
+    ) -> Result<DocumentSnapshot, BrowserError> {
         let inner = self
             .inner
             .lock()
@@ -366,16 +465,96 @@ impl SpikeEngineSupervisor {
             ));
         }
 
-        Ok(DocumentSnapshot {
-            metadata: DocumentMetadata {
+        let raw_tree = page.build_accessibility_tree();
+        let default_bounds = QueryBounds::default();
+        let active_bounds = bounds.unwrap_or(&default_bounds);
+        let bounded_tree = raw_tree.to_bounded(active_bounds);
+
+        Ok(DocumentSnapshot::new(
+            DocumentMetadata {
                 page_id: page.page_id.clone(),
                 url: page.current_url.clone(),
                 title: page.title.clone(),
                 document_revision: page.document_revision,
                 status_code: page.status_code,
             },
-            accessibility_tree: page.build_accessibility_tree(),
-        })
+            bounded_tree,
+        ))
+    }
+
+    pub fn extract_text(
+        &self,
+        page_id: &PageId,
+        target_element: Option<&ElementRef>,
+    ) -> Result<(String, DocumentRevision), BrowserError> {
+        let inner = self
+            .inner
+            .lock()
+            .map_err(|_| BrowserError::EngineHung("lock poisoned".to_string()))?;
+        let page = inner
+            .pages
+            .get(page_id)
+            .ok_or_else(|| BrowserError::PageNotFound(page_id.clone()))?;
+
+        if page.is_crashed {
+            return Err(BrowserError::EngineCrashed(
+                "page renderer process has terminated".to_string(),
+            ));
+        }
+
+        if let Some(elem_ref) = target_element {
+            if elem_ref.document_revision() != page.document_revision {
+                return Err(BrowserError::StaleElementReference {
+                    expected_revision: elem_ref.document_revision(),
+                    actual_revision: page.document_revision,
+                });
+            }
+            let elem = page
+                .form_elements
+                .get(elem_ref.node_key())
+                .ok_or_else(|| BrowserError::ElementNotFound(elem_ref.node_key().to_string()))?;
+            Ok((elem.value.clone(), page.document_revision))
+        } else {
+            let tree = page.build_accessibility_tree();
+            Ok((tree.root.collect_text(), page.document_revision))
+        }
+    }
+
+    pub fn find_elements(
+        &self,
+        page_id: &PageId,
+        query: &str,
+        _kind: ElementQueryKind,
+    ) -> Result<(Vec<SemanticElement>, DocumentRevision), BrowserError> {
+        let inner = self
+            .inner
+            .lock()
+            .map_err(|_| BrowserError::EngineHung("lock poisoned".to_string()))?;
+        let page = inner
+            .pages
+            .get(page_id)
+            .ok_or_else(|| BrowserError::PageNotFound(page_id.clone()))?;
+
+        if page.is_crashed {
+            return Err(BrowserError::EngineCrashed(
+                "page renderer process has terminated".to_string(),
+            ));
+        }
+
+        let mut elements = Vec::new();
+        for (key, f) in &page.form_elements {
+            if key.contains(query) || f.name.contains(query) || f.value.contains(query) {
+                let elem_ref =
+                    ElementRef::new(page.page_id.clone(), page.document_revision, key.clone());
+                elements.push(SemanticElement {
+                    element_ref: elem_ref,
+                    tag_name: f.tag_name.clone(),
+                    attributes: BTreeMap::new(),
+                    text_content: f.value.clone(),
+                });
+            }
+        }
+        Ok((elements, page.document_revision))
     }
 
     pub fn execute_action(
@@ -425,7 +604,6 @@ impl SpikeEngineSupervisor {
                 })
             }
             InteractionKind::Click | InteractionKind::Submit => {
-                // Simulate form submission effect
                 let query_val = page
                     .form_elements
                     .get("query-input")
@@ -458,6 +636,114 @@ impl SpikeEngineSupervisor {
                 message: Some("scrolled".to_string()),
             }),
         }
+    }
+
+    pub fn start_download(
+        &self,
+        page_id: &PageId,
+        url: &str,
+        destination_path: Option<String>,
+    ) -> Result<DownloadId, BrowserError> {
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| BrowserError::EngineHung("lock poisoned".to_string()))?;
+        if !inner.pages.contains_key(page_id) {
+            return Err(BrowserError::PageNotFound(page_id.clone()));
+        }
+        inner.next_download_id += 1;
+        let dl_id = DownloadId::new(format!("dl-{}", inner.next_download_id));
+        let dest = destination_path.unwrap_or_else(|| format!("/downloads/{dl_id}"));
+        inner.downloads.insert(
+            dl_id.clone(),
+            DownloadStatusResponse {
+                download_id: dl_id.clone(),
+                page_id: page_id.clone(),
+                url: url.to_string(),
+                destination_path: dest,
+                total_bytes: 1024,
+                received_bytes: 512,
+                state: DownloadState::InProgress,
+            },
+        );
+        Ok(dl_id)
+    }
+
+    pub fn control_download(
+        &self,
+        download_id: &DownloadId,
+        action: DownloadAction,
+    ) -> Result<DownloadStatusResponse, BrowserError> {
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| BrowserError::EngineHung("lock poisoned".to_string()))?;
+        let dl = inner
+            .downloads
+            .get_mut(download_id)
+            .ok_or_else(|| BrowserError::DownloadNotFound(download_id.clone()))?;
+        match action {
+            DownloadAction::Pause => dl.state = DownloadState::Paused,
+            DownloadAction::Resume => dl.state = DownloadState::InProgress,
+            DownloadAction::Cancel => dl.state = DownloadState::Cancelled,
+        }
+        Ok(dl.clone())
+    }
+
+    pub fn download_status(
+        &self,
+        download_id: &DownloadId,
+    ) -> Result<DownloadStatusResponse, BrowserError> {
+        let inner = self
+            .inner
+            .lock()
+            .map_err(|_| BrowserError::EngineHung("lock poisoned".to_string()))?;
+        inner
+            .downloads
+            .get(download_id)
+            .cloned()
+            .ok_or_else(|| BrowserError::DownloadNotFound(download_id.clone()))
+    }
+
+    pub fn query_permission(
+        &self,
+        context_id: &BrowserContextId,
+        origin: &str,
+        perm_type: PermissionType,
+    ) -> Result<PermissionDecision, BrowserError> {
+        let inner = self
+            .inner
+            .lock()
+            .map_err(|_| BrowserError::EngineHung("lock poisoned".to_string()))?;
+        let ctx = inner
+            .contexts
+            .get(context_id)
+            .ok_or_else(|| BrowserError::ContextNotFound(context_id.clone()))?;
+        Ok(ctx
+            .permissions
+            .get(&(origin.to_string(), perm_type))
+            .copied()
+            .unwrap_or(PermissionDecision::Prompt))
+    }
+
+    pub fn set_permission(
+        &self,
+        context_id: &BrowserContextId,
+        origin: &str,
+        perm_type: PermissionType,
+        decision: PermissionDecision,
+    ) -> Result<PermissionDecision, BrowserError> {
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| BrowserError::EngineHung("lock poisoned".to_string()))?;
+        let ctx = inner
+            .contexts
+            .get_mut(context_id)
+            .ok_or_else(|| BrowserError::ContextNotFound(context_id.clone()))?;
+        ctx.permissions
+            .insert((origin.to_string(), perm_type), decision);
+        Ok(decision)
     }
 
     /// Simulates deliberate crash / termination of an engine process.

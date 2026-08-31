@@ -66,7 +66,10 @@ pub fn validate_element_reference(
     current_revision: DocumentRevision,
 ) -> Result<(), BrowserError> {
     if element_ref.page_id() != page_id {
-        return Err(BrowserError::PageNotFound(element_ref.page_id().clone()));
+        return Err(BrowserError::ResourceMismatch {
+            expected: page_id.to_string(),
+            actual: element_ref.page_id().to_string(),
+        });
     }
     if element_ref.document_revision() != current_revision {
         return Err(BrowserError::StaleElementReference {

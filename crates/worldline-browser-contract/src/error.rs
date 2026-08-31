@@ -20,6 +20,11 @@ pub enum BrowserError {
         actual_revision: DocumentRevision,
     },
     PermissionDenied(String),
+    ResourceMismatch {
+        expected: String,
+        actual: String,
+    },
+    QueryBoundsExceeded(String),
     EngineCrashed(String),
     EngineHung(String),
     Timeout(String),
@@ -74,6 +79,13 @@ impl fmt::Display for BrowserError {
                 )
             }
             Self::PermissionDenied(msg) => write!(formatter, "browser permission denied: {msg}"),
+            Self::ResourceMismatch { expected, actual } => {
+                write!(
+                    formatter,
+                    "admitted resource scope mismatch: admitted '{expected}', payload requested '{actual}'"
+                )
+            }
+            Self::QueryBoundsExceeded(msg) => write!(formatter, "query bounds exceeded: {msg}"),
             Self::EngineCrashed(msg) => write!(formatter, "browser engine crashed: {msg}"),
             Self::EngineHung(msg) => write!(formatter, "browser engine hung/unresponsive: {msg}"),
             Self::Timeout(msg) => write!(formatter, "browser operation timed out: {msg}"),
