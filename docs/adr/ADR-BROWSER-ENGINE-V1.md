@@ -1,7 +1,7 @@
 # ADR: Browser Engine Provider Selection and Contract v1
 
 Статус: accepted
-Change: C-BROWSER-M1-1-REAL-ENGINE-EVIDENCE-HARDENING-20260831
+Change: C-BROWSER-M1-1-AUDIT-CLOSURE-HARDENING-20260831
 Рубеж: M1.1 — Browser contract and engine spike
 
 ---
@@ -60,7 +60,7 @@ Milestone M1 начинает разработку первой прикладн
 3. `NavigationId`: идентификатор попытки/акта навигации.
 4. `DocumentRevision`: монотонный счетчик ревизий DOM/страницы.
 5. `DownloadId`: идентификатор операции загрузки.
-6. `ElementRef`: ссылка на семантический узел, жестко привязанная к кортежу `(PageId, DocumentRevision, NodeKey)`. Ссылка становится недействительной (`StaleElementReference`) при изменении ревизии документа после навигации или сброса DOM.
+6. `ElementRef`: ссылка на семантический узел, жестко привязанная к кортежу `(PageId, DocumentRevision, NodeKey)`. Ссылка становится недействительной (`StaleElementReference`) при изменении ревизии документа после навигации или сброса DOM. В реальном исполнителе `NodeKey` напрямую адресует конкретный DOM/AX элемент.
 7. `QueryBounds`: жесткие бюджетные ограничения на глубину обхода (`max_depth`), количество узлов (`max_nodes`), длину строк (`max_text_len`) и суммарный объем текста (`max_total_text_bytes`), предотвращающие переполнение памяти и DoS в IPC.
 
 ### 2.2 Разделение прав (Authority Separation) и защита от Confused-Deputy
@@ -71,7 +71,7 @@ Milestone M1 начинает разработку первой прикладн
 - `ControlDownload` -> управление загрузками файлов.
 - `ManagePermission` -> принятие решений по разрешениям сайтов (геолокация, медиа и т.д.).
 
-**Инвариант защиты от Confused-Deputy:** провайдер валидирует совпадение ресурса из `InvocationContext` (`browser-page/{PageId}` или `browser-context/{ContextId}`) с целевым ресурсом в полезной нагрузке. Попытка вызвать действие на `page-2` с мандатом на `page-1` немедленно отвергается как `ResourceMismatch`.
+**Инвариант защиты от Confused-Deputy:** провайдер валидирует совпадение ресурса из `InvocationContext` (`browser-page/{PageId}` или `browser-context/{ContextId}`) с целевым ресурсом в полезной нагрузке. Для иерархических контекстных полномочий проверяется точное владение целевой страницей (`supervisor.get_page_context(page_id) == owning_context_id`). Любые несовпадения и произвольные префиксные байпассы немедленно отвергаются как `ResourceMismatch`.
 
 ---
 
@@ -96,17 +96,17 @@ Milestone M1 начинает разработку первой прикладн
 
 Спайк реализован в двух дополняющих компонентах:
 1. **Real Out-of-Process Chromium Engine Spike** (`worldline-browser-spike/src/chromium.rs`, `real_chromium_acceptance.rs`):
-   - Запуск реального внешнего процесса Chromium/Edge (`--headless=new`).
+   - Запуск реального внешнего процесса Chromium/Edge (`--headless=new`) с политикой fail-closed в CI.
    - Управление по протоколу CDP (Chrome DevTools Protocol) через безопасный легковесный WebSocket-клиент на чистом Rust.
    - Навигация по локальному HTML-файлу (`file:///...`).
-   - Извлечение настоящего дерева доступности Blink (`Accessibility.getFullAXTree`) и наложение `QueryBounds`.
-   - Выполнение реальных действий (ввод текста в поле формы, клик по кнопке с изменением DOM).
+   - Извлечение настоящего дерева доступности Blink (`Accessibility.getFullAXTree`), адресация семантических элементов в `ElementRef.node_key` и наложение `QueryBounds`.
+   - Выполнение реальных действий, адресованных конкретным элементам (ввод текста в поле формы, клик по кнопке с изменением DOM), с проверкой `ElementNotFound` для некорректных ссылок.
    - Принудительное уничтожение процесса рендерера (`Page.crash`) с проверкой выживания управляющего процесса и хоста Worldline.
    - Измерение реального времени холодного старта и потребления RAM (Working Set).
 2. **Deterministic In-Memory Reference Provider** (`worldline-browser-spike/src/engine.rs`, `spike_acceptance.rs`, `measurement_suite.rs`):
    - Быстрый контрактный эталон для юнит- и интеграционных тестов без внешних зависимостей.
    - Полное покрытие всех 8 capability contracts (`context`, `page`, `navigate`, `observe`, `query`, `act`, `download`, `permission`).
-   - Публикация типизированных событий через M0.4 транспорт событий ядра (`browser.page.created`, `browser.navigation.committed`, `browser.page.closed`, `browser.download.started`).
+   - Публикация типизированных событий через `InvocationContext::publish_event` в M0.4 транспорт событий ядра (`browser.page.created`, `browser.navigation.committed`, `browser.page.closed`, `browser.download.started`) с валидацией через pull-подписки `SubscriptionHandle`.
 
 ---
 

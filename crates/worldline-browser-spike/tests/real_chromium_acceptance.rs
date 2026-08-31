@@ -2,8 +2,9 @@ use std::fs;
 
 use worldline_browser_contract::{
     action::InteractionKind,
+    error::BrowserError,
     identity::{ElementRef, PageId},
-    query::QueryBounds,
+    query::{AccessibilityRole, QueryBounds},
 };
 use worldline_browser_spike::ChromiumEngineSupervisor;
 
@@ -13,7 +14,14 @@ fn real_out_of_process_chromium_spike_navigation_and_dom_interaction() {
     let mut supervisor = match ChromiumEngineSupervisor::spawn() {
         Ok(s) => s,
         Err(e) => {
-            println!("Skipping real Chromium test (no browser found): {e}");
+            if std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok() {
+                panic!(
+                    "FAIL-CLOSED: Chromium/Edge browser binary MUST be available and runnable in CI environment: {e}"
+                );
+            }
+            println!(
+                "Skipping real Chromium test (no browser found in local non-CI environment): {e}"
+            );
             return;
         }
     };
@@ -83,28 +91,67 @@ fn real_out_of_process_chromium_spike_navigation_and_dom_interaction() {
         doc_snapshot.metadata.title,
         "Worldline Real Chromium Fixture"
     );
-    assert!(!doc_snapshot.accessibility_tree.root.children.is_empty());
 
-    // 7. Dispatch real text input action into the input field
-    let elem_ref = ElementRef::new(page_id.clone(), rev, "ax-node-1");
+    // 7. Discover specific interactive elements from the tree
+    let input_node = doc_snapshot
+        .accessibility_tree
+        .root
+        .children
+        .iter()
+        .find(|n| n.role == AccessibilityRole::TextInput)
+        .expect("must find input node in tree");
+    let input_ref = input_node
+        .element_ref
+        .as_ref()
+        .expect("input must have ElementRef");
+    assert_eq!(input_ref.node_key(), "search-input");
+
+    let btn_node = doc_snapshot
+        .accessibility_tree
+        .root
+        .children
+        .iter()
+        .find(|n| n.role == AccessibilityRole::Button)
+        .expect("must find button node in tree");
+    let btn_ref = btn_node
+        .element_ref
+        .as_ref()
+        .expect("button must have ElementRef");
+    assert_eq!(btn_ref.node_key(), "submit-btn");
+
+    // 8. Dispatch real text input action targeted specifically to search-input
     let input_res = supervisor
-        .execute_action(&elem_ref, InteractionKind::Input, Some("Rust microkernel"))
+        .execute_action(input_ref, InteractionKind::Input, Some("Rust microkernel"))
         .expect("input action must succeed");
     assert!(input_res.success);
 
-    // 8. Dispatch real click action on the submit button
+    // 9. Dispatch real click action targeted specifically to submit-btn
     let click_res = supervisor
-        .execute_action(&elem_ref, InteractionKind::Click, None)
+        .execute_action(btn_ref, InteractionKind::Click, None)
         .expect("click action must succeed");
     assert!(click_res.success);
 
-    // Verify that the title updated in the real Chromium DOM
+    // Verify that the title updated in the real Chromium DOM as a result of the click handler
     let post_query = supervisor
         .query_document(&page_id, None)
         .expect("must query post-action");
     assert_eq!(post_query.metadata.title, "Submitted: Rust microkernel");
 
-    // 9. Deliberately crash the renderer process via Page.crash
+    // 10. Verify that targeting a nonexistent ElementRef fails with ElementNotFound
+    let invalid_ref = ElementRef::new(
+        page_id.clone(),
+        post_query.metadata.document_revision,
+        "nonexistent-element-99",
+    );
+    let err = supervisor
+        .execute_action(&invalid_ref, InteractionKind::Click, None)
+        .unwrap_err();
+    assert!(
+        matches!(err, BrowserError::ElementNotFound(_)),
+        "Must fail with ElementNotFound on nonexistent element, got: {err:?}"
+    );
+
+    // 11. Deliberately crash the renderer process via Page.crash
     supervisor.crash_renderer(&page_id).expect("crash call");
 
     // Host supervisor process remains ALIVE!

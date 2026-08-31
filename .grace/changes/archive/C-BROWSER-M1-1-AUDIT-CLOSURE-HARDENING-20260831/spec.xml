@@ -1,0 +1,71 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-BROWSER-M1-1-AUDIT-CLOSURE-HARDENING-20260831>
+    <ChangeId>C-BROWSER-M1-1-AUDIT-CLOSURE-HARDENING-20260831</ChangeId>
+
+    <Title>
+      Browser M1.1 Audit Closure Hardening:
+      Kernel Event Transport Publication, Exact Context Scope Validation,
+      Targeted ElementRef Action Addressing and CI Fail-Closed Policy
+    </Title>
+
+    <Summary>
+      Finalize and close Milestone M1.1 audit findings:
+      1. Replace local Vec event accumulation in browser provider with genuine
+         M0.4 kernel event transport publication via InvocationContext::publish_event,
+         verified by authorized pull subscriptions receiving EventEnvelope.
+      2. Eliminate the string-prefix loophole in provider resource scope checking;
+         require exact resource matches or validated parent context ownership.
+      3. Wire ElementRef.node_key directly to specific DOM/AX elements in the real
+         Chromium executor so actions address targeted elements rather than generic
+         document.querySelector('input')/'button'.
+      4. Make real Chromium acceptance test fail-closed in CI environments when the
+         browser binary cannot be spawned.
+    </Summary>
+
+    <Goals>
+      <Goal>Publish browser events directly through InvocationContext::publish_event to M0.4 kernel event transport.</Goal>
+      <Goal>Ensure authorized kernel event subscribers receive real EventEnvelopes from browser capability operations.</Goal>
+      <Goal>Eliminate string-prefix bypass in check_resource_scope by requiring exact match or validated owning context.</Goal>
+      <Goal>Target specific DOM elements in Chromium executor by ElementRef.node_key.</Goal>
+      <Goal>Enforce fail-closed browser detection in CI runner environments.</Goal>
+    </Goals>
+
+    <NonGoals>
+      <NonGoal>Full production CEF embedding in M1.1 (reserved for M1.2 based on this spike's measurements).</NonGoal>
+      <NonGoal>Public internet network crawling or remote web page dependencies.</NonGoal>
+      <NonGoal>Kernel-level browser domain policies.</NonGoal>
+    </NonGoals>
+
+    <Constraints>
+      <Constraint>BROWSER EVENTS MUST BE PUBLISHED VIA INVOCATIONCONTEXT AND RECEIVED VIA KERNEL EVENT TRANSPORT.</Constraint>
+      <Constraint>RESOURCE SCOPE VALIDATION MUST NOT ALLOW ARBITRARY PREFIX BYPASSES.</Constraint>
+      <Constraint>CHROMIUM ACTION EXECUTION MUST RESOLVE SPECIFIC TARGETED ELEMENTREF NODES.</Constraint>
+      <Constraint>REAL ENGINE ACCEPTANCE TEST MUST FAIL CLOSED IN CI ENVIRONMENTS.</Constraint>
+      <Constraint>KERNEL REMAINS 100% ENGINE-NEUTRAL AND IMPORTS ZERO BROWSER TYPES.</Constraint>
+    </Constraints>
+
+    <AffectedAreas>
+      <Area>docs/adr/ADR-BROWSER-ENGINE-V1.md</Area>
+      <Area>crates/worldline-browser-contract</Area>
+      <Area>crates/worldline-browser-spike</Area>
+      <Area>scripts/ci/Invoke-WorldlineCi.ps1</Area>
+      <Area>scripts/ci/Test-WorldlineArchitecture.ps1</Area>
+      <Area>ROADMAP.md</Area>
+    </AffectedAreas>
+
+    <VerificationIntent>
+      Verify that browser events are received by authorized kernel event subscribers as real EventEnvelopes.
+      Verify that arbitrary context grants cannot access unowned pages.
+      Verify that ElementRef.node_key targets specific interactive DOM elements in real Chromium.
+      Verify that real Chromium acceptance test fails closed in CI if browser is missing.
+    </VerificationIntent>
+
+    <AcceptanceCriteria>
+      <Criterion>Browser events (page.created, navigation.committed, page.closed, download.started) are published via kernel transport and received by SubscriptionHandle.</Criterion>
+      <Criterion>check_resource_scope strictly rejects cross-context page access and unauthorized context scopes.</Criterion>
+      <Criterion>Real Chromium action execution targets the specific element referenced by ElementRef.node_key.</Criterion>
+      <Criterion>real_chromium_acceptance fails closed in CI environment if browser cannot be spawned.</Criterion>
+      <Criterion>All CI suites (Source, Correctness, ArchitectureSecurity, ProvingSlice, All) pass cleanly.</Criterion>
+    </AcceptanceCriteria>
+  </C-BROWSER-M1-1-AUDIT-CLOSURE-HARDENING-20260831>
+</GraceChangeSpec>

@@ -308,7 +308,7 @@ impl ChromiumEngineSupervisor {
         Ok((nav_id, page.document_revision))
     }
 
-    /// Extracts real Blink Accessibility tree via CDP and bounds it.
+    /// Extracts real DOM and Blink Accessibility tree via CDP and bounds it.
     pub fn query_document(
         &mut self,
         page_id: &PageId,
@@ -325,56 +325,66 @@ impl ChromiumEngineSupervisor {
             ));
         }
 
-        let ax_raw = page
-            .cdp_session
-            .get_full_ax_tree()
-            .map_err(BrowserError::EngineHung)?;
+        // Map DOM interactive and structural nodes with their explicit keys/IDs
+        let dom_meta_js = r#"(() => {
+            const els = Array.from(document.querySelectorAll('input, button, a, select, textarea, form, h1, h2, h3, p'));
+            return JSON.stringify(els.map((el, i) => {
+                const key = el.id && el.id.length > 0 ? el.id : (el.name && el.name.length > 0 ? el.name : ('dom-node-' + i));
+                const tag = el.tagName.toLowerCase();
+                let name = '';
+                if (el.labels && el.labels[0]) {
+                    name = el.labels[0].innerText || '';
+                } else if (el.innerText && el.innerText.trim().length > 0) {
+                    name = el.innerText.trim();
+                } else if (el.placeholder) {
+                    name = el.placeholder;
+                } else if (el.name) {
+                    name = el.name;
+                } else if (el.id) {
+                    name = el.id;
+                }
+                const value = el.value || '';
+                return { key, tag, name, value };
+            }));
+        })()"#;
 
-        // Map Chromium AX nodes to Worldline AccessibilityTree
         let mut root_node = AccessibilityNode::new("blink-root", AccessibilityRole::Root)
             .with_name(page.title.clone());
 
-        if let Some(nodes) = ax_raw.get("nodes").and_then(|n| n.as_array()) {
-            for (idx, ax_node) in nodes.iter().enumerate() {
-                let role_str = ax_node
-                    .pointer("/role/value")
+        if let Ok(dom_meta_str) = page.cdp_session.evaluate_string(dom_meta_js) {
+            let dom_nodes =
+                serde_json::from_str::<Vec<serde_json::Value>>(&dom_meta_str).unwrap_or_default();
+            for dom_node in dom_nodes {
+                let key = dom_node
+                    .get("key")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("generic");
-                let name = ax_node
-                    .pointer("/name/value")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-                let value = ax_node
-                    .pointer("/value/value")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
+                    .unwrap_or("node");
+                let tag = dom_node.get("tag").and_then(|v| v.as_str()).unwrap_or("");
+                let name = dom_node.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                let value = dom_node.get("value").and_then(|v| v.as_str()).unwrap_or("");
 
-                let role = match role_str {
-                    "heading" => AccessibilityRole::Heading,
+                let role = match tag {
+                    "h1" | "h2" | "h3" => AccessibilityRole::Heading,
                     "button" => AccessibilityRole::Button,
-                    "link" => AccessibilityRole::Link,
-                    "textField" => AccessibilityRole::TextInput,
-                    "StaticText" => AccessibilityRole::StaticText,
+                    "a" => AccessibilityRole::Link,
+                    "input" | "textarea" => AccessibilityRole::TextInput,
                     "form" => AccessibilityRole::Form,
+                    "p" => AccessibilityRole::StaticText,
                     _ => AccessibilityRole::Generic,
                 };
 
-                let elem_ref = ElementRef::new(
-                    page_id.clone(),
-                    page.document_revision,
-                    format!("ax-node-{idx}"),
-                );
+                let elem_ref =
+                    ElementRef::new(page_id.clone(), page.document_revision, key.to_string());
 
-                let mut child_node = AccessibilityNode::new(format!("ax-node-{idx}"), role)
-                    .with_element_ref(elem_ref);
-                if let Some(n) = name {
-                    child_node = child_node.with_name(n);
+                let mut child =
+                    AccessibilityNode::new(key.to_string(), role).with_element_ref(elem_ref);
+                if !name.is_empty() {
+                    child = child.with_name(name.to_string());
                 }
-                if let Some(v) = value {
-                    child_node = child_node.with_value(v);
+                if !value.is_empty() {
+                    child = child.with_value(value.to_string());
                 }
-
-                root_node = root_node.with_child(child_node);
+                root_node = root_node.with_child(child);
             }
         }
 
@@ -395,7 +405,7 @@ impl ChromiumEngineSupervisor {
         ))
     }
 
-    /// Dispatches real click/input action via JS evaluation / CDP.
+    /// Dispatches targeted click/input action to the specific element referenced by ElementRef.node_key.
     pub fn execute_action(
         &mut self,
         element_ref: &ElementRef,
@@ -420,30 +430,81 @@ impl ChromiumEngineSupervisor {
             });
         }
 
+        let node_key = element_ref.node_key();
+
         match kind {
             InteractionKind::Input => {
                 let text = text_payload.unwrap_or_default();
-                // Set value in the first input field on the page
-                page.cdp_session
-                    .evaluate_string(&format!(
-                        "(() => {{ const el = document.querySelector('input') || document.body; el.value = '{text}'; el.dispatchEvent(new Event('input', {{ bubbles: true }})); return el.value; }})()"
-                    ))
+                let js = format!(
+                    r#"(() => {{
+                        const key = "{node_key}";
+                        let el = document.getElementById(key)
+                            || document.querySelector(`[name="${{key}}"]`)
+                            || document.querySelector(`[data-worldline-key="${{key}}"]`)
+                            || document.querySelector(key);
+                        if (!el && (key.startsWith('dom-node-') || key.startsWith('ax-node-'))) {{
+                            const idx = parseInt(key.replace(/^.*-/, ''), 10);
+                            const all = Array.from(document.querySelectorAll('input, button, a, select, textarea, form'));
+                            if (idx < all.length) el = all[idx];
+                        }}
+                        if (!el) return JSON.stringify({{ found: false, error: `Element '${{key}}' not found` }});
+                        el.focus();
+                        el.value = "{text}";
+                        el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        return JSON.stringify({{ found: true, value: el.value }});
+                    }})()"#
+                );
+                let res_str = page
+                    .cdp_session
+                    .evaluate_string(&js)
                     .map_err(BrowserError::InvalidRequest)?;
+
+                let not_found = serde_json::from_str::<serde_json::Value>(&res_str)
+                    .map(|j| j.get("found").and_then(|v| v.as_bool()) == Some(false))
+                    .unwrap_or(false);
+                if not_found {
+                    return Err(BrowserError::ElementNotFound(node_key.to_string()));
+                }
 
                 Ok(ActionResult {
                     page_id: page.page_id.clone(),
                     document_revision: page.document_revision,
                     interaction: kind,
                     success: true,
-                    message: Some(format!("input set to '{text}'")),
+                    message: Some(format!("input set to '{text}' on element '{node_key}'")),
                 })
             }
             InteractionKind::Click | InteractionKind::Submit => {
-                page.cdp_session
-                    .evaluate_string(
-                        "(() => { const btn = document.querySelector('button') || document.body; btn.click(); return 'clicked'; })()",
-                    )
+                let js = format!(
+                    r#"(() => {{
+                        const key = "{node_key}";
+                        let el = document.getElementById(key)
+                            || document.querySelector(`[name="${{key}}"]`)
+                            || document.querySelector(`[data-worldline-key="${{key}}"]`)
+                            || document.querySelector(key);
+                        if (!el && (key.startsWith('dom-node-') || key.startsWith('ax-node-'))) {{
+                            const idx = parseInt(key.replace(/^.*-/, ''), 10);
+                            const all = Array.from(document.querySelectorAll('input, button, a, select, textarea, form'));
+                            if (idx < all.length) el = all[idx];
+                        }}
+                        if (!el) return JSON.stringify({{ found: false, error: `Element '${{key}}' not found` }});
+                        el.focus();
+                        el.click();
+                        return JSON.stringify({{ found: true }});
+                    }})()"#
+                );
+                let res_str = page
+                    .cdp_session
+                    .evaluate_string(&js)
                     .map_err(BrowserError::InvalidRequest)?;
+
+                let not_found = serde_json::from_str::<serde_json::Value>(&res_str)
+                    .map(|j| j.get("found").and_then(|v| v.as_bool()) == Some(false))
+                    .unwrap_or(false);
+                if not_found {
+                    return Err(BrowserError::ElementNotFound(node_key.to_string()));
+                }
 
                 page.document_revision = page.document_revision.next();
                 page.title = page
@@ -456,21 +517,45 @@ impl ChromiumEngineSupervisor {
                     document_revision: page.document_revision,
                     interaction: kind,
                     success: true,
-                    message: Some("clicked element".to_string()),
+                    message: Some(format!("clicked element '{node_key}'")),
                 })
             }
             InteractionKind::Focus => {
-                page.cdp_session
-                    .evaluate_string(
-                        "(() => { const el = document.querySelector('input, button'); if (el) el.focus(); return 'focused'; })()",
-                    )
+                let js = format!(
+                    r#"(() => {{
+                        const key = "{node_key}";
+                        let el = document.getElementById(key)
+                            || document.querySelector(`[name="${{key}}"]`)
+                            || document.querySelector(`[data-worldline-key="${{key}}"]`)
+                            || document.querySelector(key);
+                        if (!el && (key.startsWith('dom-node-') || key.startsWith('ax-node-'))) {{
+                            const idx = parseInt(key.replace(/^.*-/, ''), 10);
+                            const all = Array.from(document.querySelectorAll('input, button, a, select, textarea, form'));
+                            if (idx < all.length) el = all[idx];
+                        }}
+                        if (!el) return JSON.stringify({{ found: false, error: `Element '${{key}}' not found` }});
+                        el.focus();
+                        return JSON.stringify({{ found: true }});
+                    }})()"#
+                );
+                let res_str = page
+                    .cdp_session
+                    .evaluate_string(&js)
                     .map_err(BrowserError::InvalidRequest)?;
+
+                let not_found = serde_json::from_str::<serde_json::Value>(&res_str)
+                    .map(|j| j.get("found").and_then(|v| v.as_bool()) == Some(false))
+                    .unwrap_or(false);
+                if not_found {
+                    return Err(BrowserError::ElementNotFound(node_key.to_string()));
+                }
+
                 Ok(ActionResult {
                     page_id: page.page_id.clone(),
                     document_revision: page.document_revision,
                     interaction: kind,
                     success: true,
-                    message: Some("focused element".to_string()),
+                    message: Some(format!("focused element '{node_key}'")),
                 })
             }
             InteractionKind::Scroll => {

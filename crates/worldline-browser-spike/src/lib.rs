@@ -17,4 +17,4 @@ pub use cdp::CdpSession;
 pub use chromium::{ChromiumBinaryInfo, ChromiumEngineSupervisor, discover_chromium_binary};
 pub use engine::{ContextState, FormElementState, PageState, ReferenceBrowserSupervisor};
 pub use harness::BrowserSpikeFixture;
-pub use provider::{EmittedBrowserEvent, SpikeBrowserPlugin, browser_capability};
+pub use provider::{SpikeBrowserPlugin, browser_capability};

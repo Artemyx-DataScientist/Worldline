@@ -1,0 +1,139 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-BROWSER-M1-1-AUDIT-CLOSURE-HARDENING-20260831>
+    <IntentSummary>Audit closure hardening for M1.1: genuine kernel event transport, strict hierarchical context validation, targeted ElementRef resolution in Chromium, and fail-closed CI test policy.</IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-KERNEL-CAPABILITY-RUNTIME</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>M-PERSISTENCE-RECOVERY</Value>
+        <Value>M-EXTERNAL-PLUGIN-BOUNDARY</Value>
+        <Value>M-BROWSER-CONTRACT-ENGINE-SPIKE</Value>
+        <Value>crates/worldline-kernel/src/lib.rs</Value>
+        <Value>crates/worldline-browser-contract/src/lib.rs</Value>
+        <Value>crates/worldline-browser-spike/src/lib.rs</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+      </MustExist>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>docs/adr/ADR-BROWSER-ENGINE-V1.md</Value>
+        <Value>crates/worldline-browser-spike/src/cdp.rs</Value>
+        <Value>crates/worldline-browser-spike/src/chromium.rs</Value>
+        <Value>crates/worldline-browser-spike/tests/real_chromium_acceptance.rs</Value>
+      </MustExist>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <M-KERNEL-CAPABILITY-RUNTIME />
+        <M-EXTERNAL-PLUGIN-BOUNDARY />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <V-M-KERNEL-CAPABILITY-RUNTIME />
+        <V-M-EXTERNAL-PLUGIN-BOUNDARY />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>docs/adr/ADR-BROWSER-ENGINE-V1.md</File>
+      <File>crates/worldline-browser-contract/src/events.rs</File>
+      <File>crates/worldline-browser-spike/src/chromium.rs</File>
+      <File>crates/worldline-browser-spike/src/engine.rs</File>
+      <File>crates/worldline-browser-spike/src/provider.rs</File>
+      <File>crates/worldline-browser-spike/src/harness.rs</File>
+      <File>crates/worldline-browser-spike/tests/spike_acceptance.rs</File>
+      <File>crates/worldline-browser-spike/tests/real_chromium_acceptance.rs</File>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      <File>ROADMAP.md</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.grace/verification/main.xml</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Publish Browser Events via M0.4 Kernel Event Transport</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Update provider to publish events via InvocationContext::publish_event and verify that authorized kernel subscribers receive EventEnvelope instances.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-spike --test spike_acceptance</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Eliminate Resource Scope Loophole in Browser Provider</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Enforce exact resource match or validated owning context lookup in check_resource_scope, rejecting cross-context and unowned page accesses.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-spike --test spike_acceptance</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Target Specific ElementRef Node Keys in Real Chromium Action Execution</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Update Chromium query_document and execute_action to resolve and interact with the exact element referenced by ElementRef.node_key.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-spike --test real_chromium_acceptance</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Enforce Fail-Closed Browser Detection in CI</Title>
+        <DependsOn>
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>In real_chromium_acceptance test, fail closed with panic if browser spawn fails when running in CI environment.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-spike --test real_chromium_acceptance</Command>
+        </Verification>
+      </T-004>
+
+      <T-005>
+        <Title>Run Full CI Suites and Verify Architecture Invariants</Title>
+        <DependsOn>
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Pass all workspace tests, architecture guard checks, and full CI suite All.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-005>
+
+      <T-006>
+        <Title>Update Documentation, Roadmaps and Archive Change</Title>
+        <DependsOn>
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Update ADR-BROWSER-ENGINE-V1.md and ROADMAP.md, mark change applied and archive.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>grace lint --path . --assertions current</Command>
+        </Verification>
+      </T-006>
+    </ImplementationPlan>
+  </C-BROWSER-M1-1-AUDIT-CLOSURE-HARDENING-20260831>
+</GraceChangePlan>

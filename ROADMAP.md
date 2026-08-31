@@ -608,12 +608,16 @@ kernel.
   ссылки отклоняются с явной ошибкой.
 - Логические идентификаторы профилей (`profile_id`) изолируют пользовательские данные
   без утечки путей файловой системы хоста в ABI.
-- Реализована публикация типизированных событий через M0.4 транспорт ядра
-  (`browser.page.created`, `browser.navigation.committed`, `browser.page.closed`, `browser.download.started`).
+- Реализована публикация типизированных событий через `InvocationContext::publish_event` в M0.4 транспорт ядра
+  (`browser.page.created`, `browser.navigation.committed`, `browser.page.closed`, `browser.download.started`),
+  проверенная через авторизованные pull-подписки `SubscriptionHandle`.
+- Иерархические контекстные полномочия строго проверяют принадлежность страницы (`get_page_context`)
+  без строковых префиксных байпассов.
 - Реализован настоящий out-of-process спайк Chromium на Windows (`worldline-browser-spike/src/chromium.rs`):
-  автоматическое обнаружение браузера, запуск headless-процесса, управление по CDP через WebSocket,
-  навигация по локальным HTML-фикстурам, извлечение дерева доступности Blink, действия в DOM
-  и изоляция сбоя рендерера с гарантированным выживанием супервизора и хоста Worldline.
+  автоматическое обнаружение браузера, запуск headless-процесса (с политикой fail-closed в CI),
+  управление по CDP через WebSocket, навигация по локальным HTML-фикстурам, извлечение дерева доступности Blink,
+  точная адресация семантических элементов через `ElementRef.node_key` и исполнение действий в DOM,
+  а также изоляция сбоя рендерера с гарантированным выживанием супервизора и хоста Worldline.
 - Сохранен детерминированный in-memory эталон (`ReferenceBrowserSupervisor`) с полной
   поддержкой всех 8 контрактов для быстрых регрессионных проверок.
 - Оформлен [ADR-BROWSER-ENGINE-V1](docs/adr/ADR-BROWSER-ENGINE-V1.md),

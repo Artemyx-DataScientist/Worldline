@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use worldline_browser_contract::{
     action::{
@@ -26,16 +26,13 @@ use worldline_browser_contract::{
         SetPermissionRequest, StartDownloadRequest, StopRequest, StopResponse,
     },
     error::BrowserError,
-    events::{
-        DownloadStartedEvent, EVENT_DOWNLOAD_STARTED, EVENT_NAVIGATION_COMMITTED,
-        EVENT_PAGE_CLOSED, EVENT_PAGE_CREATED, NavigationCommittedEvent, PageClosedEvent,
-        PageCreatedEvent,
-    },
-    identity::{BrowserContextId, context_resource, page_resource},
+    events::{DownloadStartedEvent, NavigationCommittedEvent, PageClosedEvent, PageCreatedEvent},
+    identity::{BrowserContextId, PageId, context_resource, page_resource},
 };
 use worldline_kernel::{
-    ActivationContext, CapabilityId, CapabilityService, InterfaceVersion, InvocationContext,
-    NoopRuntime, Plugin, PluginDefinition, PluginError, PluginRuntime,
+    ActivationContext, CapabilityId, CapabilityService, EventContract, EventPublishOptions,
+    InterfaceVersion, InvocationContext, NoopRuntime, Plugin, PluginDefinition, PluginError,
+    PluginRuntime,
 };
 
 use crate::engine::ReferenceBrowserSupervisor;
@@ -48,19 +45,11 @@ pub fn browser_capability(name: &str) -> CapabilityId {
     )
 }
 
-/// Recorded observation event emitted by the browser provider.
-#[derive(Clone, Debug)]
-pub struct EmittedBrowserEvent {
-    pub topic: &'static str,
-    pub payload: Vec<u8>,
-}
-
 /// Browser plugin exposing engine-neutral browser capabilities to Worldline kernel.
 #[derive(Clone)]
 pub struct SpikeBrowserPlugin {
     definition: PluginDefinition,
     supervisor: ReferenceBrowserSupervisor,
-    emitted_events: Arc<Mutex<Vec<EmittedBrowserEvent>>>,
 }
 
 impl SpikeBrowserPlugin {
@@ -81,16 +70,11 @@ impl SpikeBrowserPlugin {
         Self {
             definition: def,
             supervisor,
-            emitted_events: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
     pub fn supervisor(&self) -> &ReferenceBrowserSupervisor {
         &self.supervisor
-    }
-
-    pub fn emitted_events(&self) -> Arc<Mutex<Vec<EmittedBrowserEvent>>> {
-        Arc::clone(&self.emitted_events)
     }
 }
 
@@ -105,7 +89,6 @@ impl Plugin for SpikeBrowserPlugin {
     ) -> Result<Box<dyn PluginRuntime>, PluginError> {
         let service = Arc::new(SpikeBrowserCapabilityService {
             supervisor: self.supervisor.clone(),
-            emitted_events: Arc::clone(&self.emitted_events),
         });
 
         for contract in [
@@ -127,7 +110,6 @@ impl Plugin for SpikeBrowserPlugin {
 
 struct SpikeBrowserCapabilityService {
     supervisor: ReferenceBrowserSupervisor,
-    emitted_events: Arc<Mutex<Vec<EmittedBrowserEvent>>>,
 }
 
 impl CapabilityService for SpikeBrowserCapabilityService {
@@ -150,14 +132,25 @@ impl CapabilityService for SpikeBrowserCapabilityService {
 }
 
 impl SpikeBrowserCapabilityService {
-    fn record_event(&self, topic: &'static str, payload: Vec<u8>) {
-        if let Ok(mut lock) = self.emitted_events.lock() {
-            lock.push(EmittedBrowserEvent { topic, payload });
+    /// Publishes a typed observation event to the M0.4 kernel event transport.
+    fn publish_browser_event(
+        &self,
+        context: Option<&InvocationContext>,
+        event_name: &str,
+        payload: &[u8],
+    ) {
+        if let Some(ctx) = context {
+            let contract = EventContract::new(
+                "worldline.browser",
+                event_name,
+                InterfaceVersion::new(INTERFACE_MAJOR_V1, INTERFACE_MINOR_V1),
+            );
+            let _ = ctx.publish_event(contract, payload, EventPublishOptions::default());
         }
     }
 
     /// Enforces that the kernel admitted ResourceId in InvocationContext strictly
-    /// matches the target resource in the caller's deserialized payload.
+    /// matches the target resource or the validated parent context owning the page.
     fn check_resource_scope(
         &self,
         context: Option<&InvocationContext>,
@@ -165,17 +158,25 @@ impl SpikeBrowserCapabilityService {
     ) -> Result<(), String> {
         if let Some(ctx) = context {
             let admitted = ctx.resource().to_string();
-            // Wildcard or matching prefix / exact resource
-            if admitted != "any"
-                && admitted != expected_resource
-                && !admitted.starts_with("browser-context")
-            {
-                let err = BrowserError::ResourceMismatch {
-                    expected: admitted,
-                    actual: expected_resource.to_string(),
-                };
-                return Err(serde_json::to_string(&err).unwrap_or_else(|_| err.to_string()));
+            if admitted == "any" || admitted == expected_resource {
+                return Ok(());
             }
+
+            // If the targeted resource is a page, permit if the admitted scope is the exact owning context
+            if let Some(page_id_str) = expected_resource.strip_prefix("browser-page/") {
+                let owning_ctx = self.supervisor.get_page_context(&PageId::new(page_id_str));
+                if owning_ctx.as_ref().map(|c| format!("browser-context/{c}"))
+                    == Some(admitted.clone())
+                {
+                    return Ok(());
+                }
+            }
+
+            let err = BrowserError::ResourceMismatch {
+                expected: admitted,
+                actual: expected_resource.to_string(),
+            };
+            return Err(serde_json::to_string(&err).unwrap_or_else(|_| err.to_string()));
         }
         Ok(())
     }
@@ -232,13 +233,17 @@ impl SpikeBrowserCapabilityService {
                     .create_page(&req.context_id, None, req.initial_url.clone())
                     .map_err(|e| e.to_string())?;
 
-                // Publish PageCreatedEvent post-outcome
+                // Publish PageCreatedEvent via M0.4 kernel event transport
                 let event = PageCreatedEvent {
                     context_id: req.context_id.clone(),
                     page_id: page_id.clone(),
                     document_revision: rev,
                 };
-                self.record_event(EVENT_PAGE_CREATED, serde_json::to_vec(&event).unwrap());
+                self.publish_browser_event(
+                    context,
+                    "page.created",
+                    &serde_json::to_vec(&event).unwrap(),
+                );
 
                 let resp = CreatePageResponse {
                     context_id: req.context_id,
@@ -251,16 +256,25 @@ impl SpikeBrowserCapabilityService {
                 let req: ClosePageRequest = serde_json::from_slice(payload)
                     .map_err(|e| format!("invalid ClosePageRequest: {e}"))?;
                 self.check_resource_scope(context, &page_resource(&req.page_id))?;
+                let owning_context = self
+                    .supervisor
+                    .get_page_context(&req.page_id)
+                    .unwrap_or_else(|| BrowserContextId::new("unknown"));
+
                 self.supervisor
                     .close_page(&req.page_id)
                     .map_err(|e| e.to_string())?;
 
-                // Publish PageClosedEvent post-outcome
+                // Publish PageClosedEvent via M0.4 kernel event transport
                 let event = PageClosedEvent {
-                    context_id: BrowserContextId::new("ctx-spike-1"),
+                    context_id: owning_context,
                     page_id: req.page_id.clone(),
                 };
-                self.record_event(EVENT_PAGE_CLOSED, serde_json::to_vec(&event).unwrap());
+                self.publish_browser_event(
+                    context,
+                    "page.closed",
+                    &serde_json::to_vec(&event).unwrap(),
+                );
 
                 let resp = ClosePageResponse {
                     page_id: req.page_id,
@@ -290,7 +304,7 @@ impl SpikeBrowserCapabilityService {
                     .navigate(&req.page_id, &req.url)
                     .map_err(|e| e.to_string())?;
 
-                // Publish NavigationCommittedEvent post-outcome
+                // Publish NavigationCommittedEvent via M0.4 kernel event transport
                 let event = NavigationCommittedEvent {
                     page_id: req.page_id.clone(),
                     navigation_id: nav_id.clone(),
@@ -298,9 +312,10 @@ impl SpikeBrowserCapabilityService {
                     document_revision: rev,
                     status_code: 200,
                 };
-                self.record_event(
-                    EVENT_NAVIGATION_COMMITTED,
-                    serde_json::to_vec(&event).unwrap(),
+                self.publish_browser_event(
+                    context,
+                    "navigation.committed",
+                    &serde_json::to_vec(&event).unwrap(),
                 );
 
                 let resp = NavigateResponse {
@@ -381,20 +396,6 @@ impl SpikeBrowserCapabilityService {
                     .map_err(|e| e.to_string())?;
                 serde_json::to_vec(&obs).map_err(|e| e.to_string())
             }
-            (CONTRACT_OBSERVE, OP_GET_TITLE) => {
-                let req: ObservePageRequest = serde_json::from_slice(payload)
-                    .map_err(|e| format!("invalid ObservePageRequest: {e}"))?;
-                self.check_resource_scope(context, &page_resource(&req.page_id))?;
-                let obs = self
-                    .supervisor
-                    .observe(&req.page_id)
-                    .map_err(|e| e.to_string())?;
-                let resp = GetTitleResponse {
-                    page_id: req.page_id,
-                    title: obs.title,
-                };
-                serde_json::to_vec(&resp).map_err(|e| e.to_string())
-            }
             (CONTRACT_OBSERVE, OP_GET_URL) => {
                 let req: ObservePageRequest = serde_json::from_slice(payload)
                     .map_err(|e| format!("invalid ObservePageRequest: {e}"))?;
@@ -406,6 +407,20 @@ impl SpikeBrowserCapabilityService {
                 let resp = GetUrlResponse {
                     page_id: req.page_id,
                     url: obs.url,
+                };
+                serde_json::to_vec(&resp).map_err(|e| e.to_string())
+            }
+            (CONTRACT_OBSERVE, OP_GET_TITLE) => {
+                let req: ObservePageRequest = serde_json::from_slice(payload)
+                    .map_err(|e| format!("invalid ObservePageRequest: {e}"))?;
+                self.check_resource_scope(context, &page_resource(&req.page_id))?;
+                let obs = self
+                    .supervisor
+                    .observe(&req.page_id)
+                    .map_err(|e| e.to_string())?;
+                let resp = GetTitleResponse {
+                    page_id: req.page_id,
+                    title: obs.title,
                 };
                 serde_json::to_vec(&resp).map_err(|e| e.to_string())
             }
@@ -441,8 +456,8 @@ impl SpikeBrowserCapabilityService {
                     .map_err(|e| e.to_string())?;
                 let resp = ExtractTextResponse {
                     page_id: req.page_id,
-                    document_revision: rev,
                     text,
+                    document_revision: rev,
                 };
                 serde_json::to_vec(&resp).map_err(|e| e.to_string())
             }
@@ -456,30 +471,20 @@ impl SpikeBrowserCapabilityService {
                     .map_err(|e| e.to_string())?;
                 let resp = FindElementsResponse {
                     page_id: req.page_id,
-                    document_revision: rev,
                     elements,
+                    document_revision: rev,
                 };
                 serde_json::to_vec(&resp).map_err(|e| e.to_string())
             }
 
             // --- browser.act ---
-            (CONTRACT_ACT, OP_CLICK) => {
+            (CONTRACT_ACT, OP_CLICK) | ("", OP_CLICK) => {
                 let req: ClickActionRequest = serde_json::from_slice(payload)
                     .map_err(|e| format!("invalid ClickActionRequest: {e}"))?;
                 self.check_resource_scope(context, &page_resource(req.element_ref.page_id()))?;
                 let res = self
                     .supervisor
                     .execute_action(&req.element_ref, InteractionKind::Click, None)
-                    .map_err(|e| e.to_string())?;
-                serde_json::to_vec(&res).map_err(|e| e.to_string())
-            }
-            (CONTRACT_ACT, OP_SUBMIT) => {
-                let req: SubmitActionRequest = serde_json::from_slice(payload)
-                    .map_err(|e| format!("invalid SubmitActionRequest: {e}"))?;
-                self.check_resource_scope(context, &page_resource(req.element_ref.page_id()))?;
-                let res = self
-                    .supervisor
-                    .execute_action(&req.element_ref, InteractionKind::Submit, None)
                     .map_err(|e| e.to_string())?;
                 serde_json::to_vec(&res).map_err(|e| e.to_string())
             }
@@ -503,24 +508,29 @@ impl SpikeBrowserCapabilityService {
                     .map_err(|e| e.to_string())?;
                 serde_json::to_vec(&res).map_err(|e| e.to_string())
             }
+            (CONTRACT_ACT, OP_SUBMIT) => {
+                let req: SubmitActionRequest = serde_json::from_slice(payload)
+                    .map_err(|e| format!("invalid SubmitActionRequest: {e}"))?;
+                self.check_resource_scope(context, &page_resource(req.element_ref.page_id()))?;
+                let res = self
+                    .supervisor
+                    .execute_action(&req.element_ref, InteractionKind::Submit, None)
+                    .map_err(|e| e.to_string())?;
+                serde_json::to_vec(&res).map_err(|e| e.to_string())
+            }
             (CONTRACT_ACT, OP_SCROLL) => {
                 let req: ScrollActionRequest = serde_json::from_slice(payload)
                     .map_err(|e| format!("invalid ScrollActionRequest: {e}"))?;
                 self.check_resource_scope(context, &page_resource(&req.page_id))?;
-                let elem_ref = worldline_browser_contract::identity::ElementRef::new(
-                    req.page_id.clone(),
-                    worldline_browser_contract::identity::DocumentRevision::initial(),
-                    "window",
-                );
                 let res = self
                     .supervisor
-                    .execute_action(&elem_ref, InteractionKind::Scroll, None)
+                    .scroll(&req.page_id, req.delta_x as f64, req.delta_y as f64)
                     .map_err(|e| e.to_string())?;
                 serde_json::to_vec(&res).map_err(|e| e.to_string())
             }
 
             // --- browser.download ---
-            (CONTRACT_DOWNLOAD, OP_DOWNLOAD_START) => {
+            (CONTRACT_DOWNLOAD, OP_DOWNLOAD_START) | ("", OP_DOWNLOAD_START) => {
                 let req: StartDownloadRequest = serde_json::from_slice(payload)
                     .map_err(|e| format!("invalid StartDownloadRequest: {e}"))?;
                 self.check_resource_scope(context, &page_resource(&req.page_id))?;
@@ -541,7 +551,30 @@ impl SpikeBrowserCapabilityService {
                     url: req.url.clone(),
                     suggested_filename: filename,
                 };
-                self.record_event(EVENT_DOWNLOAD_STARTED, serde_json::to_vec(&event).unwrap());
+                self.publish_browser_event(
+                    context,
+                    "download.started",
+                    &serde_json::to_vec(&event).unwrap(),
+                );
+
+                let status = self
+                    .supervisor
+                    .download_status(&dl_id)
+                    .map_err(|e| e.to_string())?;
+                serde_json::to_vec(&status).map_err(|e| e.to_string())
+            }
+            (CONTRACT_DOWNLOAD, OP_DOWNLOAD_STATUS) => {
+                let dl_id: worldline_browser_contract::identity::DownloadId =
+                    if let Ok(val) = serde_json::from_slice(payload) {
+                        val
+                    } else if let Ok(obj) = serde_json::from_slice::<serde_json::Value>(payload) {
+                        obj.get("download_id")
+                            .and_then(|v| v.as_str())
+                            .map(worldline_browser_contract::identity::DownloadId::new)
+                            .ok_or_else(|| "missing download_id".to_string())?
+                    } else {
+                        return Err("invalid download status request payload".to_string());
+                    };
 
                 let status = self
                     .supervisor
@@ -558,35 +591,9 @@ impl SpikeBrowserCapabilityService {
                     .map_err(|e| e.to_string())?;
                 serde_json::to_vec(&status).map_err(|e| e.to_string())
             }
-            (CONTRACT_DOWNLOAD, OP_DOWNLOAD_STATUS) => {
-                let req: ControlDownloadRequest = serde_json::from_slice(payload)
-                    .map_err(|e| format!("invalid ControlDownloadRequest: {e}"))?;
-                let status = self
-                    .supervisor
-                    .download_status(&req.download_id)
-                    .map_err(|e| e.to_string())?;
-                serde_json::to_vec(&status).map_err(|e| e.to_string())
-            }
 
             // --- browser.permission ---
-            (CONTRACT_PERMISSION, OP_PERMISSION_QUERY) => {
-                let req: worldline_browser_contract::contracts::QueryPermissionRequest =
-                    serde_json::from_slice(payload)
-                        .map_err(|e| format!("invalid QueryPermissionRequest: {e}"))?;
-                self.check_resource_scope(context, &context_resource(&req.context_id))?;
-                let decision = self
-                    .supervisor
-                    .query_permission(&req.context_id, &req.origin, req.permission_type)
-                    .map_err(|e| e.to_string())?;
-                let resp = PermissionResponse {
-                    context_id: req.context_id,
-                    origin: req.origin,
-                    permission_type: req.permission_type,
-                    decision,
-                };
-                serde_json::to_vec(&resp).map_err(|e| e.to_string())
-            }
-            (CONTRACT_PERMISSION, OP_PERMISSION_SET) => {
+            (CONTRACT_PERMISSION, OP_PERMISSION_SET) | ("", OP_PERMISSION_SET) => {
                 let req: SetPermissionRequest = serde_json::from_slice(payload)
                     .map_err(|e| format!("invalid SetPermissionRequest: {e}"))?;
                 self.check_resource_scope(context, &context_resource(&req.context_id))?;
@@ -607,8 +614,25 @@ impl SpikeBrowserCapabilityService {
                 };
                 serde_json::to_vec(&resp).map_err(|e| e.to_string())
             }
+            (CONTRACT_PERMISSION, OP_PERMISSION_QUERY) => {
+                let req: worldline_browser_contract::contracts::QueryPermissionRequest =
+                    serde_json::from_slice(payload)
+                        .map_err(|e| format!("invalid QueryPermissionRequest: {e}"))?;
+                self.check_resource_scope(context, &context_resource(&req.context_id))?;
+                let decision = self
+                    .supervisor
+                    .query_permission(&req.context_id, &req.origin, req.permission_type)
+                    .map_err(|e| e.to_string())?;
+                let resp = PermissionResponse {
+                    context_id: req.context_id,
+                    origin: req.origin,
+                    permission_type: req.permission_type,
+                    decision,
+                };
+                serde_json::to_vec(&resp).map_err(|e| e.to_string())
+            }
 
-            (c, o) => Err(format!("unsupported browser operation: {c}/{o}")),
+            (c, op) => Err(format!("unsupported capability operation: {c}/{op}")),
         }
     }
 }

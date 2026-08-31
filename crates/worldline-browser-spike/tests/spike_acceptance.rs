@@ -1,6 +1,6 @@
 use worldline_browser_contract::{
     contracts::{ElementQueryKind, PermissionDecision, PermissionType},
-    events::{EVENT_NAVIGATION_COMMITTED, EVENT_PAGE_CREATED},
+    events::{NavigationCommittedEvent, PageCreatedEvent},
     identity::{DocumentRevision, ElementRef},
     query::{AccessibilityRole, QueryBounds},
 };
@@ -9,6 +9,14 @@ use worldline_browser_spike::BrowserSpikeFixture;
 #[test]
 fn full_executable_spike_path_local_navigation_and_action() {
     let mut harness = BrowserSpikeFixture::boot().expect("fixture must boot");
+
+    // Subscribe to browser events via M0.4 kernel event transport
+    let sub_created = harness
+        .subscribe("page.created")
+        .expect("must subscribe to page.created");
+    let sub_nav = harness
+        .subscribe("navigation.committed")
+        .expect("must subscribe to navigation.committed");
 
     // 1. Create context with logical profile ID
     let context_id = harness
@@ -20,9 +28,17 @@ fn full_executable_spike_path_local_navigation_and_action() {
         .create_page(&context_id, None)
         .expect("must create page");
 
-    // Verify PageCreatedEvent was emitted
-    let events = harness.emitted_events();
-    assert!(events.iter().any(|e| e.topic == EVENT_PAGE_CREATED));
+    // Verify PageCreatedEvent was published via kernel event transport and received by subscriber
+    let env_created = sub_created
+        .try_recv()
+        .expect("event recv must succeed")
+        .expect("must receive PageCreatedEvent envelope");
+    assert_eq!(env_created.contract().name(), "page.created");
+    assert_eq!(env_created.producer(), harness.provider_principal());
+
+    let page_created_ev: PageCreatedEvent = serde_json::from_slice(env_created.payload()).unwrap();
+    assert_eq!(page_created_ev.page_id, page_id);
+    assert_eq!(page_created_ev.context_id, context_id);
 
     // 3. Navigate to deterministic local test page
     let nav_resp = harness
@@ -31,13 +47,18 @@ fn full_executable_spike_path_local_navigation_and_action() {
     assert!(nav_resp.committed);
     assert_eq!(nav_resp.document_revision.value(), 2);
 
-    // Verify NavigationCommittedEvent was emitted
-    let events_after_nav = harness.emitted_events();
-    assert!(
-        events_after_nav
-            .iter()
-            .any(|e| e.topic == EVENT_NAVIGATION_COMMITTED)
-    );
+    // Verify NavigationCommittedEvent was published via kernel event transport and received by subscriber
+    let env_nav = sub_nav
+        .try_recv()
+        .expect("event recv must succeed")
+        .expect("must receive NavigationCommittedEvent envelope");
+    assert_eq!(env_nav.contract().name(), "navigation.committed");
+    assert_eq!(env_nav.producer(), harness.provider_principal());
+
+    let nav_ev: NavigationCommittedEvent = serde_json::from_slice(env_nav.payload()).unwrap();
+    assert_eq!(nav_ev.page_id, page_id);
+    assert_eq!(nav_ev.url, "http://worldline.local/test-form");
+    assert_eq!(nav_ev.document_revision.value(), 2);
 
     // 4. Observe committed page state
     let obs = harness.observe(&page_id).expect("must observe page");
@@ -104,22 +125,45 @@ fn full_executable_spike_path_local_navigation_and_action() {
 fn confused_deputy_resource_mismatch_is_rejected() {
     let mut harness = BrowserSpikeFixture::boot().expect("fixture must boot");
 
-    let ctx = harness.create_context(None, false).expect("create context");
-    let page_1 = harness.create_page(&ctx, None).expect("create page 1");
-    let page_2 = harness.create_page(&ctx, None).expect("create page 2");
+    let ctx_1 = harness
+        .create_context(None, false)
+        .expect("create context 1");
+    let ctx_2 = harness
+        .create_context(None, false)
+        .expect("create context 2");
 
-    let elem_page_2 = ElementRef::new(page_2.clone(), DocumentRevision::initial(), "btn-submit");
+    let page_1 = harness.create_page(&ctx_1, None).expect("create page 1");
+    let page_2 = harness
+        .create_page(&ctx_2, Some("http://worldline.local/test-form".to_string()))
+        .expect("create page 2");
 
-    // Caller attempts to invoke an action on page_2 using resource scope for page_1
-    let err = harness
+    let elem_page_2 = ElementRef::new(page_2.clone(), DocumentRevision::new(2), "submit-btn");
+
+    // 1. Caller attempts to invoke an action on page_2 using resource scope for page_1 -> REJECTED
+    let err_page_mismatch = harness
         .invoke_confused_deputy_act(&page_1, &elem_page_2)
         .unwrap_err();
-
-    // The provider detects the mismatch between admitted scope (page-1) and payload target (page-2)
     assert!(
-        err.contains("ResourceMismatch") || err.contains("resource scope mismatch"),
-        "Must reject confused-deputy resource mismatch: {err}"
+        err_page_mismatch.contains("ResourceMismatch")
+            || err_page_mismatch.contains("resource scope mismatch"),
+        "Must reject confused-deputy page resource mismatch: {err_page_mismatch}"
     );
+
+    // 2. Caller attempts to invoke an action on page_2 (owned by ctx_2) using resource scope for ctx_1 -> REJECTED (no prefix loophole)
+    let err_ctx_mismatch = harness
+        .invoke_cross_context_page_act(&ctx_1, &elem_page_2)
+        .unwrap_err();
+    assert!(
+        err_ctx_mismatch.contains("ResourceMismatch")
+            || err_ctx_mismatch.contains("resource scope mismatch"),
+        "Must reject cross-context unauthorized resource scope: {err_ctx_mismatch}"
+    );
+
+    // 3. Caller invokes action on page_2 using valid owning context resource scope for ctx_2 -> ACCEPTED
+    let ok_ctx_match = harness
+        .invoke_cross_context_page_act(&ctx_2, &elem_page_2)
+        .expect("Owning context resource scope must authorize page action");
+    assert!(ok_ctx_match.success);
 }
 
 #[test]

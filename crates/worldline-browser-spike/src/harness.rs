@@ -19,22 +19,26 @@ use worldline_browser_contract::{
     query::{DocumentSnapshot, QueryBounds},
 };
 use worldline_kernel::{
-    GrantLifetime, InvocationRequest, Kernel, PluginId, PrincipalId, PrincipalKind, ResourceId,
-    ResourceScope,
+    EventContract, EventError, GrantLifetime, InterfaceVersion, InvocationRequest, Kernel,
+    OperationId, PluginId, PrincipalId, PrincipalKind, ResourceId, ResourceScope,
+    SubscriptionHandle, SubscriptionOptions,
 };
 
 use crate::{
     engine::ReferenceBrowserSupervisor,
-    provider::{EmittedBrowserEvent, SpikeBrowserPlugin, browser_capability},
+    provider::{SpikeBrowserPlugin, browser_capability},
 };
 
 /// Harness orchestrating full end-to-end execution of the browser capability path.
 pub struct BrowserSpikeFixture {
     kernel: Kernel,
     plugin_id: PluginId,
+    #[allow(dead_code)]
     plugin: SpikeBrowserPlugin,
     supervisor: ReferenceBrowserSupervisor,
     caller: PrincipalId,
+    observer: PrincipalId,
+    provider_principal: PrincipalId,
 }
 
 impl BrowserSpikeFixture {
@@ -49,7 +53,19 @@ impl BrowserSpikeFixture {
             .register_principal_id(caller.clone(), PrincipalKind::Agent)
             .map_err(|e| e.to_string())?;
 
-        // Grant the caller capability access to browser contracts with Any resource scope
+        let runtime_id = kernel
+            .runtime_id_for_plugin(&plugin_id)
+            .ok_or_else(|| "runtime not found for plugin".to_string())?;
+        let provider_principal = kernel
+            .principal_for_runtime(&runtime_id)
+            .ok_or_else(|| "principal not found for runtime".to_string())?;
+
+        let observer = PrincipalId::new("spike-observer-agent");
+        kernel
+            .register_principal_id(observer.clone(), PrincipalKind::Agent)
+            .map_err(|e| e.to_string())?;
+
+        // Grant caller capability access to browser contracts with Any resource scope
         for (contract, ops) in [
             (CONTRACT_CONTEXT, vec![OP_CREATE_CONTEXT]),
             (CONTRACT_PAGE, vec![OP_CREATE_PAGE]),
@@ -79,12 +95,49 @@ impl BrowserSpikeFixture {
                 .map_err(|e| e.to_string())?;
         }
 
+        // Grant provider publish grants and observer subscribe grants for browser events
+        for event_name in [
+            "page.created",
+            "navigation.committed",
+            "page.closed",
+            "download.started",
+            "engine.crashed",
+        ] {
+            let event_contract =
+                EventContract::new("worldline.browser", event_name, InterfaceVersion::new(1, 0));
+            let event_cap = event_contract.capability_id();
+
+            kernel
+                .create_root_grant(
+                    provider_principal.clone(),
+                    event_cap.contract(),
+                    vec![OperationId::new("publish")],
+                    ResourceScope::Any,
+                    false,
+                    GrantLifetime::Persistent,
+                )
+                .map_err(|e| e.to_string())?;
+
+            kernel
+                .create_root_grant(
+                    observer.clone(),
+                    event_cap.contract(),
+                    vec![OperationId::new("subscribe")],
+                    ResourceScope::Any,
+                    false,
+                    GrantLifetime::Persistent,
+                )
+                .map_err(|e| e.to_string())?;
+        }
+
         Ok(Self {
             kernel,
             plugin_id,
             plugin,
             supervisor,
             caller,
+            observer,
+            provider_principal,
         })
     }
 
@@ -104,12 +157,27 @@ impl BrowserSpikeFixture {
         &self.caller
     }
 
+    pub fn observer(&self) -> &PrincipalId {
+        &self.observer
+    }
+
+    pub fn provider_principal(&self) -> &PrincipalId {
+        &self.provider_principal
+    }
+
     pub fn supervisor(&self) -> &ReferenceBrowserSupervisor {
         &self.supervisor
     }
 
-    pub fn emitted_events(&self) -> Vec<EmittedBrowserEvent> {
-        self.plugin.emitted_events().lock().unwrap().clone()
+    /// Subscribes to a browser event topic via M0.4 kernel event transport.
+    pub fn subscribe(&self, event_name: &str) -> Result<SubscriptionHandle, EventError> {
+        let event_contract =
+            EventContract::new("worldline.browser", event_name, InterfaceVersion::new(1, 0));
+        self.kernel.subscribe(
+            self.observer.clone(),
+            event_contract,
+            SubscriptionOptions::default(),
+        )
     }
 
     pub fn create_context(
@@ -336,6 +404,32 @@ impl BrowserSpikeFixture {
         let cap = browser_capability(CONTRACT_ACT);
         let admitted_resource =
             ResourceId::parse(&page_resource(admitted_page_id)).map_err(|e| e.to_string())?;
+
+        let invocation = InvocationRequest::new(
+            self.caller.clone(),
+            cap,
+            OP_CLICK,
+            admitted_resource,
+            payload,
+        );
+
+        let outcome = self.kernel.invoke(invocation).map_err(|e| e.to_string())?;
+        serde_json::from_slice(&outcome).map_err(|e| e.to_string())
+    }
+
+    /// Invokes an action using an unowned context scope to test context isolation.
+    pub fn invoke_cross_context_page_act(
+        &mut self,
+        admitted_context_id: &BrowserContextId,
+        targeted_element_ref: &ElementRef,
+    ) -> Result<worldline_browser_contract::ActionResult, String> {
+        let req = ClickActionRequest {
+            element_ref: targeted_element_ref.clone(),
+        };
+        let payload = serde_json::to_vec(&req).map_err(|e| e.to_string())?;
+        let cap = browser_capability(CONTRACT_ACT);
+        let admitted_resource =
+            ResourceId::parse(&context_resource(admitted_context_id)).map_err(|e| e.to_string())?;
 
         let invocation = InvocationRequest::new(
             self.caller.clone(),

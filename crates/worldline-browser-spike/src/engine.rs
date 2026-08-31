@@ -253,6 +253,11 @@ impl ReferenceBrowserSupervisor {
         Ok(ctx.cookies.get(key).cloned())
     }
 
+    pub fn get_page_context(&self, page_id: &PageId) -> Option<BrowserContextId> {
+        let inner = self.inner.lock().ok()?;
+        inner.pages.get(page_id).map(|p| p.context_id.clone())
+    }
+
     pub fn create_page(
         &self,
         context_id: &BrowserContextId,
@@ -636,6 +641,34 @@ impl ReferenceBrowserSupervisor {
                 message: Some("scrolled".to_string()),
             }),
         }
+    }
+
+    pub fn scroll(
+        &self,
+        page_id: &PageId,
+        _delta_x: f64,
+        _delta_y: f64,
+    ) -> Result<ActionResult, BrowserError> {
+        let inner = self
+            .inner
+            .lock()
+            .map_err(|_| BrowserError::EngineHung("lock poisoned".to_string()))?;
+        let page = inner
+            .pages
+            .get(page_id)
+            .ok_or_else(|| BrowserError::PageNotFound(page_id.clone()))?;
+        if page.is_crashed {
+            return Err(BrowserError::EngineCrashed(
+                "page renderer process has terminated".to_string(),
+            ));
+        }
+        Ok(ActionResult {
+            page_id: page.page_id.clone(),
+            document_revision: page.document_revision,
+            interaction: InteractionKind::Scroll,
+            success: true,
+            message: Some("scrolled".to_string()),
+        })
     }
 
     pub fn start_download(
