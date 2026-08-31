@@ -153,6 +153,7 @@ foreach ($file in @(
         'rust-toolchain.toml',
         'docs/grace/README.md',
         'scripts/ci/Initialize-WorldlineCi.ps1',
+        'scripts/ci/Get-WorldlineLoc.ps1',
         'scripts/ci/Invoke-WorldlineCi.ps1',
         'scripts/ci/Test-WorldlineArchitecture.ps1',
         '.grace/graph/index.xml',

@@ -10,9 +10,10 @@
       <Summary>Repository-local GRACE 4 workflow model, immutable change contracts, scope controls, verification projection, evidence language, and acceptance protocol.</Summary>
     </M-GRACE-CONTROL-LAYER>
     <M-CI-BASELINE>
-      <Summary>Repository-owned CI entrypoint, toolchain bootstrap, and thin pull-request/master orchestration for source, correctness, architecture-security, and permanent S0/S1 proving-slice gates.</Summary>
+      <Summary>Repository-owned CI entrypoint, toolchain bootstrap, LOC metrics, and thin pull-request/master orchestration for source, correctness, architecture-security, and permanent S0/S1 proving-slice gates.</Summary>
       <Path>rust-toolchain.toml</Path>
       <Path>scripts/ci/Initialize-WorldlineCi.ps1</Path>
+      <Path>scripts/ci/Get-WorldlineLoc.ps1</Path>
       <Path>scripts/ci/Invoke-WorldlineCi.ps1</Path>
       <Path>scripts/ci/Test-WorldlineArchitecture.ps1</Path>
       <Path>.github/workflows/pr.yml</Path>

@@ -1,0 +1,115 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-INFRA-CI-LOC-METRICS-20260831>
+    <IntentSummary>Implement a repository-owned LOC metrics calculator and reporter (scripts/ci/Get-WorldlineLoc.ps1), wire it into the Source CI suite and GitHub Actions summary, and update architecture checks and GRACE projections.</IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-CI-BASELINE</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Initialize-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>.github/workflows/pr.yml</Value>
+        <Value>.github/workflows/master.yml</Value>
+      </MustExist>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>scripts/ci/Get-WorldlineLoc.ps1</Value>
+      </MustExist>
+      <MustVerify>
+        <Module>M-CI-BASELINE</Module>
+      </MustVerify>
+      <MustPassCommand>
+        <Command>pwsh -NoProfile -File scripts/ci/Get-WorldlineLoc.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>scripts/ci/Get-WorldlineLoc.ps1</File>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.grace/verification/main.xml</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Implement Get-WorldlineLoc.ps1 LOC counting script</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Calculates lines of code, comments, blanks, and file counts categorized by Rust production code, test suites, WIT/manifest fixtures, CI scripts, documentation, and GRACE artifacts.</Criterion>
+          <Criterion>Writes Markdown summary to $env:GITHUB_STEP_SUMMARY when present.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Get-WorldlineLoc.ps1</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Integrate LOC measurement into Invoke-WorldlineCi.ps1</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Invoke-WorldlineCi.ps1 -Suite Source executes Get-WorldlineLoc.ps1 and reports formatted output.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Update Test-WorldlineArchitecture.ps1 for Get-WorldlineLoc.ps1</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Architecture guard validates scripts/ci/Get-WorldlineLoc.ps1 as a required CI script.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Update GRACE graph and verification projections</Title>
+        <DependsOn>
+          <T-002 />
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>M-CI-BASELINE and V-M-CI-BASELINE include scripts/ci/Get-WorldlineLoc.ps1.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>grace lint --path . --assertions current</Command>
+        </Verification>
+      </T-004>
+
+      <T-005>
+        <Title>Execute local verification and full CI suites</Title>
+        <DependsOn>
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Get-WorldlineLoc.ps1, Test-WorldlineArchitecture.ps1, and Invoke-WorldlineCi.ps1 -Suite All pass completely.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-INFRA-CI-LOC-METRICS-20260831>
+</GraceChangePlan>

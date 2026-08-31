@@ -1,0 +1,40 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-INFRA-CI-LOC-METRICS-20260831>
+    <Summary>Add repository-owned LOC (lines of code) metrics collection and reporting to Worldline CI suites and workflows.</Summary>
+    <Problem>The repository lacks automated lines of code measurement across crates, test suites, architecture contracts, and documentation in CI runs.</Problem>
+    <Goals>
+      <Goal>Implement scripts/ci/Get-WorldlineLoc.ps1 to calculate and report categorized LOC (Rust production, tests, WIT/fixtures, scripts, GRACE artifacts, documentation).</Goal>
+      <Goal>Integrate LOC reporting into the repository-owned Source CI suite.</Goal>
+      <Goal>Support GitHub Step Summary markdown export when running in GitHub Actions.</Goal>
+      <Goal>Update architecture guard and GRACE projections for M-CI-BASELINE.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>LOC calculation logic is repository-owned, cross-platform PowerShell with zero external binary dependencies.</Constraint>
+      <Constraint>Execution produces identical results locally and in hosted GitHub Actions runners.</Constraint>
+      <Constraint>LOC measurement is integrated into repository scripts rather than isolated only in workflow YAML.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Enforcing arbitrary minimum or maximum LOC threshold gates.</NonGoal>
+      <NonGoal>Installing third-party external cloc/tokei binaries in CI runners.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>scripts/ci/Get-WorldlineLoc.ps1 calculates line statistics (total, code, comments, blanks) across all crates, tests, scripts, and docs.</Criterion>
+      <Criterion>Invoke-WorldlineCi.ps1 -Suite Source includes the LOC reporting step.</Criterion>
+      <Criterion>scripts/ci/Test-WorldlineArchitecture.ps1 requires scripts/ci/Get-WorldlineLoc.ps1.</Criterion>
+      <Criterion>Invoke-WorldlineCi.ps1 -Suite All passes completely.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Get-WorldlineLoc.ps1</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+      <ExpectedEvidence>LOC script executes locally and formats categorized code, test, and documentation line counts; CI suites run successfully with zero errors.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>PowerShell 7 (pwsh) is available on all supported runner platforms.</Assumption>
+    </Assumptions>
+  </C-INFRA-CI-LOC-METRICS-20260831>
+</GraceChangeSpec>

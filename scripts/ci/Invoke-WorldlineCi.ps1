@@ -66,6 +66,7 @@ function Invoke-WorldlineCommand {
 
 function Invoke-SourceSuite {
     Write-Host '--- Source suite ---'
+    Invoke-WorldlineCommand -Label 'lines of code measurement' -FilePath 'pwsh' -Arguments @('-NoProfile', '-File', (Join-Path $scriptRoot 'Get-WorldlineLoc.ps1'))
     Invoke-WorldlineCommand -Label 'rustfmt check' -FilePath 'cargo' -Arguments @('fmt', '--all', '--', '--check')
     Invoke-WorldlineCommand -Label 'workspace check' -FilePath 'cargo' -Arguments @('check', '--workspace', '--all-targets')
     Invoke-WorldlineCommand -Label 'workspace clippy' -FilePath 'cargo' -Arguments @('clippy', '--workspace', '--all-targets', '--all-features', '--', '-D', 'warnings')
