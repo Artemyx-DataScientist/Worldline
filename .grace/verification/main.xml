@@ -32,12 +32,15 @@
     </V-M-GRACE-CONTROL-LAYER>
     <V-M-CI-BASELINE>
       <TestFiles>
+        <File>rust-toolchain.toml</File>
+        <File>scripts/ci/Initialize-WorldlineCi.ps1</File>
         <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
         <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
         <File>.github/workflows/pr.yml</File>
         <File>.github/workflows/master.yml</File>
         <File>.github/pull_request_template.md</File>
       </TestFiles>
+      <Command>pwsh -NoProfile -File scripts/ci/Initialize-WorldlineCi.ps1</Command>
       <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
       <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
       <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>

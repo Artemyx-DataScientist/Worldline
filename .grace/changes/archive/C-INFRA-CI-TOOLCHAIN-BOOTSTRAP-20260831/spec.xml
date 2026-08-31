@@ -1,0 +1,40 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-INFRA-CI-TOOLCHAIN-BOOTSTRAP-20260831>
+    <Summary>Bootstrap and guarantee declared Rust toolchain 1.98.0, components rustfmt/clippy, and target wasm32-unknown-unknown for clean hosted runners and local environments.</Summary>
+    <Problem>Fresh GitHub Actions runners fail on first run because rustfmt, clippy, or the wasm32-unknown-unknown target are not provisioned by default for Rust 1.98.0.</Problem>
+    <Goals>
+      <Goal>Declare toolchain requirements explicitly in rust-toolchain.toml.</Goal>
+      <Goal>Implement repository-owned Initialize-WorldlineCi.ps1 bootstrap script.</Goal>
+      <Goal>Update GitHub pull-request and master workflows to bootstrap toolchain before invoking test suites.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Declarative toolchain specification in rust-toolchain.toml declares channel 1.98.0, components rustfmt and clippy, and target wasm32-unknown-unknown.</Constraint>
+      <Constraint>Repository-owned bootstrap script scripts/ci/Initialize-WorldlineCi.ps1 ensures declared toolchain, components and targets are installed before test execution.</Constraint>
+      <Constraint>GitHub Actions workflows (.github/workflows/pr.yml and master.yml) remain thin orchestration calling Initialize-WorldlineCi.ps1 and Invoke-WorldlineCi.ps1.</Constraint>
+      <Constraint>No green by skipping: toolchain bootstrap and test gates fail closed with explicit diagnostics if requirements cannot be satisfied.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Installing external OS-level package managers or non-Rust tools.</NonGoal>
+      <NonGoal>Changing GitHub Actions runner images away from ubuntu-24.04.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>rust-toolchain.toml specifies channel 1.98.0, components [rustfmt, clippy], and targets [wasm32-unknown-unknown].</Criterion>
+      <Criterion>scripts/ci/Initialize-WorldlineCi.ps1 verifies and provisions the exact declared toolchain, components, and targets.</Criterion>
+      <Criterion>.github/workflows/pr.yml and .github/workflows/master.yml invoke Initialize-WorldlineCi.ps1 in every CI job after checkout.</Criterion>
+      <Criterion>scripts/ci/Test-WorldlineArchitecture.ps1 validates Initialize-WorldlineCi.ps1 as a required CI artifact.</Criterion>
+      <Criterion>Invoke-WorldlineCi.ps1 -Suite All passes completely.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Initialize-WorldlineCi.ps1</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+      <ExpectedEvidence>Repository-owned toolchain bootstrap script successfully validates or installs rustfmt, clippy, and wasm32-unknown-unknown target; workflows invoke initialization before running test suites; local and architecture verification passes completely.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>GitHub Actions runners have rustup installed and available in PATH.</Assumption>
+    </Assumptions>
+  </C-INFRA-CI-TOOLCHAIN-BOOTSTRAP-20260831>
+</GraceChangeSpec>

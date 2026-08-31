@@ -1,0 +1,128 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-INFRA-CI-TOOLCHAIN-BOOTSTRAP-20260831>
+    <IntentSummary>Bootstrap and guarantee Rust toolchain prerequisites (channel 1.98.0, components rustfmt/clippy, target wasm32-unknown-unknown) across hosted and local runners through declarative configuration and repository-owned bootstrap scripts.</IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-CI-BASELINE</Value>
+        <Value>rust-toolchain.toml</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>.github/workflows/pr.yml</Value>
+        <Value>.github/workflows/master.yml</Value>
+      </MustExist>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>scripts/ci/Initialize-WorldlineCi.ps1</Value>
+      </MustExist>
+      <MustVerify>
+        <Module>M-CI-BASELINE</Module>
+      </MustVerify>
+      <MustPassCommand>
+        <Command>pwsh -NoProfile -File scripts/ci/Initialize-WorldlineCi.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>rust-toolchain.toml</File>
+      <File>scripts/ci/Initialize-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      <File>.github/workflows/pr.yml</File>
+      <File>.github/workflows/master.yml</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.grace/verification/main.xml</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Declare required toolchain targets in rust-toolchain.toml</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>rust-toolchain.toml explicitly declares targets = ["wasm32-unknown-unknown"] alongside channel 1.98.0 and components rustfmt, clippy.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Initialize-WorldlineCi.ps1</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Implement repository-owned Initialize-WorldlineCi.ps1 bootstrap script</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>scripts/ci/Initialize-WorldlineCi.ps1 verifies and installs toolchain 1.98.0, components rustfmt and clippy, and target wasm32-unknown-unknown via rustup if present.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Initialize-WorldlineCi.ps1</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Update Test-WorldlineArchitecture.ps1 with Initialize-WorldlineCi.ps1 requirement</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>scripts/ci/Initialize-WorldlineCi.ps1 is validated as a required CI artifact.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Update GitHub Actions workflows with toolchain initialization step</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>.github/workflows/pr.yml and master.yml invoke Initialize-WorldlineCi.ps1 in every job before Invoke-WorldlineCi.ps1.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-004>
+
+      <T-005>
+        <Title>Update GRACE graph and verification projections</Title>
+        <DependsOn>
+          <T-003 />
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>M-CI-BASELINE in .grace/graph/main.xml and .grace/verification/main.xml includes scripts/ci/Initialize-WorldlineCi.ps1.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>grace lint --path . --assertions current</Command>
+        </Verification>
+      </T-005>
+
+      <T-006>
+        <Title>Execute local verification and full CI suites</Title>
+        <DependsOn>
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Initialize-WorldlineCi.ps1, Test-WorldlineArchitecture.ps1, and Invoke-WorldlineCi.ps1 -Suite All pass completely.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-006>
+    </ImplementationPlan>
+  </C-INFRA-CI-TOOLCHAIN-BOOTSTRAP-20260831>
+</GraceChangePlan>
