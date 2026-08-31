@@ -398,6 +398,24 @@ pub enum KernelError {
     PluginDefinitionPanicked {
         message: String,
     },
+    InvalidExternalHandle {
+        handle: u64,
+    },
+    ExternalHandleRevoked {
+        handle: u64,
+    },
+    ExternalHandleWrongRuntime {
+        handle: u64,
+        claimed: RuntimeId,
+        owner: RuntimeId,
+    },
+    ExternalHandleScopeDenied {
+        handle: u64,
+        runtime: RuntimeId,
+    },
+    ExternalRuntimeNotActive {
+        runtime: RuntimeId,
+    },
     Security(SecurityError),
     State(StateError),
 }
@@ -470,6 +488,27 @@ impl fmt::Display for KernelError {
             }
             Self::PluginDefinitionPanicked { message } => {
                 write!(formatter, "plugin definition panicked: {message}")
+            }
+            Self::InvalidExternalHandle { handle } => {
+                write!(formatter, "external handle '{handle}' does not exist")
+            }
+            Self::ExternalHandleRevoked { handle } => {
+                write!(formatter, "external handle '{handle}' is revoked")
+            }
+            Self::ExternalHandleWrongRuntime {
+                handle,
+                claimed,
+                owner,
+            } => write!(
+                formatter,
+                "external handle '{handle}' is owned by runtime '{owner}', not '{claimed}'"
+            ),
+            Self::ExternalHandleScopeDenied { handle, runtime } => write!(
+                formatter,
+                "external handle '{handle}' does not delegate the requested scope to runtime '{runtime}'"
+            ),
+            Self::ExternalRuntimeNotActive { runtime } => {
+                write!(formatter, "runtime '{runtime}' is not active")
             }
             Self::Security(error) => error.fmt(formatter),
             Self::State(error) => error.fmt(formatter),

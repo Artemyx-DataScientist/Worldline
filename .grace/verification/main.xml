@@ -64,5 +64,31 @@
       <Scenario>Production SQLite state and outbox survive process termination at commit, delivery, migration, uninstall, job, and blob temporary-write boundaries; restart reconstructs state, pending delivery, journal continuity, interrupted jobs, and verified content-addressed blobs.</Scenario>
       <TraceAssertion>State and pending outbox records commit atomically, event identity and causal metadata survive journal replay, audit records remain metadata-only, backups restore into a validated fresh profile, and recovery never upgrades an interrupted job to Completed.</TraceAssertion>
     </V-M-PERSISTENCE-RECOVERY>
+    <V-M-EXTERNAL-PLUGIN-BOUNDARY>
+      <TestFiles>
+        <File>docs/adr/ADR-EXTERNAL-PLUGIN-BOUNDARY-V1.md</File>
+        <File>crates/worldline-kernel/tests/external_boundary_acceptance.rs</File>
+        <File>crates/worldline-plugin-protocol/tests/protocol_acceptance.rs</File>
+        <File>crates/worldline-native-host/tests/native_host_acceptance.rs</File>
+        <File>crates/worldline-wasm-host/tests/wasm_host_acceptance.rs</File>
+        <File>crates/worldline-reference-external/tests/cross_mode_conformance.rs</File>
+        <File>crates/worldline-reference-external/tests/malicious_wasm_acceptance.rs</File>
+        <File>crates/worldline-reference-external/tests/protocol_robustness.rs</File>
+        <File>crates/worldline-reference-external/tests/external_s1_proving.rs</File>
+        <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+        <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      </TestFiles>
+      <Command>cargo test -p worldline-plugin-protocol</Command>
+      <Command>cargo test -p worldline-native-host</Command>
+      <Command>cargo test -p worldline-wasm-host</Command>
+      <Command>cargo test -p worldline-kernel --test external_boundary_acceptance</Command>
+      <Command>cargo test -p worldline-reference-external --test cross_mode_conformance</Command>
+      <Command>cargo test -p worldline-reference-external --test malicious_wasm_acceptance</Command>
+      <Command>cargo test -p worldline-reference-external --test protocol_robustness</Command>
+      <Command>cargo test -p worldline-reference-external --test external_s1_proving</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      <Scenario>One unchanged reference consumer executes against builtin Rust, supervised native process, and sandboxed WASM Component providers with identical observable capability, state, and event semantics. Hostile WASM and malformed IPC traffic are contained deterministically.</Scenario>
+      <TraceAssertion>Process isolation and WASM sandboxing never replace broker authorization, host handles are runtime-scoped and attenuated, WASM instances hold zero ambient WASI permissions, and installation state survives external provider restart without inheriting live authority.</TraceAssertion>
+    </V-M-EXTERNAL-PLUGIN-BOUNDARY>
   </VD-MAIN>
 </GraceVerificationDocument>

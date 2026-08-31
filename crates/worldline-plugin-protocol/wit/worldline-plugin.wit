@@ -1,0 +1,189 @@
+// External Component Model contracts for the Worldline plugin boundary
+// (see docs/adr/ADR-EXTERNAL-PLUGIN-BOUNDARY-V1.md and change
+// C-KERNEL-STABLE-IPC-WASM-COMPONENT-BOUNDARY-20260831).
+//
+// This file translates the transport-neutral vocabulary owned by the
+// `worldline-plugin-protocol` crate into WIT. Rules encoded here:
+//
+// - No kernel Rust type crosses the boundary; guests see only these
+//   interfaces and plain WIT values.
+// - Authority crosses the boundary only as opaque, host-minted handles
+//   scoped to one runtime/session. `Grant`/`Principal` values never appear.
+// - Lifecycle, capability invocation, event publication, and state access
+//   stay separate interfaces: the event bus is not RPC, capability
+//   invocation has no provider-registry access, and state is
+//   installation-scoped.
+//
+// T-006 refinement: the `external-plugin` world below is the exact, minimal
+// v1 surface bound by the `worldline-wasm-host` adapter. It deliberately
+// imports no `wasi:*` interface — components start with zero ambient
+// authority, and a component that imports WASI fails to link (the host
+// registers no WASI bindings and fails the instance with
+// `WasmHostError::UnsupportedExternalAbi`). The earlier interfaces
+// (`plugin-types`, `lifecycle`, `capability-invoke`, `host-context`) are
+// retained as the longer-horizon vocabulary for the fuller boundary; the
+// first-cut `world plugin` was superseded by `external-plugin` and removed
+// when `state-access` and `event-publish` were refined to their final
+// plain-data shapes.
+package worldline:plugin@0.3.0;
+
+/// The single operation surface an external plugin component implements in
+/// v1. Every capability call into the plugin is one `invoke` with an
+/// operation name and an opaque payload; the plugin never receives host
+/// internals, provider registries, or kernel types.
+interface plugin-operations {
+    /// Invoke one operation offered by this plugin.
+    ///
+    /// `operation` names the operation inside the plugin's declared
+    /// capability contract; `payload` is the request body. Unknown
+    /// operations return `err(message)`; guest errors are ordinary RPC
+    /// error outcomes and never trap the host.
+    invoke: func(operation: string, payload: list<u8>) -> result<list<u8>, string>;
+}
+
+/// Installation-scoped state access. State is owned by the installation and
+/// outlives processes and WASM instances; access happens only through these
+/// host imports bound to the plugin's installation scope.
+interface state-access {
+    /// Read the value stored at `key`, or `none` when absent.
+    get: func(key: string) -> option<list<u8>>;
+
+    /// Write `value` at `key`.
+    set: func(key: string, value: list<u8>);
+}
+
+/// Event publication. Deliberately separate from capability invocation:
+/// event delivery never substitutes for an RPC result.
+interface event-publish {
+    /// Publish one event into the host's typed event transport under the
+    /// publication contract declared by this plugin.
+    publish: func(namespace: string, name: string, payload: list<u8>) -> result<_, string>;
+}
+
+/// Composition root for the v1 WASM component boundary. Least authority by
+/// construction: the only import surface is the two broker interfaces above,
+/// and no `wasi:*` interface is imported or linked.
+world external-plugin {
+    export plugin-operations;
+    import state-access;
+    import event-publish;
+}
+
+/// Shared value vocabulary for the fuller plugin-facing interfaces below.
+interface plugin-types {
+    /// Correlation identity shared with native IPC envelopes (protocol v1).
+    type correlation-id = u64;
+
+    /// JSON text payload. Payload-internal unknown fields are tolerated by
+    /// design; protocol framing fields never appear inside guest payloads.
+    type json-payload = string;
+
+    /// Name of one capability contract, e.g. "worldline:clipboard@1".
+    type contract-id = string;
+
+    /// Host-minted token referring to delegated, attenuated authority.
+    /// Guests must treat it as opaque; security never relies on the
+    /// unpredictability of the value alone.
+    type handle-token = string;
+
+    /// Typed failure classes mirrored from kernel RPC outcome semantics.
+    enum failure-class {
+        /// Authority denied by the capability broker (default-deny).
+        denied,
+        /// No provider currently satisfies the contract.
+        unavailable,
+        /// Deadline of the bounded call elapsed.
+        deadline-exceeded,
+        /// A declared resource limit was exhausted (typed, never generic).
+        limit-exceeded,
+        /// Call cancelled before completion.
+        cancelled,
+        /// Request does not match the declared contract shape.
+        contract-mismatch,
+        /// Unclassified provider-side failure.
+        internal,
+    }
+
+    /// Structured error of one host call.
+    record call-error {
+        class: failure-class,
+        message: string,
+    }
+
+    /// Outcome of one bounded host call.
+    variant outcome {
+        ok(json-payload),
+        err(call-error),
+    }
+}
+
+/// Managed split-phase plugin lifecycle. Exposes no arbitrary kernel object:
+/// the host calls in with plain data and receives plain data back.
+interface lifecycle {
+    use plugin-types.{json-payload};
+
+    /// Configuration supplied by the host after admission. Never carries
+    /// capability grants.
+    record activation-config {
+        config-json: json-payload,
+    }
+
+    /// Diagnostics-only activation report. The host assigns the authoritative
+    /// runtime identity; guest-reported identity is never authoritative.
+    record activation-report {
+        report-json: json-payload,
+    }
+
+    /// Activate the plugin definition inside the current runtime.
+    activate: func(config: activation-config) -> result<activation-report, string>;
+
+    /// Deactivate deterministically; live effects fold in LIFO order.
+    deactivate: func() -> result<_, string>;
+}
+
+/// Capability invocation from the plugin side. The plugin names a capability
+/// contract; the host resolves and brokers the provider. There is no direct
+/// provider-registry access across this boundary.
+interface capability-invoke {
+    use plugin-types.{contract-id, correlation-id, handle-token, json-payload, outcome};
+
+    /// Invoke one operation of a capability contract.
+    ///
+    /// `handle` is an opaque handle previously minted by the host for this
+    /// runtime/session, or `none` for authority-free operations. The host
+    /// resolves every handle against the runtime's handle table and the
+    /// default-deny broker before any provider is reached.
+    invoke: func(
+        contract: contract-id,
+        operation: string,
+        handle: option<handle-token>,
+        request: json-payload,
+    ) -> outcome;
+
+    /// Host notification that a correlated in-flight call was cancelled.
+    cancel: func(correlation: correlation-id);
+}
+
+/// Host context services. Every service here is gated by the permission
+/// classes requested in the package manifest and granted by host policy;
+/// denials exist before the first guest call, not inside these functions.
+interface host-context {
+    /// Diagnostics verbosity levels.
+    enum log-level {
+        trace,
+        debug,
+        info,
+        warn,
+        error,
+    }
+
+    /// Emit one diagnostics line. Never authority-bearing.
+    log: func(level: log-level, message: string);
+
+    /// Current wall-clock reading (gated by the `clock` permission class).
+    now: func() -> result<u64, string>;
+
+    /// Random bytes (gated by the `random` permission class; never granted
+    /// implicitly).
+    random-bytes: func(len: u32) -> result<list<u8>, string>;
+}

@@ -1,0 +1,1595 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-KERNEL-STABLE-IPC-WASM-COMPONENT-BOUNDARY-20260831>
+  <ChangeId>C-KERNEL-STABLE-IPC-WASM-COMPONENT-BOUNDARY-20260831</ChangeId>
+
+  <Title>
+    Stable External Plugin Boundary v1:
+    Native Process IPC, WASM Components, Capability Handles and Isolation
+  </Title>
+
+  <Constraints>
+    <Constraint>One logical capability contract is implemented by builtin, native-process and WASM Component providers; execution mode is not part of the consumer-visible contract and a consumer never needs execution-mode-specific code.</Constraint>
+    <Constraint>Public Rust ABI never crosses the external plugin boundary: no Rust struct layout as wire ABI, no trait object vtables, no raw pointers, no Arc/Rc, no panic unwinding; external adapters translate logical contracts into versioned WIT interfaces and versioned IPC envelopes.</Constraint>
+    <Constraint>External authority exists only through host-created, runtime-scoped, attenuated, revocable opaque handles; process isolation and sandboxing never replace capability broker authorization; plugin-supplied RuntimeId/PrincipalId/manifest data is never authoritative.</Constraint>
+    <Constraint>WASM components receive no ambient filesystem, network, clock, random or environment authority; explicit permissions are scoped and a manifest request never equals a granted permission.</Constraint>
+    <Constraint>Resource limits for memory, table entries, host-call concurrency and payload, invocation budget, wall-time and execution budget are part of the runtime admission and isolation contract; exhaustion maps to explicit failure classes without permanently consuming provider registry slots.</Constraint>
+    <Constraint>Trap, panic, child-process crash, protocol violation and resource exhaustion localize to one RuntimeId and never damage the host or unrelated runtimes; malformed external bytes never panic the kernel.</Constraint>
+    <Constraint>Stable repository-owned CI suite names remain unchanged and no essential M0.6 verification exists only in GitHub Actions YAML.</Constraint>
+  </Constraints>
+
+  <AffectedAreas>
+    <M-KERNEL-CAPABILITY-RUNTIME />
+    <M-REFERENCE-PROVING-SLICE />
+    <M-CI-BASELINE />
+  </AffectedAreas>
+
+  <VerificationIntent>
+    <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</ExpectedCommand>
+    <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</ExpectedCommand>
+    <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</ExpectedCommand>
+    <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</ExpectedCommand>
+    <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+    <ExpectedEvidence>Fresh local evidence covers three-mode conformance for one unchanged consumer, malicious WASM containment, native and WASM protocol robustness, opaque handle authority, external-provider restart continuity and stable repository CI suites; hosted CI remains unverified until a named GitHub Actions run exists.</ExpectedEvidence>
+  </VerificationIntent>
+
+  <Summary>
+    Создать первый внешний plugin boundary Worldline, на котором один и тот же
+    logical plugin/capability contract может быть реализован:
+
+      - builtin Rust provider;
+      - trusted native out-of-process provider;
+      - sandboxed WASM Component provider.
+
+    Consumer не должен знать, каким execution mode реализован provider.
+
+    Change должен доказать:
+
+      logical capability contract
+            ↓
+      kernel/provider resolution
+            ↓
+      execution adapter
+        ├─ builtin Rust
+        ├─ native process IPC
+        └─ WASM Component
+            ↓
+      same RpcOutcome / event / state / authority semantics
+
+    Public Rust trait/object ABI НЕ является внешним plugin ABI.
+
+    Native process и WASM boundaries используют versioned transport-neutral
+    protocol contracts.
+
+    Authority через внешний boundary передаётся только через host-created opaque
+    handles, scoped exact RuntimeId и attenuated до разрешённых operations /
+    resources.
+
+    Plugin никогда не получает:
+
+      - raw Grant object;
+      - SecurityStore;
+      - StateBackend;
+      - database/file handle;
+      - arbitrary host PrincipalId authority;
+      - unrestricted WASI environment.
+
+    WASM plugins получают только явно разрешённые host capabilities и минимальный
+    WASI surface.
+
+    CPU, memory, wall-time и invocation resource limits являются частью runtime
+    admission/isolation contract.
+
+    Trap, panic, child-process crash, protocol violation и resource exhaustion
+    должны локализоваться в одном RuntimeId и не повреждать host или независимые
+    runtimes.
+
+    Основной proving artifact change:
+
+      один reference provider
+      реализован в builtin, native-process и WASM вариантах,
+      а один unchanged consumer проходит один и тот же contract suite
+      против всех трёх implementations.
+
+    Главный hostile test:
+
+      malicious WASM component пытается получить filesystem/network/state/
+      capability authority, которая ему не делегирована, подделать handles,
+      превысить quotas и trap'нуться;
+
+      каждый такой путь должен либо получить deterministic denial,
+      либо быть изолирован без повреждения остальных runtimes.
+  </Summary>
+
+  <RoadmapAlignment>
+    <Milestone>M0.6 — Stable IPC and WASM Component Boundary</Milestone>
+
+    <Preconditions>
+      <Precondition>M0.1 — State hardening — Done.</Precondition>
+      <Precondition>M0.2 — Kernel boundary — Done.</Precondition>
+      <Precondition>M0.3 — Plugin Runtime v1 — Done.</Precondition>
+      <Precondition>M0.4 — RPC/Event Transport — Done.</Precondition>
+      <Precondition>M0.5 — Persistence and Recovery — Done.</Precondition>
+
+      <Precondition>
+        S0/S1 and repository-owned CI remain mandatory proving boundaries.
+      </Precondition>
+    </Preconditions>
+
+    <Postcondition>
+      После успешного завершения следующим active milestone становится
+      M0.7 — Operability, Compatibility and Upgrade.
+    </Postcondition>
+  </RoadmapAlignment>
+
+  <ArchitecturalInvariants>
+    <Invariant>
+      EXECUTION MODE IS NOT PART OF THE LOGICAL CAPABILITY CONTRACT.
+    </Invariant>
+
+    <Invariant>
+      BUILTIN, NATIVE-PROCESS AND WASM PROVIDERS OBEY THE SAME AUTHORITY MODEL.
+    </Invariant>
+
+    <Invariant>
+      PUBLIC RUST ABI IS NOT THE WORLDLINE THIRD-PARTY ABI.
+    </Invariant>
+
+    <Invariant>
+      NO RUST TRAIT OBJECT, Arc&lt;dyn Any&gt;, STRUCT LAYOUT OR PANIC ABI
+      CROSSES THE EXTERNAL PLUGIN BOUNDARY.
+    </Invariant>
+
+    <Invariant>
+      PROCESS ISOLATION DOES NOT CREATE AUTHORITY.
+    </Invariant>
+
+    <Invariant>
+      SANDBOXING DOES NOT REPLACE CAPABILITY AUTHORIZATION.
+    </Invariant>
+
+    <Invariant>
+      EXTERNAL PLUGIN AUTHORITY EXISTS ONLY THROUGH HOST-CREATED OPAQUE HANDLES.
+    </Invariant>
+
+    <Invariant>
+      A HANDLE IS VALID ONLY FOR THE RUNTIME AND LIFETIME THAT OWNS IT.
+    </Invariant>
+
+    <Invariant>
+      HANDLE VALUES ARE NOT GLOBALLY MEANINGFUL IDENTITIES.
+    </Invariant>
+
+    <Invariant>
+      GUESSING OR REPLAYING A HANDLE NEVER CREATES AUTHORITY.
+    </Invariant>
+
+    <Invariant>
+      STATE CONTINUES TO BELONG TO INSTALLATION, NOT PROCESS OR WASM INSTANCE.
+    </Invariant>
+
+    <Invariant>
+      CRASHED EXTERNAL RUNTIME LOSES LIVE HANDLES, GRANTS, STATE LEASES AND
+      PROVIDER PUBLICATIONS.
+    </Invariant>
+
+    <Invariant>
+      UNTRUSTED CODE RECEIVES NO AMBIENT FILESYSTEM, NETWORK, CLOCK OR RANDOM
+      AUTHORITY.
+    </Invariant>
+
+    <Invariant>
+      RESOURCE EXHAUSTION BY ONE PLUGIN MUST NOT EXHAUST THE HOST WITHOUT BOUNDS.
+    </Invariant>
+
+    <Invariant>
+      TRANSPORT FAILURE IS NOT CAPABILITY FAILURE SEMANTICS UNTIL THE BROKER
+      CLASSIFIES IT.
+    </Invariant>
+
+    <Invariant>
+      IPC/WASM ADAPTERS DO NOT INVENT A SECOND RPC OR EVENT MODEL.
+    </Invariant>
+  </ArchitecturalInvariants>
+
+  <Goals>
+    <Goal>Зафиксировать external plugin ABI strategy ADR.</Goal>
+
+    <Goal>
+      Ввести transport-neutral representation lifecycle и capability invocation.
+    </Goal>
+
+    <Goal>
+      Реализовать native-process adapter.
+    </Goal>
+
+    <Goal>
+      Реализовать WASM Component adapter.
+    </Goal>
+
+    <Goal>
+      Сохранить существующий builtin Rust path через тот же logical contract.
+    </Goal>
+
+    <Goal>
+      Реализовать opaque attenuated host handles.
+    </Goal>
+
+    <Goal>
+      Ввести explicit filesystem/network/clock/random permission model.
+    </Goal>
+
+    <Goal>
+      Ввести memory/CPU/wall-time/invocation quotas.
+    </Goal>
+
+    <Goal>
+      Изолировать crash/trap/protocol/resource failures.
+    </Goal>
+
+    <Goal>
+      Дать external plugins state только через installation-bound host contract.
+    </Goal>
+
+    <Goal>
+      Ввести package manifest и compatibility metadata.
+    </Goal>
+
+    <Goal>
+      Доказать identical consumer semantics на трёх provider execution modes.
+    </Goal>
+  </Goals>
+
+  <NonGoals>
+    <NonGoal>Plugin marketplace.</NonGoal>
+    <NonGoal>Public package registry.</NonGoal>
+    <NonGoal>Package monetization.</NonGoal>
+    <NonGoal>Automatic plugin download.</NonGoal>
+    <NonGoal>Full package signing PKI.</NonGoal>
+    <NonGoal>Long-term SDK N/N-1/N-2 policy.</NonGoal>
+    <NonGoal>Hot upgrade.</NonGoal>
+    <NonGoal>Automatic rollback.</NonGoal>
+    <NonGoal>Safe mode UX.</NonGoal>
+    <NonGoal>Browser provider implementation.</NonGoal>
+    <NonGoal>Agent implementation.</NonGoal>
+    <NonGoal>UI renderer implementation.</NonGoal>
+    <NonGoal>Distributed RPC.</NonGoal>
+    <NonGoal>Network-transparent plugins.</NonGoal>
+    <NonGoal>Shared-memory optimization.</NonGoal>
+    <NonGoal>Zero-copy cross-process optimization.</NonGoal>
+    <NonGoal>Stable forever ABI guarantee.</NonGoal>
+  </NonGoals>
+
+  <RequiredADR>
+    <File>docs/adr/ADR-EXTERNAL-PLUGIN-BOUNDARY-V1.md</File>
+
+    <RequiredSection>Context</RequiredSection>
+    <RequiredSection>Execution modes</RequiredSection>
+    <RequiredSection>Logical contract versus physical transport</RequiredSection>
+    <RequiredSection>WASM Component Model selection</RequiredSection>
+    <RequiredSection>Supported WASI surface</RequiredSection>
+    <RequiredSection>Native IPC transport selection</RequiredSection>
+    <RequiredSection>Handle authority model</RequiredSection>
+    <RequiredSection>Resource isolation</RequiredSection>
+    <RequiredSection>Package identity and manifest</RequiredSection>
+    <RequiredSection>Failure mapping</RequiredSection>
+    <RequiredSection>Compatibility policy v1</RequiredSection>
+    <RequiredSection>Rejected alternatives</RequiredSection>
+    <RequiredSection>Known limitations</RequiredSection>
+    <RequiredSection>Reopen conditions</RequiredSection>
+
+    <Requirement>
+      ADR explicitly rejects public Rust dylib ABI for third-party plugins.
+    </Requirement>
+
+    <Requirement>
+      ADR records exact supported Component Model/WASI baseline selected by
+      implementation rather than saying "latest".
+    </Requirement>
+  </RequiredADR>
+
+  <ExecutionModes>
+    <Mode name="Builtin">
+      Trusted Rust code linked into Worldline host.
+
+      Still uses ordinary RuntimeId, authority, lifecycle, state lease and
+      capability contracts.
+    </Mode>
+
+    <Mode name="NativeProcess">
+      Trusted native executable in supervised child process.
+
+      Trust means code provenance/host policy may permit broader resources;
+      it does NOT bypass capability broker authorization.
+    </Mode>
+
+    <Mode name="WasmComponent">
+      Third-party/untrusted component running through selected Component Model
+      runtime with least-authority host imports.
+    </Mode>
+
+    <Invariant>
+      PluginDefinition semantics do not branch by product role.
+    </Invariant>
+  </ExecutionModes>
+
+  <ExternalAbiModel>
+    <Principle>
+      Logical Worldline contracts are ABI-neutral.
+
+      External adapters translate them into:
+        - WIT interfaces/resources for WASM;
+        - versioned IPC envelopes for native process.
+    </Principle>
+
+    <Forbidden>
+      <Value>Rust struct memory layout as wire ABI</Value>
+      <Value>Rust trait object vtable</Value>
+      <Value>raw pointer</Value>
+      <Value>Arc/Rc</Value>
+      <Value>panic unwinding across boundary</Value>
+      <Value>serde representation without explicit protocol version contract</Value>
+    </Forbidden>
+
+    <Requirement>
+      Unknown fields/versions are handled according to explicit compatibility
+      rules, never accidental parser behaviour.
+    </Requirement>
+
+    <Requirement>
+      Boundary payload size is bounded before allocation.
+    </Requirement>
+  </ExternalAbiModel>
+
+  <PluginPackageIdentity>
+    <Types>
+      <Type>PluginPackageId</Type>
+      <Type>PluginDefinitionId</Type>
+      <Type>PackageVersion</Type>
+      <Type>AbiVersion</Type>
+    </Types>
+
+    <Rule>
+      PluginPackageId is distribution/package identity.
+    </Rule>
+
+    <Rule>
+      PluginDefinitionId remains logical plugin identity.
+    </Rule>
+
+    <Rule>
+      PackageVersion is independent from capability contract versions.
+    </Rule>
+
+    <Rule>
+      Package identity does not itself grant authority.
+    </Rule>
+  </PluginPackageIdentity>
+
+  <PluginManifest>
+    <RequiredFields>
+      <Field>manifest schema version</Field>
+      <Field>package identity</Field>
+      <Field>package version</Field>
+      <Field>plugin definitions provided</Field>
+      <Field>execution mode</Field>
+      <Field>required ABI baseline</Field>
+      <Field>provided capability contracts</Field>
+      <Field>required capability contracts</Field>
+      <Field>requested host permissions</Field>
+      <Field>resource limit hints</Field>
+      <Field>entrypoint/component artifact</Field>
+    </RequiredFields>
+
+    <Invariant>
+      Manifest describes requested/declared permissions.
+      It does not grant them.
+    </Invariant>
+
+    <Requirement>
+      Unknown mandatory manifest fields/schema versions fail closed.
+    </Requirement>
+
+    <Requirement>
+      Paths inside package cannot escape package root.
+    </Requirement>
+  </PluginManifest>
+
+  <WitBoundary>
+    <Purpose>
+      Define first external component contracts without exposing kernel Rust API.
+    </Purpose>
+
+    <RequiredLogicalInterfaces>
+      <Interface>worldline:plugin/lifecycle</Interface>
+      <Interface>worldline:capability/invoke</Interface>
+      <Interface>worldline:event/publish</Interface>
+      <Interface>worldline:state/access</Interface>
+      <Interface>worldline:host/context</Interface>
+    </RequiredLogicalInterfaces>
+
+    <Requirement>
+      Exact WIT package/module names may differ after implementation review,
+      but responsibilities remain separated.
+    </Requirement>
+
+    <LifecycleOperations>
+      <Operation>activate</Operation>
+      <Operation>deactivate</Operation>
+    </LifecycleOperations>
+
+    <Rule>
+      WIT lifecycle does not expose arbitrary Kernel object.
+    </Rule>
+
+    <Rule>
+      Capability invocation does not provide direct provider registry access.
+    </Rule>
+
+    <Rule>
+      Event publication remains separate from capability invocation.
+    </Rule>
+
+    <Rule>
+      State access uses installation-scoped host resource/handle.
+    </Rule>
+  </WitBoundary>
+
+  <NativeIpcProtocol>
+    <Requirement>
+      Native IPC is explicitly versioned.
+    </Requirement>
+
+    <Handshake>
+      <Field>protocol version</Field>
+      <Field>host nonce/session identity</Field>
+      <Field>package identity</Field>
+      <Field>plugin definition identity</Field>
+      <Field>supported ABI range</Field>
+      <Field>declared capability interfaces</Field>
+    </Handshake>
+
+    <Invariant>
+      Child-supplied RuntimeId/PrincipalId is never authoritative.
+    </Invariant>
+
+    <Requirement>
+      Host assigns authoritative runtime/security identity after successful
+      handshake/admission.
+    </Requirement>
+
+    <MessageClasses>
+      <Class>LifecycleRequest</Class>
+      <Class>LifecycleResult</Class>
+      <Class>CapabilityRequest</Class>
+      <Class>CapabilityResult</Class>
+      <Class>Cancellation</Class>
+      <Class>EventPublishRequest</Class>
+      <Class>StateRequest</Class>
+      <Class>StateResult</Class>
+      <Class>ProtocolError</Class>
+    </MessageClasses>
+
+    <Requirement>
+      Every request/response is correlated by explicit bounded protocol identity.
+    </Requirement>
+
+    <Requirement>
+      In-flight request count and queued bytes are bounded.
+    </Requirement>
+
+    <Requirement>
+      Unknown or malformed message does not crash host.
+    </Requirement>
+
+    <Requirement>
+      Protocol violation may terminate/quarantine offending RuntimeId.
+    </Requirement>
+  </NativeIpcProtocol>
+
+  <OpaqueAuthorityHandles>
+    <Purpose>
+      External plugin can refer to delegated authority without receiving kernel
+      Grant/Principal internals.
+    </Purpose>
+
+    <HandleProperties>
+      <Property>opaque to guest/process</Property>
+      <Property>host-created</Property>
+      <Property>runtime-scoped</Property>
+      <Property>non-persistent unless explicitly represented by another contract</Property>
+      <Property>operation/resource attenuated</Property>
+      <Property>revocable</Property>
+    </HandleProperties>
+
+    <Invariant>
+      Handle value alone is not globally reusable authority.
+    </Invariant>
+
+    <Invariant>
+      Handle lookup always includes exact RuntimeId/session ownership.
+    </Invariant>
+
+    <Invariant>
+      Old handle from crashed/restarted RuntimeId is invalid.
+    </Invariant>
+
+    <Invariant>
+      Numeric/string guessing cannot access another runtime's handle table.
+    </Invariant>
+
+    <Rule>
+      Guest cannot widen scope encoded by host handle metadata.
+    </Rule>
+
+    <Rule>
+      Delegation can only produce equal-or-narrower authority.
+    </Rule>
+  </OpaqueAuthorityHandles>
+
+  <ExternalStateAccess>
+    <Invariant>
+      WASM/native plugin never receives StateBackend/database/file object.
+    </Invariant>
+
+    <Requirement>
+      State operations are routed through existing installation-owned state
+      contract.
+    </Requirement>
+
+    <Requirement>
+      Host binds state handle to exact InstallationId and RuntimeStateLease.
+    </Requirement>
+
+    <Requirement>
+      Runtime termination invalidates all live external state handles and open
+      transaction handles.
+    </Requirement>
+
+    <Requirement>
+      Restart creates new runtime state handles while preserving installation
+      state.
+    </Requirement>
+  </ExternalStateAccess>
+
+  <WasiAuthority>
+    <Principle>
+      WASI capability availability is explicit least-authority host policy.
+    </Principle>
+
+    <PermissionClasses>
+      <Permission>filesystem</Permission>
+      <Permission>network</Permission>
+      <Permission>clock</Permission>
+      <Permission>random</Permission>
+      <Permission>environment</Permission>
+    </PermissionClasses>
+
+    <Filesystem>
+      No ambient host filesystem access.
+
+      Preopened directory/resource, if permitted, is explicitly scoped.
+    </Filesystem>
+
+    <Network>
+      No ambient outbound/inbound network access.
+
+      Network permission is explicitly enabled/scoped.
+    </Network>
+
+    <Clock>
+      Clock access may be omitted or restricted where unnecessary.
+    </Clock>
+
+    <Random>
+      Random source is explicitly provided if requested/approved.
+    </Random>
+
+    <Environment>
+      Host environment variables are not inherited by default.
+    </Environment>
+
+    <Invariant>
+      Manifest request != granted WASI permission.
+    </Invariant>
+  </WasiAuthority>
+
+  <ResourceLimits>
+    <RequiredDimensions>
+      <Limit>linear memory</Limit>
+      <Limit>component/resource table entries</Limit>
+      <Limit>host-call concurrency</Limit>
+      <Limit>host-call payload bytes</Limit>
+      <Limit>invocation count/rate budget</Limit>
+      <Limit>wall-time/deadline</Limit>
+      <Limit>CPU/fuel/epoch or selected runtime-equivalent execution budget</Limit>
+    </RequiredDimensions>
+
+    <Rule>
+      Exact enforcement mechanism is runtime-specific but observable semantics are
+      shared.
+    </Rule>
+
+    <Rule>
+      Limit exhaustion maps to explicit runtime/invocation failure class.
+    </Rule>
+
+    <Rule>
+      Resource exhaustion does not permanently consume provider registry slot.
+    </Rule>
+
+    <Rule>
+      Quota reset/restart policy is explicit.
+    </Rule>
+  </ResourceLimits>
+
+  <FailureMapping>
+    <GuestFailure>Trap</GuestFailure>
+    <GuestFailure>GuestReturnedError</GuestFailure>
+    <GuestFailure>ResourceLimitExceeded</GuestFailure>
+    <GuestFailure>DeadlineExceeded</GuestFailure>
+
+    <NativeFailure>ProcessExit</NativeFailure>
+    <NativeFailure>ProcessCrash</NativeFailure>
+    <NativeFailure>ProtocolViolation</NativeFailure>
+    <NativeFailure>TransportDisconnected</NativeFailure>
+
+    <HostFailure>AdapterFailure</HostFailure>
+
+    <Requirement>
+      Each physical failure maps into existing runtime/RPC failure semantics
+      without pretending all failures are PluginError.
+    </Requirement>
+
+    <Requirement>
+      Failure classification remains observable for diagnostics.
+    </Requirement>
+
+    <Requirement>
+      Runtime terminal cleanup revokes handles, state leases, grants,
+      subscriptions and provider publications.
+    </Requirement>
+  </FailureMapping>
+
+  <ProcessSupervision>
+    <Requirement>
+      Native provider child process is owned by one RuntimeId.
+    </Requirement>
+
+    <Requirement>
+      Unexpected process exit transitions only that runtime through existing
+      crash/restart/quarantine policy.
+    </Requirement>
+
+    <Requirement>
+      Child stdout/stderr is bounded/handled such that plugin cannot deadlock host
+      by filling inherited pipe.
+    </Requirement>
+
+    <Requirement>
+      Graceful shutdown has deadline.
+    </Requirement>
+
+    <Requirement>
+      After deadline host may terminate owned child process.
+    </Requirement>
+
+    <Requirement>
+      Killing native child process must not kill host.
+    </Requirement>
+  </ProcessSupervision>
+
+  <ReferenceExternalPlugin>
+    <Purpose>
+      Prove transport equivalence without browser/agent/UI-specific semantics.
+    </Purpose>
+
+    <LogicalCapability>
+      reference.echo/v1
+    </LogicalCapability>
+
+    <Operations>
+      <Operation>echo</Operation>
+      <Operation>stateful_increment</Operation>
+      <Operation>publish_observation</Operation>
+    </Operations>
+
+    <Implementations>
+      <Implementation>BuiltinReferenceProvider</Implementation>
+      <Implementation>NativeProcessReferenceProvider</Implementation>
+      <Implementation>WasmComponentReferenceProvider</Implementation>
+    </Implementations>
+
+    <Invariant>
+      Consumer implementation and logical CapabilityId do not change when provider
+      execution mode changes.
+    </Invariant>
+
+    <Requirement>
+      All implementations pass the same semantic contract suite.
+    </Requirement>
+
+    <Requirement>
+      Stateful operation uses same InstallationId persistence semantics.
+    </Requirement>
+
+    <Requirement>
+      Observation uses same M0.4 event transport semantics.
+    </Requirement>
+  </ReferenceExternalPlugin>
+
+  <CrossModeConformanceSuite>
+    <ProviderModes>
+      <Mode>Builtin</Mode>
+      <Mode>NativeProcess</Mode>
+      <Mode>WasmComponent</Mode>
+    </ProviderModes>
+
+    <RequiredEquivalence>
+      <Property>capability discovery</Property>
+      <Property>authorization denial</Property>
+      <Property>authorized RPC result</Property>
+      <Property>deadline</Property>
+      <Property>cancellation</Property>
+      <Property>state isolation</Property>
+      <Property>restart state continuity</Property>
+      <Property>runtime authority discontinuity</Property>
+      <Property>event observation</Property>
+      <Property>provider replacement</Property>
+    </RequiredEquivalence>
+  </CrossModeConformanceSuite>
+
+  <MaliciousWasmSuite>
+    <Attempt>
+      Read host file without filesystem permission.
+    </Attempt>
+
+    <Attempt>
+      Open network connection without network permission.
+    </Attempt>
+
+    <Attempt>
+      Read environment secret.
+    </Attempt>
+
+    <Attempt>
+      Invoke capability without delegated handle/grant.
+    </Attempt>
+
+    <Attempt>
+      Guess another runtime's authority handle.
+    </Attempt>
+
+    <Attempt>
+      Reuse handle after runtime restart.
+    </Attempt>
+
+    <Attempt>
+      Widen resource scope encoded in handle.
+    </Attempt>
+
+    <Attempt>
+      Access another installation's state.
+    </Attempt>
+
+    <Attempt>
+      Commit old transaction after runtime termination.
+    </Attempt>
+
+    <Attempt>
+      Forge PrincipalId/RuntimeId in payload.
+    </Attempt>
+
+    <Attempt>
+      Forge trusted event producer metadata.
+    </Attempt>
+
+    <Attempt>
+      Allocate beyond memory quota.
+    </Attempt>
+
+    <Attempt>
+      Loop beyond execution budget.
+    </Attempt>
+
+    <Attempt>
+      Flood host calls beyond concurrency/queue limits.
+    </Attempt>
+
+    <Attempt>
+      Send oversized payload.
+    </Attempt>
+
+    <Attempt>
+      Trap during capability invocation.
+    </Attempt>
+
+    <Invariant>
+      Every attempt produces denial/contained failure and leaves unrelated
+      reference runtime usable.
+    </Invariant>
+  </MaliciousWasmSuite>
+
+  <ProtocolRobustness>
+    <RequiredTests>
+      <Test>truncated native IPC frame</Test>
+      <Test>oversized frame</Test>
+      <Test>unknown message kind</Test>
+      <Test>unsupported protocol version</Test>
+      <Test>duplicate response</Test>
+      <Test>response for unknown request</Test>
+      <Test>late response after cancellation</Test>
+      <Test>malformed manifest</Test>
+      <Test>unsupported manifest schema</Test>
+      <Test>invalid handle</Test>
+      <Test>cross-runtime handle replay</Test>
+    </RequiredTests>
+
+    <Invariant>
+      Malformed external bytes never panic kernel.
+    </Invariant>
+  </ProtocolRobustness>
+
+  <ProviderReplacement>
+    <Requirement>
+      Live CapabilityHandle remains bound to logical capability contract.
+    </Requirement>
+
+    <Requirement>
+      Provider replacement may cross execution mode:
+
+        builtin -> native
+        native -> WASM
+        WASM -> builtin
+
+      if contracts are compatible.
+    </Requirement>
+
+    <Requirement>
+      Consumer restart is not required solely because execution mode changed.
+    </Requirement>
+
+    <Requirement>
+      ProviderSelf never crosses runtime/replacement boundary.
+    </Requirement>
+  </ProviderReplacement>
+
+  <PackageLoading>
+    <Requirement>
+      External package path is host-controlled input.
+    </Requirement>
+
+    <Requirement>
+      Manifest is validated before component/process activation.
+    </Requirement>
+
+    <Requirement>
+      Artifact digest is computed/recorded for diagnostics/provenance.
+    </Requirement>
+
+    <Requirement>
+      Package cannot use relative path traversal to execute/read outside package
+      root.
+    </Requirement>
+
+    <Requirement>
+      Loading does not automatically activate plugin authority.
+    </Requirement>
+  </PackageLoading>
+
+  <TrajectoryAndAudit>
+    <RequiredFacts>
+      <Fact>ExternalPluginPackageLoaded</Fact>
+      <Fact>ExternalRuntimeSpawned</Fact>
+      <Fact>ExternalHandshakeCompleted</Fact>
+      <Fact>ExternalHandshakeRejected</Fact>
+      <Fact>ExternalRuntimeTrapped</Fact>
+      <Fact>ExternalProcessExited</Fact>
+      <Fact>ExternalProtocolViolation</Fact>
+      <Fact>ExternalQuotaExceeded</Fact>
+      <Fact>ExternalHandleDenied</Fact>
+    </RequiredFacts>
+
+    <Requirement>
+      Audit contains package/runtime/protocol metadata but not raw private
+      payloads.
+    </Requirement>
+  </TrajectoryAndAudit>
+
+  <RequiredTests>
+    <Test>
+      Same unchanged consumer invokes builtin/native/WASM reference providers.
+    </Test>
+
+    <Test>
+      All three providers return equivalent authorized result.
+    </Test>
+
+    <Test>
+      All three deny invocation without authority.
+    </Test>
+
+    <Test>
+      Provider replacement across execution modes does not restart compatible
+      consumer.
+    </Test>
+
+    <Test>
+      Runtime restart invalidates all old external handles.
+    </Test>
+
+    <Test>
+      Native child cannot supply authoritative RuntimeId.
+    </Test>
+
+    <Test>
+      WASM guest cannot supply authoritative RuntimeId.
+    </Test>
+
+    <Test>
+      Invalid handle returns deterministic denial and does not panic host.
+    </Test>
+
+    <Test>
+      Handle belonging to Runtime A cannot be used by Runtime B.
+    </Test>
+
+    <Test>
+      Delegated external handle cannot widen operations.
+    </Test>
+
+    <Test>
+      Delegated external handle cannot widen resource scope.
+    </Test>
+
+    <Test>
+      Native process crash removes only its provider publications.
+    </Test>
+
+    <Test>
+      Native process crash does not damage unrelated runtime.
+    </Test>
+
+    <Test>
+      Native process can be restarted with new RuntimeId and old state retained.
+    </Test>
+
+    <Test>
+      Native restart inherits no runtime grants.
+    </Test>
+
+    <Test>
+      WASM trap is isolated to exact invocation/runtime.
+    </Test>
+
+    <Test>
+      WASM trap does not crash host.
+    </Test>
+
+    <Test>
+      WASM memory limit is enforced.
+    </Test>
+
+    <Test>
+      WASM execution budget is enforced.
+    </Test>
+
+    <Test>
+      WASM host-call concurrency is bounded.
+    </Test>
+
+    <Test>
+      Oversized host-call payload is rejected before unbounded allocation.
+    </Test>
+
+    <Test>
+      WASM filesystem access is denied by default.
+    </Test>
+
+    <Test>
+      WASM network access is denied by default.
+    </Test>
+
+    <Test>
+      WASM environment inheritance is denied by default.
+    </Test>
+
+    <Test>
+      Explicit scoped filesystem permission cannot escape allowed root.
+    </Test>
+
+    <Test>
+      External state handle can access only bound InstallationId.
+    </Test>
+
+    <Test>
+      Open external state transaction fails after runtime termination.
+    </Test>
+
+    <Test>
+      Event produced through native/WASM path uses host-stamped producer identity.
+    </Test>
+
+    <Test>
+      External payload cannot forge caller/producer/grant metadata.
+    </Test>
+
+    <Test>
+      Unsupported native protocol version fails handshake.
+    </Test>
+
+    <Test>
+      Unsupported component ABI fails before activation.
+    </Test>
+
+    <Test>
+      Malformed IPC never panics kernel.
+    </Test>
+
+    <Test>
+      S1 remains green using builtin provider.
+    </Test>
+
+    <Test>
+      S1-equivalent external-provider path works through native provider.
+    </Test>
+
+    <Test>
+      S1-equivalent external-provider path works through WASM provider.
+    </Test>
+
+    <Test>
+      Existing M0.1-M0.5 acceptance suites remain green.
+    </Test>
+  </RequiredTests>
+
+  <StaticArchitectureChecks>
+    <Requirement>
+      worldline-kernel public external boundary exposes no Rust dynamic ABI.
+    </Requirement>
+
+    <Requirement>
+      WASM runtime-specific types do not enter capability consumer contracts.
+    </Requirement>
+
+    <Requirement>
+      Native IPC-specific types do not enter capability consumer contracts.
+    </Requirement>
+
+    <Requirement>
+      worldline-kernel remains free of browser/agent/UI product types.
+    </Requirement>
+
+    <Requirement>
+      Third-party plugin does not link directly to worldline-kernel internals.
+    </Requirement>
+
+    <Requirement>
+      WIT/IPC adapters use existing RPC/event/state semantics rather than parallel
+      replacement implementations.
+    </Requirement>
+  </StaticArchitectureChecks>
+
+  <SecurityRequirements>
+    <Requirement>Default deny for external plugin capabilities.</Requirement>
+
+    <Requirement>Default deny for WASI resources.</Requirement>
+
+    <Requirement>
+      Runtime-scoped handle table is cleared/revoked on every terminal path.
+    </Requirement>
+
+    <Requirement>
+      External handle representation is unforgeable by construction or verified
+      against host runtime ownership on every use.
+    </Requirement>
+
+    <Requirement>
+      No package manifest can grant itself authority.
+    </Requirement>
+
+    <Requirement>
+      No plugin-supplied PrincipalId/RuntimeId is trusted.
+    </Requirement>
+
+    <Requirement>
+      State authority and filesystem permission remain separate.
+    </Requirement>
+
+    <Requirement>
+      Process isolation is not accepted as replacement for broker checks.
+    </Requirement>
+  </SecurityRequirements>
+
+  <Errors>
+    <Error>UnsupportedExternalAbi</Error>
+    <Error>UnsupportedProtocolVersion</Error>
+    <Error>InvalidPluginManifest</Error>
+    <Error>PackageArtifactMissing</Error>
+    <Error>PackagePathViolation</Error>
+
+    <Error>ExternalHandshakeFailed</Error>
+    <Error>ExternalProtocolViolation</Error>
+    <Error>ExternalTransportClosed</Error>
+    <Error>ExternalProcessCrashed</Error>
+
+    <Error>InvalidExternalHandle</Error>
+    <Error>ExternalHandleRevoked</Error>
+    <Error>ExternalHandleWrongRuntime</Error>
+    <Error>ExternalHandleScopeDenied</Error>
+
+    <Error>WasmTrap</Error>
+    <Error>WasmResourceLimitExceeded</Error>
+    <Error>WasmPermissionDenied</Error>
+
+    <Error>ExternalPayloadTooLarge</Error>
+    <Error>ExternalInvocationLimitExceeded</Error>
+  </Errors>
+
+  <AcceptanceCriteria>
+    <Criterion id="AC-01">
+      ADR-EXTERNAL-PLUGIN-BOUNDARY-V1 exists.
+    </Criterion>
+
+    <Criterion id="AC-02">
+      Exact supported external ABI/WASI baseline is pinned/documented.
+    </Criterion>
+
+    <Criterion id="AC-03">
+      No public Rust dylib ABI is required for third-party plugins.
+    </Criterion>
+
+    <Criterion id="AC-04">
+      Builtin/native/WASM providers implement one logical capability contract.
+    </Criterion>
+
+    <Criterion id="AC-05">
+      One unchanged consumer passes against all three execution modes.
+    </Criterion>
+
+    <Criterion id="AC-06">
+      Native IPC has explicit handshake/protocol version.
+    </Criterion>
+
+    <Criterion id="AC-07">
+      Malformed/unsupported IPC cannot panic host.
+    </Criterion>
+
+    <Criterion id="AC-08">
+      External authority is represented only by runtime-scoped opaque handles.
+    </Criterion>
+
+    <Criterion id="AC-09">
+      Old handles fail after runtime restart.
+    </Criterion>
+
+    <Criterion id="AC-10">
+      Cross-runtime handle use is denied.
+    </Criterion>
+
+    <Criterion id="AC-11">
+      Handle attenuation cannot be widened by guest.
+    </Criterion>
+
+    <Criterion id="AC-12">
+      WASM has no ambient filesystem/network/environment authority.
+    </Criterion>
+
+    <Criterion id="AC-13">
+      Explicit WASI resources are scoped.
+    </Criterion>
+
+    <Criterion id="AC-14">
+      WASM memory/execution/invocation limits are enforced.
+    </Criterion>
+
+    <Criterion id="AC-15">
+      Trap/resource exhaustion does not crash host.
+    </Criterion>
+
+    <Criterion id="AC-16">
+      Native child crash is isolated and supervised.
+    </Criterion>
+
+    <Criterion id="AC-17">
+      External state access preserves installation ownership/runtime leases.
+    </Criterion>
+
+    <Criterion id="AC-18">
+      External event publication preserves M0.4 producer authority semantics.
+    </Criterion>
+
+    <Criterion id="AC-19">
+      Provider can be replaced across execution modes without compatible consumer
+      restart.
+    </Criterion>
+
+    <Criterion id="AC-20">
+      Reference malicious WASM suite cannot escape delegated authority.
+    </Criterion>
+
+    <Criterion id="AC-21">
+      Existing persistence/recovery semantics survive external-provider restart.
+    </Criterion>
+
+    <Criterion id="AC-22">
+      S0/S1 and M0.1-M0.5 suites remain green.
+    </Criterion>
+
+    <Criterion id="AC-23">
+      M0.6 acceptance is reachable through repository-owned CI.
+    </Criterion>
+
+    <Criterion id="AC-24">
+      ROADMAP marks M0.6 Done and M0.7 Next only after cross-mode and hostile
+      tests pass.
+    </Criterion>
+  </AcceptanceCriteria>
+
+  <CIIntegration>
+    <Requirement>
+      Existing stable CI leaf suite names remain unchanged.
+    </Requirement>
+
+    <Mapping>
+      <Suite name="Source">
+        WIT/manifest formatting/schema validation where appropriate.
+      </Suite>
+
+      <Suite name="Correctness">
+        Cross-mode logical conformance and protocol codec tests.
+      </Suite>
+
+      <Suite name="ArchitectureSecurity">
+        malicious WASM, handle authority, forbidden dependency/boundary tests.
+      </Suite>
+
+      <Suite name="ProvingSlice">
+        native/WASM external-provider end-to-end paths.
+      </Suite>
+    </Mapping>
+
+    <Requirement>
+      No essential M0.6 verification exists only in GitHub Actions YAML.
+    </Requirement>
+  </CIIntegration>
+
+  <ImplementationGuidance>
+    <Guidance>
+      Do not begin by embedding a WASM runtime everywhere in worldline-kernel.
+    </Guidance>
+
+    <Guidance>
+      First define transport-neutral external runtime/host-call interfaces.
+    </Guidance>
+
+    <Guidance>
+      Keep execution adapters in dedicated crates/modules where possible.
+    </Guidance>
+
+    <Guidance>
+      Recommended decomposition:
+
+        worldline-kernel
+            logical runtime/security/contracts
+
+        worldline-plugin-protocol
+            ABI-neutral protocol/manifest vocabulary
+
+        worldline-native-host
+            child process supervision + IPC adapter
+
+        worldline-wasm-host
+            Component runtime + host imports
+
+        worldline-reference-external
+            cross-mode reference plugin/tests
+    </Guidance>
+
+    <Guidance>
+      Exact crate names may differ, but database/WASM/process implementation
+      dependencies should not spread through kernel.
+    </Guidance>
+
+    <Guidance>
+      Do not optimize IPC with shared memory in v1.
+    </Guidance>
+
+    <Guidance>
+      Do not attempt zero-copy before semantics are stable.
+    </Guidance>
+
+    <Guidance>
+      Do not expose all WASI and then try to deny sensitive operations inside
+      plugin code.
+    </Guidance>
+
+    <Guidance>
+      Start from no ambient WASI capability and explicitly add only what tests
+      require.
+    </Guidance>
+
+    <Guidance>
+      Never serialize Grant or Principal authority object into guest payload.
+    </Guidance>
+
+    <Guidance>
+      If native process is considered trusted, still route its capability calls
+      through broker.
+    </Guidance>
+
+    <Guidance>
+      Prefer one small external reference plugin over prematurely porting browser
+      or agent code into WASM.
+    </Guidance>
+  </ImplementationGuidance>
+
+  <SuggestedExecutionOrder>
+    <Step index="1">
+      Inventory current runtime/RPC/event/state interfaces that external adapter
+      must preserve.
+    </Step>
+
+    <Step index="2">
+      Write ADR and pin Component/WASI + native IPC choices.
+    </Step>
+
+    <Step index="3">
+      Introduce package manifest and protocol identities.
+    </Step>
+
+    <Step index="4">
+      Extract transport-neutral external provider adapter contract.
+    </Step>
+
+    <Step index="5">
+      Implement runtime-scoped opaque host handle table.
+    </Step>
+
+    <Step index="6">
+      Implement native IPC codec + handshake.
+    </Step>
+
+    <Step index="7">
+      Implement native child supervision and lifecycle adapter.
+    </Step>
+
+    <Step index="8">
+      Run builtin/native cross-mode reference conformance.
+    </Step>
+
+    <Step index="9">
+      Add WIT lifecycle/capability/event/state contracts.
+    </Step>
+
+    <Step index="10">
+      Implement WASM Component host adapter.
+    </Step>
+
+    <Step index="11">
+      Add least-authority WASI configuration.
+    </Step>
+
+    <Step index="12">
+      Add memory/execution/wall/invocation limits.
+    </Step>
+
+    <Step index="13">
+      Implement WASM reference provider.
+    </Step>
+
+    <Step index="14">
+      Run three-mode conformance suite.
+    </Step>
+
+    <Step index="15">
+      Add malicious WASM and malformed IPC suites.
+    </Step>
+
+    <Step index="16">
+      Add cross-mode provider replacement test.
+    </Step>
+
+    <Step index="17">
+      Add external-provider S1 persistence/restart proving paths.
+    </Step>
+
+    <Step index="18">
+      Integrate into stable repository CI suites.
+    </Step>
+
+    <Step index="19">
+      Update GRACE projection/ADR/ROADMAP only after evidence passes.
+    </Step>
+  </SuggestedExecutionOrder>
+
+  <ReviewQuestions>
+    <Question>
+      Может ли consumer определить execution mode provider без diagnostic API?
+    </Question>
+
+    <Question>
+      Есть ли хоть один logical capability semantic, который отличается между
+      builtin/native/WASM?
+    </Question>
+
+    <Question>
+      Пересекает ли boundary хоть один Rust-specific ABI type?
+    </Question>
+
+    <Question>
+      Может ли external plugin выбрать себе RuntimeId/PrincipalId?
+    </Question>
+
+    <Question>
+      Можно ли скопировать opaque handle в другой runtime и использовать?
+    </Question>
+
+    <Question>
+      Можно ли использовать handle после restart?
+    </Question>
+
+    <Question>
+      Может ли manifest самостоятельно дать plugin requested permission?
+    </Question>
+
+    <Question>
+      Получает ли WASM что-либо из filesystem/network/env по умолчанию?
+    </Question>
+
+    <Question>
+      Есть ли unbounded allocation до проверки frame/payload length?
+    </Question>
+
+    <Question>
+      Может ли бесконечный WASM loop навсегда занять host execution resource?
+    </Question>
+
+    <Question>
+      Может ли child process заполнить pipe и заблокировать host?
+    </Question>
+
+    <Question>
+      Может ли malformed IPC panic'нуть host parser?
+    </Question>
+
+    <Question>
+      Сохраняется ли installation state после замены native на WASM provider?
+    </Question>
+
+    <Question>
+      Не начали ли мы случайно строить marketplace/package-signing/update систему
+      внутри M0.6?
+    </Question>
+  </ReviewQuestions>
+
+  <FailureConditions>
+    <Failure>
+      Consumer требует execution-mode-specific code.
+    </Failure>
+
+    <Failure>
+      Public plugin ABI зависит от Rust struct/vtable layout.
+    </Failure>
+
+    <Failure>
+      Native process bypasses capability broker.
+    </Failure>
+
+    <Failure>
+      WASM sandbox считается достаточной заменой authorization.
+    </Failure>
+
+    <Failure>
+      Guest получает raw Grant/SecurityStore/StateBackend.
+    </Failure>
+
+    <Failure>
+      Handle можно использовать из другого RuntimeId.
+    </Failure>
+
+    <Failure>
+      Handle переживает runtime restart как authority.
+    </Failure>
+
+    <Failure>
+      WASM получает ambient filesystem/network permission.
+    </Failure>
+
+    <Failure>
+      Один malicious guest может crash/DoS unrelated runtime без configured bound.
+    </Failure>
+
+    <Failure>
+      Process crash требует host restart.
+    </Failure>
+
+    <Failure>
+      Protocol/WIT adapter создаёт вторую несовместимую RPC/event semantics.
+    </Failure>
+
+    <Failure>
+      Product-specific browser/agent/UI types входят в external ABI.
+    </Failure>
+  </FailureConditions>
+
+  <Verification>
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source
+    </Command>
+
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness
+    </Command>
+
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity
+    </Command>
+
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice
+    </Command>
+
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All
+    </Command>
+  </Verification>
+
+  <ExitCriteria>
+    <Criterion>
+      Worldline has a documented versioned external plugin ABI boundary.
+    </Criterion>
+
+    <Criterion>
+      Public external plugin ABI does not rely on Rust binary ABI.
+    </Criterion>
+
+    <Criterion>
+      Builtin, native-process and WASM providers satisfy one logical contract.
+    </Criterion>
+
+    <Criterion>
+      Unchanged consumer works across all three execution modes.
+    </Criterion>
+
+    <Criterion>
+      External authority crosses boundaries only via opaque runtime-scoped
+      attenuated handles.
+    </Criterion>
+
+    <Criterion>
+      WASM environment is least-authority and resource-bounded.
+    </Criterion>
+
+    <Criterion>
+      Native provider is supervised and restartable independently of host.
+    </Criterion>
+
+    <Criterion>
+      Trap, crash, malformed input and resource exhaustion are contained.
+    </Criterion>
+
+    <Criterion>
+      Installation state survives provider process/component restart while live
+      authority does not.
+    </Criterion>
+
+    <Criterion>
+      Malicious WASM plugin cannot read/invoke/store anything outside explicit
+      delegation.
+    </Criterion>
+
+    <Criterion>
+      M0.6 behavior is proven through stable CI and end-to-end proving paths.
+    </Criterion>
+
+    <Criterion>
+      Kernel is ready for compatibility/update/operability work without another
+      external ABI identity redesign.
+    </Criterion>
+  </ExitCriteria>
+
+  <NextChange>
+    C-KERNEL-OPERABILITY-COMPATIBILITY-UPGRADE-*
+  </NextChange>
+  </C-KERNEL-STABLE-IPC-WASM-COMPONENT-BOUNDARY-20260831>
+</GraceChangeSpec>

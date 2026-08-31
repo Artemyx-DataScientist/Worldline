@@ -8,6 +8,7 @@
         <M-GRACE-CONTROL-LAYER />
         <M-CI-BASELINE />
         <M-PERSISTENCE-RECOVERY />
+        <M-EXTERNAL-PLUGIN-BOUNDARY />
       </Owns>
     </GD-MAIN>
   </GraphDocuments>

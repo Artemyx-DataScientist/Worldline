@@ -70,12 +70,14 @@ function Invoke-SourceSuite {
     Invoke-WorldlineCommand -Label 'workspace check' -FilePath 'cargo' -Arguments @('check', '--workspace', '--all-targets')
     Invoke-WorldlineCommand -Label 'workspace clippy' -FilePath 'cargo' -Arguments @('clippy', '--workspace', '--all-targets', '--all-features', '--', '-D', 'warnings')
     Invoke-WorldlineCommand -Label 'workspace documentation' -FilePath 'cargo' -Arguments @('doc', '--workspace', '--no-deps')
+    Invoke-WorldlineCommand -Label 'plugin protocol manifest and envelope schema' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-plugin-protocol')
 }
 
 function Invoke-CorrectnessSuite {
     Write-Host '--- Correctness suite ---'
     Invoke-WorldlineCommand -Label 'workspace tests' -FilePath 'cargo' -Arguments @('test', '--workspace')
     Invoke-WorldlineCommand -Label 'storage hard-kill recovery tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-storage', '--features', 'test-failpoints', '--test', 'recovery_acceptance', '--', '--test-threads=1')
+    Invoke-WorldlineCommand -Label 'cross-mode logical conformance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'cross_mode_conformance')
 }
 
 function Invoke-ArchitectureSecuritySuite {
@@ -83,6 +85,8 @@ function Invoke-ArchitectureSecuritySuite {
     Invoke-WorldlineCommand -Label 'architecture guard' -FilePath 'pwsh' -Arguments @('-NoProfile', '-File', $architectureGuard)
     Invoke-WorldlineCommand -Label 'kernel acceptance tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-kernel')
     Invoke-WorldlineCommand -Label 'storage contract tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-storage', '--test', 'contract_acceptance')
+    Invoke-WorldlineCommand -Label 'malicious wasm acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'malicious_wasm_acceptance')
+    Invoke-WorldlineCommand -Label 'external protocol robustness' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'protocol_robustness')
 }
 
 function Invoke-ProvingSliceSuite {
@@ -90,6 +94,7 @@ function Invoke-ProvingSliceSuite {
     Invoke-WorldlineCommand -Label 'reference boundary acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 'boundary_acceptance')
     Invoke-WorldlineCommand -Label 'production persistence S1 acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 'persistence_acceptance')
     Invoke-WorldlineCommand -Label 'worldline-demo S0/S1 proving slice' -FilePath 'cargo' -Arguments @('run', '-p', 'worldline-demo')
+    Invoke-WorldlineCommand -Label 'external-provider S1 proving path' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'external_s1_proving')
 }
 
 switch ($Suite) {

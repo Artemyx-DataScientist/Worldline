@@ -356,6 +356,23 @@ pub enum TrajectoryEventKind {
         subscriber: PrincipalId,
         runtime_id: Option<RuntimeId>,
     },
+    ExternalHandleIssued {
+        runtime_id: RuntimeId,
+        handle: u64,
+    },
+    ExternalHandleRevoked {
+        runtime_id: RuntimeId,
+        handle: u64,
+    },
+    ExternalHandleDenied {
+        runtime_id: RuntimeId,
+        handle: u64,
+        reason: String,
+    },
+    ExternalHandlesCleared {
+        runtime_id: RuntimeId,
+        count: usize,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

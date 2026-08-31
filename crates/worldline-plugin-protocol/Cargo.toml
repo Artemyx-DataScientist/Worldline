@@ -1,0 +1,11 @@
+[package]
+name = "worldline-plugin-protocol"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "ABI-neutral package identity, manifest and versioned envelope vocabulary for the Worldline external plugin boundary"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

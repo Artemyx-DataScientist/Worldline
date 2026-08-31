@@ -233,4 +233,44 @@ foreach ($sourceFile in $storageSourceFiles) {
     Assert-Condition (-not $sourceText.Contains('InMemoryStateBackend')) "Storage source '$($sourceFile.Name)' must not provide an in-memory fallback."
 }
 
+Write-Host 'Checking external plugin boundary dependency direction.'
+$kernelManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-kernel/Cargo.toml') -Raw
+foreach ($forbiddenToken in @(
+        'wasmtime',
+        'wit-bindgen',
+        'worldline-plugin-protocol',
+        'worldline-native-host',
+        'worldline-wasm-host',
+        'worldline-reference-external'
+    )) {
+    Assert-Condition (-not $kernelManifest.Contains($forbiddenToken)) "worldline-kernel manifest must not mention ${forbiddenToken}."
+}
+$kernelSourceFiles = @(Get-ChildItem -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-kernel/src') -Filter '*.rs' -File -Recurse)
+foreach ($sourceFile in $kernelSourceFiles) {
+    $sourceText = Get-Content -LiteralPath $sourceFile.FullName -Raw
+    foreach ($forbiddenToken in @('wasmtime', 'wit_bindgen', 'serde_json')) {
+        Assert-Condition (-not $sourceText.Contains($forbiddenToken)) "Kernel source '$($sourceFile.Name)' must not mention ${forbiddenToken}."
+    }
+}
+
+foreach ($adapterCrate in @('worldline-native-host', 'worldline-wasm-host')) {
+    $adapterManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath "crates/${adapterCrate}/Cargo.toml") -Raw
+    Assert-Condition ($adapterManifest.Contains('worldline-plugin-protocol')) "${adapterCrate} must translate the shared protocol vocabulary."
+    Assert-Condition (-not $adapterManifest.Contains('worldline-kernel')) "${adapterCrate} must stay transport-only and must not depend on worldline-kernel."
+}
+
+$referenceExternalManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-reference-external/Cargo.toml') -Raw
+Assert-Condition ($referenceExternalManifest.Contains('worldline-kernel')) 'worldline-reference-external must bridge adapters to kernel contracts.'
+
+foreach ($consumerContractCrate in @('worldline-kernel', 'worldline-reference-external')) {
+    $consumerSourceRoot = Get-RepositoryPath -RelativePath "crates/${consumerContractCrate}/src"
+    $consumerSourceFiles = @(Get-ChildItem -LiteralPath $consumerSourceRoot -Filter '*.rs' -File -Recurse)
+    foreach ($sourceFile in $consumerSourceFiles) {
+        $sourceText = Get-Content -LiteralPath $sourceFile.FullName -Raw
+        foreach ($forbiddenToken in @('wasmtime::', 'StoreLimits', 'ComponentLinker')) {
+            Assert-Condition (-not $sourceText.Contains($forbiddenToken)) "Consumer contract source '$($sourceFile.Name)' must not reference WASM runtime types."
+        }
+    }
+}
+
 Write-Host 'Architecture guard passed: GRACE layout and kernel dependency direction are valid.'

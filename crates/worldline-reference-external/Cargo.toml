@@ -1,0 +1,17 @@
+[package]
+name = "worldline-reference-external"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Cross-mode reference plugin (builtin, native-process, WASM) and conformance suites for the Worldline external plugin boundary"
+
+[dependencies]
+serde_json = "1"
+worldline-kernel = { path = "../worldline-kernel" }
+worldline-native-host = { path = "../worldline-native-host" }
+worldline-plugin-protocol = { path = "../worldline-plugin-protocol" }
+worldline-wasm-host = { path = "../worldline-wasm-host" }
+
+[dev-dependencies]
+wit-component = "0.258"

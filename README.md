@@ -13,8 +13,9 @@ isolated plugins behind capability-based authorization.
 
 Это Rust workspace для Grace Changes `C-KERNEL-PLUGIN-RUNTIME-BOOTSTRAP-20260827`,
 `C-KERNEL-CAPABILITY-SECURITY-20260828`,
-`C-KERNEL-CAPABILITY-RPC-EVENT-TRANSPORT-20260828` и
-`C-KERNEL-PERSISTENCE-RECOVERY-MODEL-20260828`. Ядро намеренно не знает о
+`C-KERNEL-CAPABILITY-RPC-EVENT-TRANSPORT-20260828`,
+`C-KERNEL-PERSISTENCE-RECOVERY-MODEL-20260828` и
+`C-KERNEL-STABLE-IPC-WASM-COMPONENT-BOUNDARY-20260831`. Ядро намеренно не знает о
 browser engine, LLM, UI, истории, вкладках или конкретном agent runtime.
 
 В workspace входят:
@@ -24,13 +25,24 @@ browser engine, LLM, UI, истории, вкладках или конкрет�
   `RuntimeId`, split-phase activation/deactivation, lifecycle recovery,
   capability discovery/selection, lifecycle scopes, owned effects, principals,
   in-memory grants, resource attenuation, revocation, bounded capability RPC,
-  typed event transport, logical event journal, invocation broker и append-only
-  trajectory;
+  typed event transport, logical event journal, invocation broker, opaque
+  external handle table и append-only trajectory;
+- `worldline-plugin-protocol` — transport-neutral vocabulary: package/plugin
+  identities, manifest schema, WIT component definitions и versioned native
+  IPC envelopes;
+- `worldline-native-host` — supervised native process execution adapter over
+  stdio IPC: handshake, framed envelopes, bounded in-flight requests/stderr и
+  graceful shutdown timeouts;
+- `worldline-wasm-host` — sandboxed WASM Component Model execution adapter
+  (wasmtime, zero-ambient WASI authority, explicit quotas и trap isolation);
+- `worldline-reference-external` — cross-mode reference plugin (`reference.echo/v1`),
+  conformance suites (`EchoFixture`), malicious WASM containment, protocol
+  robustness и external S1 proving paths;
 - `worldline-demo` — host-level S0/S1 proving slices, показывающие разницу
   между capability availability и authorization, independent observation,
-  restart continuity и compatible provider replacement.
+  restart continuity и compatible provider replacement;
 - `worldline-reference` — browser-like, agent-like и UI-like reference
-  families, host-local observation fixture и постоянный S0 proving slice.
+  families, host-local observation fixture и постоянный S0 proving slice;
 - `worldline-storage` — production SQLite StateBackend, transactional outbox,
   durable EventJournal, metadata-only audit, content-addressed blobs,
   persistent jobs, backup/restore и hard-kill recovery fixtures.

@@ -40,5 +40,27 @@
       <M-REFERENCE-PROVING-SLICE />
       <M-CI-BASELINE />
     </M-PERSISTENCE-RECOVERY>
+    <M-EXTERNAL-PLUGIN-BOUNDARY>
+      <Summary>Stable external plugin boundary: transport-neutral protocol vocabulary, versioned WIT and native IPC envelopes, runtime-scoped attenuated handles, native process supervision, sandboxed WASM Component host adapter, least-authority WASI, and 3-mode cross-conformance.</Summary>
+      <Path>docs/adr/ADR-EXTERNAL-PLUGIN-BOUNDARY-V1.md</Path>
+      <Path>crates/worldline-plugin-protocol/Cargo.toml</Path>
+      <Path>crates/worldline-plugin-protocol/src/lib.rs</Path>
+      <Path>crates/worldline-plugin-protocol/wit/worldline-plugin.wit</Path>
+      <Path>crates/worldline-native-host/Cargo.toml</Path>
+      <Path>crates/worldline-native-host/src/lib.rs</Path>
+      <Path>crates/worldline-wasm-host/Cargo.toml</Path>
+      <Path>crates/worldline-wasm-host/src/lib.rs</Path>
+      <Path>crates/worldline-reference-external/Cargo.toml</Path>
+      <Path>crates/worldline-reference-external/src/lib.rs</Path>
+      <Path>crates/worldline-reference-external/tests/cross_mode_conformance.rs</Path>
+      <Path>crates/worldline-reference-external/tests/malicious_wasm_acceptance.rs</Path>
+      <Path>crates/worldline-reference-external/tests/protocol_robustness.rs</Path>
+      <Path>crates/worldline-reference-external/tests/external_s1_proving.rs</Path>
+      <Path>crates/worldline-kernel/src/external.rs</Path>
+      <Path>crates/worldline-kernel/tests/external_boundary_acceptance.rs</Path>
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+    </M-EXTERNAL-PLUGIN-BOUNDARY>
   </GD-MAIN>
 </GraceGraphDocument>

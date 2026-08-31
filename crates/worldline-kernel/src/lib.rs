@@ -11,6 +11,7 @@ mod capability;
 mod effect;
 mod error;
 mod events;
+mod external;
 mod invocation;
 mod kernel;
 mod persistence;
@@ -35,6 +36,7 @@ pub use events::{
     InvocationCompletedMetadata, OverflowPolicy, PublishReport, SubscriptionHandle, SubscriptionId,
     SubscriptionOptions, invocation_completed_event_contract,
 };
+pub use external::ExternalHandleView;
 pub use invocation::{CapabilityHandle, InvocationContext, MAX_NESTED_INVOCATION_DEPTH};
 pub use kernel::{Kernel, ReconcileReport, RuntimeMetadata};
 pub use persistence::{

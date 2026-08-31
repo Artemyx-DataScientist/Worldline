@@ -21,8 +21,13 @@
 - **M0.5 — Done.** Persistence and Recovery Model закрыт production SQLite
   state/outbox/journal, selective audit, CAS blobs, persistent jobs,
   backup/restore, hard-kill recovery tests и production-backed S1.
-- **M0.6 — Next.** Следующий implementation milestone — Stable IPC and WASM
-  Component Boundary.
+- **M0.6 — Done.** Stable IPC and WASM Component Boundary закрыт
+  `worldline-plugin-protocol`, WIT/IPC envelopes, opaque handles,
+  least-authority WASI/quotas, supervised native host, sandboxed WASM host,
+  malicious WASM containment, protocol robustness, 3-mode cross-conformance
+  и external S1 proving paths.
+- **M0.7 — Next.** Следующий implementation milestone — Operability,
+  compatibility and upgrade.
 
 ## 1. Куда идёт Worldline
 
@@ -496,7 +501,7 @@ production-backed persistence S1, backup/restore validation и repository-owned
 `All` suite. Локальный evidence не объявляет hosted CI run без именованного
 GitHub Actions результата.
 
-### M0.6 — Stable IPC and WASM Component Boundary — Next
+### M0.6 — Stable IPC and WASM Component Boundary — Done
 
 - выбрать и закрепить поддерживаемую версию WASM Component Model/WASI;
 - определить единый logical contract и adapters для builtin Rust, native IPC и
@@ -518,7 +523,7 @@ GitHub Actions результата.
 сохранить ничего, что ему явно не делегировано, и не может повредить работу
 других runtimes.
 
-### M0.7 — Operability, compatibility and upgrade
+### M0.7 — Operability, compatibility and upgrade — Next
 
 - stable/experimental capability lifecycle и правила major-version change;
 - compatibility matrix: current kernel с SDK `N`, `N-1`, `N-2` и current SDK с

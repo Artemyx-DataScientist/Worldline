@@ -1,0 +1,20 @@
+[package]
+name = "worldline-native-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Supervised native-process execution adapter for the Worldline external plugin boundary"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+worldline-plugin-protocol = { path = "../worldline-plugin-protocol" }
+serde_json = "1"
+
+[[bin]]
+name = "reference-native-provider"
+path = "src/bin/reference-native-provider.rs"
+
+[[bin]]
+name = "test-violator"
+path = "src/bin/test-violator.rs"

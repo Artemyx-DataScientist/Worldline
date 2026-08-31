@@ -1,0 +1,14 @@
+[package]
+name = "worldline-wasm-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Sandboxed WASM Component execution adapter for the Worldline external plugin boundary"
+
+[dependencies]
+worldline-plugin-protocol = { path = "../worldline-plugin-protocol" }
+wasmtime = "48"
+
+[dev-dependencies]
+wit-component = "0.258"

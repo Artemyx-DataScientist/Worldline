@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "benign-echo",
+    "memory-hog",
+    "spin-loop",
+    "trapper",
+    "foreign-importer",
+]
+resolver = "2"

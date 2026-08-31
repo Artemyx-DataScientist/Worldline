@@ -247,6 +247,7 @@ pub struct Kernel {
     next_operation_sequence: u64,
     next_start_tick: u64,
     stale_completions: Vec<RuntimeId>,
+    external: crate::external::ExternalHandleTable,
 }
 
 impl Default for Kernel {
@@ -342,6 +343,7 @@ impl Kernel {
             next_operation_sequence: 0,
             next_start_tick: 0,
             stale_completions: Vec::new(),
+            external: crate::external::ExternalHandleTable::default(),
         })
     }
 
@@ -1023,6 +1025,102 @@ impl Kernel {
     pub fn runtime_id_for_plugin(&self, plugin: &PluginId) -> Option<RuntimeId> {
         let installation = self.installation_for_plugin(plugin)?;
         self.runtime_id_for_installation(&installation)
+    }
+
+    /// Issues a host-created opaque authority handle attenuated to exactly
+    /// `operations` over `resources` and bound to the currently active
+    /// runtime. Empty sets are valid and delegate nothing (default deny).
+    /// Only the owning runtime can resolve, use, or revoke the value.
+    pub fn issue_external_handle(
+        &mut self,
+        runtime: &RuntimeId,
+        operations: BTreeSet<crate::OperationId>,
+        resources: BTreeSet<crate::ResourceId>,
+    ) -> Result<u64, KernelError> {
+        if !self
+            .runtimes
+            .get(runtime)
+            .is_some_and(|record| record.metadata.state == RuntimeState::Active)
+        {
+            return Err(KernelError::ExternalRuntimeNotActive { runtime: *runtime });
+        }
+        let handle = self.external.issue(runtime, operations, resources);
+        let plugin_id = self
+            .runtimes
+            .get(runtime)
+            .map(|record| record.metadata.plugin_id.clone())
+            .expect("active runtime must have a plugin record");
+        self.trajectory.push(
+            plugin_id,
+            TrajectoryEventKind::ExternalHandleIssued {
+                runtime_id: *runtime,
+                handle,
+            },
+        );
+        Ok(handle)
+    }
+
+    /// Resolves a handle for the claiming runtime. Wrong-runtime, revoked,
+    /// and unknown values produce distinct deterministic denials and a
+    /// metadata-only trajectory fact.
+    pub fn resolve_external_handle(
+        &self,
+        runtime: &RuntimeId,
+        handle: u64,
+    ) -> Result<crate::external::ExternalHandleView, KernelError> {
+        self.external.view(runtime, handle).inspect_err(|error| {
+            self.trajectory
+                .push_security(TrajectoryEventKind::ExternalHandleDenied {
+                    runtime_id: *runtime,
+                    handle,
+                    reason: error.to_string(),
+                });
+        })
+    }
+
+    /// Verifies that `operation` over `resource` lies inside the attenuation
+    /// encoded at issue time. Attenuation can never be widened by a guest.
+    pub fn check_external_handle_scope(
+        &self,
+        runtime: &RuntimeId,
+        handle: u64,
+        operation: &crate::OperationId,
+        resource: &crate::ResourceId,
+    ) -> Result<(), KernelError> {
+        self.external
+            .check_scope(runtime, handle, operation, resource)
+            .inspect_err(|error| {
+                self.trajectory
+                    .push_security(TrajectoryEventKind::ExternalHandleDenied {
+                        runtime_id: *runtime,
+                        handle,
+                        reason: error.to_string(),
+                    });
+            })
+    }
+
+    /// Revokes one handle. Only the owning runtime may revoke it.
+    pub fn revoke_external_handle(
+        &mut self,
+        runtime: &RuntimeId,
+        handle: u64,
+    ) -> Result<(), KernelError> {
+        self.external.revoke(runtime, handle)?;
+        if let Some(record) = self.runtimes.get(runtime) {
+            self.trajectory.push(
+                record.metadata.plugin_id.clone(),
+                TrajectoryEventKind::ExternalHandleRevoked {
+                    runtime_id: *runtime,
+                    handle,
+                },
+            );
+        }
+        Ok(())
+    }
+
+    /// Number of live handles currently owned by `runtime`.
+    pub fn live_external_handles(&self, runtime: &RuntimeId) -> usize {
+        self.external.live_count(runtime)
     }
 
     pub fn live_runtime_id_for_installation(
@@ -2466,6 +2564,16 @@ impl Kernel {
             self.registry.unpublish(&runtime_id, &publication.id);
         }
         instance.state_lease.revoke();
+        let cleared_external_handles = self.external.close_runtime(&runtime_id);
+        if cleared_external_handles > 0 {
+            self.trajectory.push(
+                plugin_id.clone(),
+                TrajectoryEventKind::ExternalHandlesCleared {
+                    runtime_id,
+                    count: cleared_external_handles,
+                },
+            );
+        }
         let _ = self.transition_runtime(runtime_id, RuntimeState::Deactivating);
         if let Some(record) = self.plugins.get_mut(&installation_id) {
             record.state = RuntimeState::Deactivating;

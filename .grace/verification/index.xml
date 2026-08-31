@@ -8,6 +8,7 @@
         <V-M-GRACE-CONTROL-LAYER />
         <V-M-CI-BASELINE />
         <V-M-PERSISTENCE-RECOVERY />
+        <V-M-EXTERNAL-PLUGIN-BOUNDARY />
       </Owns>
     </VD-MAIN>
   </VerificationDocuments>

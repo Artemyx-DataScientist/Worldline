@@ -1,0 +1,308 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-KERNEL-STABLE-IPC-WASM-COMPONENT-BOUNDARY-20260831>
+    <IntentSummary>Establish the first stable external plugin boundary: one logical capability contract implemented by builtin Rust, supervised native-process, and sandboxed WASM Component providers; versioned transport-neutral protocol and manifest vocabulary outside the kernel; runtime-scoped opaque attenuated host handles; least-authority WASI surface and resource quotas; supervised child processes with bounded pipes and shutdown deadlines; trap, crash, protocol and resource failure containment; and one unchanged reference consumer passing the same conformance suite against all three execution modes, proven through the repository-owned CI suites.</IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-KERNEL-CAPABILITY-RUNTIME</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>M-PERSISTENCE-RECOVERY</Value>
+        <Value>crates/worldline-kernel/src/security.rs</Value>
+        <Value>crates/worldline-kernel/src/invocation.rs</Value>
+        <Value>crates/worldline-kernel/src/rpc.rs</Value>
+        <Value>crates/worldline-kernel/src/events.rs</Value>
+        <Value>crates/worldline-reference/src/s0.rs</Value>
+        <Value>crates/worldline-reference/src/s1.rs</Value>
+        <Value>crates/worldline-storage/src/lib.rs</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>.grace/graph/index.xml</Value>
+        <Value>.grace/verification/index.xml</Value>
+      </MustExist>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>docs/adr/ADR-EXTERNAL-PLUGIN-BOUNDARY-V1.md</Value>
+        <Value>crates/worldline-plugin-protocol/Cargo.toml</Value>
+        <Value>crates/worldline-plugin-protocol/src/lib.rs</Value>
+        <Value>crates/worldline-plugin-protocol/wit/worldline-plugin.wit</Value>
+        <Value>crates/worldline-native-host/Cargo.toml</Value>
+        <Value>crates/worldline-native-host/src/lib.rs</Value>
+        <Value>crates/worldline-native-host/src/bin/reference-native-provider.rs</Value>
+        <Value>crates/worldline-wasm-host/Cargo.toml</Value>
+        <Value>crates/worldline-wasm-host/src/lib.rs</Value>
+        <Value>crates/worldline-reference-external/Cargo.toml</Value>
+        <Value>crates/worldline-reference-external/src/lib.rs</Value>
+        <Value>crates/worldline-reference-external/guest/Cargo.toml</Value>
+        <Value>crates/worldline-reference-external/tests/cross_mode_conformance.rs</Value>
+        <Value>crates/worldline-reference-external/tests/malicious_wasm_acceptance.rs</Value>
+        <Value>crates/worldline-reference-external/tests/protocol_robustness.rs</Value>
+        <Value>crates/worldline-kernel/tests/external_boundary_acceptance.rs</Value>
+      </MustExist>
+      <MustVerify>
+        <Module>M-EXTERNAL-PLUGIN-BOUNDARY</Module>
+        <Module>M-KERNEL-CAPABILITY-RUNTIME</Module>
+        <Module>M-REFERENCE-PROVING-SLICE</Module>
+        <Module>M-CI-BASELINE</Module>
+      </MustVerify>
+      <MustPassCommand>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-EXTERNAL-PLUGIN-BOUNDARY />
+        <M-KERNEL-CAPABILITY-RUNTIME />
+        <M-REFERENCE-PROVING-SLICE />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-EXTERNAL-PLUGIN-BOUNDARY />
+        <V-M-KERNEL-CAPABILITY-RUNTIME />
+        <V-M-REFERENCE-PROVING-SLICE />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>docs/adr/ADR-EXTERNAL-PLUGIN-BOUNDARY-V1.md</File>
+      <File>Cargo.toml</File>
+      <File>Cargo.lock</File>
+      <File>crates/worldline-kernel/Cargo.toml</File>
+      <File>crates/worldline-kernel/src/lib.rs</File>
+      <File>crates/worldline-kernel/src/error.rs</File>
+      <File>crates/worldline-kernel/src/security.rs</File>
+      <File>crates/worldline-kernel/src/kernel.rs</File>
+      <File>crates/worldline-kernel/src/invocation.rs</File>
+      <File>crates/worldline-kernel/src/trajectory.rs</File>
+      <File>crates/worldline-kernel/src/external.rs</File>
+      <File>crates/worldline-kernel/tests/external_boundary_acceptance.rs</File>
+      <File>crates/worldline-plugin-protocol/Cargo.toml</File>
+      <File>crates/worldline-plugin-protocol/src/lib.rs</File>
+      <File>crates/worldline-plugin-protocol/src/identity.rs</File>
+      <File>crates/worldline-plugin-protocol/src/manifest.rs</File>
+      <File>crates/worldline-plugin-protocol/src/envelope.rs</File>
+      <File>crates/worldline-plugin-protocol/wit/worldline-plugin.wit</File>
+      <File>crates/worldline-native-host/Cargo.toml</File>
+      <File>crates/worldline-native-host/src/lib.rs</File>
+      <File>crates/worldline-native-host/src/handshake.rs</File>
+      <File>crates/worldline-native-host/src/codec.rs</File>
+      <File>crates/worldline-native-host/src/supervisor.rs</File>
+      <File>crates/worldline-native-host/src/adapter.rs</File>
+      <File>crates/worldline-native-host/src/bin/reference-native-provider.rs</File>
+      <File>crates/worldline-wasm-host/Cargo.toml</File>
+      <File>crates/worldline-wasm-host/src/lib.rs</File>
+      <File>crates/worldline-wasm-host/src/adapter.rs</File>
+      <File>crates/worldline-wasm-host/src/wasi.rs</File>
+      <File>crates/worldline-wasm-host/src/limits.rs</File>
+      <File>crates/worldline-wasm-host/tests/wasm_host_acceptance.rs</File>
+      <File>crates/worldline-reference-external/Cargo.toml</File>
+      <File>crates/worldline-reference-external/src/lib.rs</File>
+      <File>crates/worldline-reference-external/src/echo.rs</File>
+      <File>crates/worldline-reference-external/guest/Cargo.toml</File>
+      <File>crates/worldline-reference-external/guest/src/lib.rs</File>
+      <File>crates/worldline-reference-external/tests/cross_mode_conformance.rs</File>
+      <File>crates/worldline-reference-external/tests/malicious_wasm_acceptance.rs</File>
+      <File>crates/worldline-reference-external/tests/protocol_robustness.rs</File>
+      <File>crates/worldline-reference-external/tests/external_s1_proving.rs</File>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      <File>README.md</File>
+      <File>ROADMAP.md</File>
+      <File>.grace/graph/index.xml</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.grace/verification/index.xml</File>
+      <File>.grace/verification/main.xml</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Inventory current interfaces and write ADR-EXTERNAL-PLUGIN-BOUNDARY-V1 including the cordis-rs lineage record</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>ADR-EXTERNAL-PLUGIN-BOUNDARY-V1 exists and documents Context, Execution modes, Logical contract versus physical transport, WASM Component Model selection, Supported WASI surface, Native IPC transport selection, Handle authority model, Resource isolation, Package identity and manifest, Failure mapping, Compatibility policy v1, Rejected alternatives, Known limitations, and Reopen conditions.</Criterion>
+          <Criterion>The ADR explicitly rejects a public Rust dylib ABI for third-party plugins and records the exact supported Component Model/WASI baseline and native IPC protocol version selected by implementation rather than saying "latest".</Criterion>
+          <Criterion>The ADR contains a dedicated "Cordis-rs lineage and deliberate divergence" section recording: cordis-rs is a conceptual ancestor and control reference, not a dependency, vendored code, or an API compatibility target; the concepts consciously inherited from its lifecycle/Fiber/effects model, namely managed split-phase activation, per-scope effect ownership with deterministic LIFO cleanup, compositional runtime, and deterministic reconciliation; the deliberate divergences with reasons, namely no Arc&lt;dyn Any&gt;/trait-object-style capability ABI crosses the external boundary because versioned WIT and IPC envelopes replace it, effect cleanup is never conflated with persistence rollback or crash recovery, lifecycle never holds blocking global locks while plugin code runs, and the event bus is never universalized into an RPC or command mechanism; and the capabilities cordis-rs never provided that this boundary adds, namely the identity chain, explicit default-deny authority, crash and quarantine isolation, opaque attenuated handles, and installation-owned persistence/recovery.</Criterion>
+          <Criterion>The ADR records the inventory of current kernel runtime/RPC/event/state interfaces that external adapters must preserve and states that adapters reuse existing broker, event transport and installation state semantics rather than introducing a second RPC or event model.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Introduce worldline-plugin-protocol: package identity, manifest and transport-neutral envelope vocabulary</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-plugin-protocol defines PluginPackageId, PluginDefinitionId, PackageVersion and AbiVersion as distinct identities where package identity is distribution identity only, never grants authority, and package version is independent of capability contract versions.</Criterion>
+          <Criterion>The manifest schema carries manifest schema version, package identity and version, provided plugin definitions, execution mode, required ABI baseline, provided and required capability contracts, requested host permissions, resource limit hints and entrypoint/component artifact; the manifest describes requested and declared permissions without granting them; unknown mandatory fields or unsupported schema versions fail closed; package-relative paths cannot escape the package root; loading a package never activates plugin authority.</Criterion>
+          <Criterion>The transport-neutral envelope vocabulary provides versioned message representation with explicit compatibility rules for unknown fields and versions, bounds payload size before allocation, and never relies on Rust struct layout, trait object vtables, raw pointers, Arc/Rc, or panic unwinding across the boundary.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-plugin-protocol</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Implement kernel external runtime representation and the runtime-scoped opaque handle table</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-kernel represents external runtimes through the existing PluginDefinitionId to InstallationId to RuntimeId identity chain and exposes a host-created, runtime-scoped opaque handle table where handles are attenuated to explicit operations and resources, revocable, non-persistent, and never globally meaningful identities.</Criterion>
+          <Criterion>Every handle use verifies exact RuntimeId and session ownership; handles from crashed, replaced or restarted runtimes are invalid; guessed, replayed or cross-runtime handles receive deterministic typed denials including InvalidExternalHandle, ExternalHandleRevoked, ExternalHandleWrongRuntime and ExternalHandleScopeDenied without panicking the host; guests cannot widen the scope encoded in host handle metadata and delegation can only produce equal-or-narrower authority.</Criterion>
+          <Criterion>Runtime terminal paths clear the runtime handle table together with grants, state leases, subscriptions and provider publications; external boundary facts are recorded as metadata-only trajectory and audit records without raw payloads; worldline-kernel public contracts gain no WASM-runtime-specific or IPC-specific types.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --test external_boundary_acceptance</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Implement the versioned native IPC codec and handshake</Title>
+        <DependsOn>
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The native IPC protocol is explicitly versioned with a handshake carrying protocol version, host nonce/session identity, package identity, plugin definition identity, supported ABI range and declared capability interfaces; child-supplied RuntimeId or PrincipalId is never authoritative and the host assigns authoritative runtime and security identity only after successful handshake and admission.</Criterion>
+          <Criterion>Message classes LifecycleRequest, LifecycleResult, CapabilityRequest, CapabilityResult, Cancellation, EventPublishRequest, StateRequest, StateResult and ProtocolError are correlated by explicit bounded protocol identity; in-flight request count and queued bytes are bounded; oversized frames are rejected before unbounded allocation.</Criterion>
+          <Criterion>Unknown, malformed, truncated, duplicated, or unsupported-version messages produce deterministic protocol errors that never panic the host; a protocol violation may terminate or quarantine only the offending RuntimeId; unsupported protocol versions fail the handshake explicitly.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-native-host</Command>
+        </Verification>
+      </T-004>
+
+      <T-005>
+        <Title>Implement native child supervision, the native execution adapter, and builtin/native cross-mode conformance</Title>
+        <DependsOn>
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Native provider child processes are owned by exactly one RuntimeId; unexpected exit moves only that runtime through the existing crash/restart/quarantine policy; stdout and stderr handling is bounded so a child cannot deadlock the host by filling an inherited pipe; graceful shutdown has a deadline after which the host may terminate the owned child; killing a child process never kills the host.</Criterion>
+          <Criterion>Native provider capability calls route through the capability broker with admission-time authorization; trusted code provenance never bypasses broker authorization and trust does not substitute for grants.</Criterion>
+          <Criterion>The unchanged reference consumer passes the shared semantic suite against builtin and native providers covering capability discovery, authorization denial, authorized RPC result, deadline, cancellation, state isolation, restart state continuity, runtime authority discontinuity and event observation; a restarted native runtime receives a new RuntimeId, retains installation state and inherits no runtime grants.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-reference-external --test cross_mode_conformance</Command>
+        </Verification>
+      </T-005>
+
+      <T-006>
+        <Title>Define WIT component contracts and implement the WASM Component host adapter</Title>
+        <DependsOn>
+          <T-002 />
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>WIT contracts separate worldline:plugin/lifecycle with activate and deactivate, worldline:capability/invoke, worldline:event/publish, worldline:state/access and worldline:host/context responsibilities without exposing a kernel object, provider registry access, or an event channel that substitutes for capability invocation; state access uses installation-scoped host resources; exact WIT package and module names may differ after implementation review while responsibilities remain separated.</Criterion>
+          <Criterion>The WASM host adapter runs components against the exact Component Model/WASI baseline pinned by the ADR; an unsupported component ABI fails before activation; WASM runtime-specific types do not enter capability consumer contracts.</Criterion>
+          <Criterion>A guest trap is isolated to the exact invocation and runtime, maps into existing RPC and runtime failure semantics without pretending every failure is a generic PluginError, does not crash the host, and does not damage unrelated runtimes.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-wasm-host</Command>
+        </Verification>
+      </T-006>
+
+      <T-007>
+        <Title>Enforce least-authority WASI configuration and resource limits</Title>
+        <DependsOn>
+          <T-006 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>WASM components start from no ambient capability: filesystem, network, clock, random and environment permission classes are explicit least-authority host policy; filesystem access is limited to explicitly scoped preopened directories that cannot escape their root; there is no ambient inbound or outbound network access; environment variables are not inherited by default; manifest requests never equal granted WASI permissions.</Criterion>
+          <Criterion>Required limit dimensions are enforced: linear memory, component/resource table entries, host-call concurrency, host-call payload bytes, invocation count and rate budget, wall-time and deadline, and the selected CPU/fuel/epoch-equivalent execution budget; exhaustion maps to explicit typed failure classes, does not permanently consume a provider registry slot, and has an explicit quota reset and restart policy.</Criterion>
+          <Criterion>Oversized host-call payloads are rejected before unbounded allocation, and host-call concurrency bounds cannot be exhausted into host starvation by one guest.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-wasm-host</Command>
+        </Verification>
+      </T-007>
+
+      <T-008>
+        <Title>Implement the WASM reference provider and pass the three-mode cross-mode conformance suite</Title>
+        <DependsOn>
+          <T-005 />
+          <T-007 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>reference.echo/v1 with echo, stateful_increment and publish_observation is implemented by builtin, native-process and WASM Component providers while one unchanged consumer and one logical CapabilityId remain fixed across execution modes.</Criterion>
+          <Criterion>All three implementations pass the same semantic contract suite; the stateful operation uses the same InstallationId persistence semantics; observation uses M0.4 event transport semantics with host-stamped producer identity.</Criterion>
+          <Criterion>External payloads cannot forge caller, producer, grant or approval metadata; a provider can be replaced across execution modes including builtin to native, native to WASM and WASM to builtin without restarting a compatible consumer, and ProviderSelf never crosses the runtime or replacement boundary.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-reference-external --test cross_mode_conformance</Command>
+        </Verification>
+      </T-008>
+
+      <T-009>
+        <Title>Pass the malicious WASM suite, protocol robustness suite, and static boundary checks</Title>
+        <DependsOn>
+          <T-008 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The malicious WASM suite proves every specified attempt, including un-permitted filesystem, network and environment access, capability invocation without a delegated handle, guessing another runtime's handle, reusing a handle after restart, widening handle scope, accessing another installation's state, committing a stale transaction after runtime termination, forging PrincipalId, RuntimeId or event producer metadata, exceeding memory quota or execution budget, flooding host calls, sending oversized payloads and trapping mid-invocation, ends in deterministic denial or contained failure and leaves an unrelated reference runtime usable.</Criterion>
+          <Criterion>Protocol robustness tests for truncated frames, oversized frames, unknown message kinds, unsupported protocol versions, duplicate responses, responses for unknown requests, late responses after cancellation, malformed manifests, unsupported manifest schemas, invalid handles and cross-runtime handle replay never panic the kernel.</Criterion>
+          <Criterion>Static architecture checks prove worldline-kernel exposes no Rust dynamic ABI at the external boundary, WASM and IPC-specific types stay out of capability consumer contracts, the kernel remains free of browser, agent and UI product types, third-party plugins do not link kernel internals, and WIT and IPC adapters reuse existing RPC, event and state semantics rather than parallel replacement implementations.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        </Verification>
+      </T-009>
+
+      <T-010>
+        <Title>Prove S1-equivalent persistence and restart paths through external providers</Title>
+        <DependsOn>
+          <T-008 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>S1-equivalent proving paths execute boot profile, installation/runtime, capability RPC, state commit, independent event observation and restart/restore through native-process and WASM providers with installation state preserved while live authority in the form of handles, grants, state leases and provider publications is not inherited.</Criterion>
+          <Criterion>Open external state transactions fail after runtime termination; restarted external runtimes receive new state handles while installation state continues; M0.5 persistence and recovery semantics survive external-provider restart.</Criterion>
+          <Criterion>S0 and S1 remain green with the builtin provider and existing M0.1-M0.5 acceptance suites remain green.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+        </Verification>
+      </T-010>
+
+      <T-011>
+        <Title>Integrate M0.6 evidence into the stable repository-owned CI suites</Title>
+        <DependsOn>
+          <T-009 />
+          <T-010 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Stable suite names Source, Correctness, ArchitectureSecurity and ProvingSlice are unchanged; Source validates WIT and manifest schema; Correctness runs cross-mode logical conformance and protocol codec tests; ArchitectureSecurity runs malicious WASM, handle authority and forbidden dependency/boundary checks; ProvingSlice runs native and WASM external-provider end-to-end paths.</Criterion>
+          <Criterion>No essential M0.6 verification exists only in GitHub Actions YAML; CI command failures propagate nonzero and no required test is silently skipped or marked continue-on-error.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-011>
+
+      <T-012>
+        <Title>Reconcile durable GRACE projections and roadmap after fresh evidence</Title>
+        <DependsOn>
+          <T-011 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>M-EXTERNAL-PLUGIN-BOUNDARY and V-M-EXTERNAL-PLUGIN-BOUNDARY are routed exactly once in the graph and verification projections and describe the actual implementation, named fresh local evidence and remaining unverified hosted, device and manual boundaries.</Criterion>
+          <Criterion>ROADMAP marks M0.6 Done and M0.7 Next only after cross-mode and hostile evidence passes; README documents the external boundary and CI suite mapping; no current context, graph, verification or active plan artifact is mutated to hide an implementation gap.</Criterion>
+          <Criterion>The completion packet reports operation identity, authority mode, change and task IDs, branch and dirty-tree status, exact files changed, scope delta, commands and results, scaffolded, wired and verified claims separately, unrun checks, remaining risks and rollback notes; local evidence is not promoted to hosted CI evidence without a named GitHub Actions run.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-012>
+    </ImplementationPlan>
+  </C-KERNEL-STABLE-IPC-WASM-COMPONENT-BOUNDARY-20260831>
+</GraceChangePlan>
