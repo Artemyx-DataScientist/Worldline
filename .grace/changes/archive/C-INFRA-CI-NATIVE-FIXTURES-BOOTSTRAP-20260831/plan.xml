@@ -1,0 +1,72 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-INFRA-CI-NATIVE-FIXTURES-BOOTSTRAP-20260831>
+    <IntentSummary>Explicitly build external native test helper binaries in repository-owned CI suites so isolated clean runners execute cross-package tests reliably.</IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-CI-BASELINE</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>crates/worldline-native-host/src/bin/reference-native-provider.rs</Value>
+        <Value>crates/worldline-native-host/src/bin/test-violator.rs</Value>
+      </MustExist>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+      </MustExist>
+      <MustVerify>
+        <Module>M-CI-BASELINE</Module>
+      </MustVerify>
+      <MustPassCommand>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Add Build-ExternalNativeFixtures helper to Invoke-WorldlineCi.ps1</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Invoke-WorldlineCi.ps1 defines a helper function to build worldline-native-host binary targets.</Criterion>
+          <Criterion>Invoke-CorrectnessSuite, Invoke-ArchitectureSecuritySuite, and Invoke-ProvingSliceSuite call the helper before invoking tests depending on native binaries.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Execute local verification and full CI suites</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>All suites in Invoke-WorldlineCi.ps1 pass completely on local environment.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-002>
+    </ImplementationPlan>
+  </C-INFRA-CI-NATIVE-FIXTURES-BOOTSTRAP-20260831>
+</GraceChangePlan>

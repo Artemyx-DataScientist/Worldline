@@ -1,0 +1,39 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-INFRA-CI-NATIVE-FIXTURES-BOOTSTRAP-20260831>
+    <Summary>Explicitly build external native test helper binaries (reference-native-provider, test-violator) prior to cross-package integration test execution in repository-owned CI suites.</Summary>
+    <Problem>Isolated CI runners executing cross-package integration tests (worldline-reference-external) in clean job environments fail to locate native child process binaries (reference-native-provider, test-violator) because cargo test for one crate does not implicitly build bin targets of another crate.</Problem>
+    <Goals>
+      <Goal>Add explicit repository-owned step to build worldline-native-host binary targets prior to running suites requiring native child process fixtures.</Goal>
+      <Goal>Ensure local and hosted CI jobs execute identical commands without duplicating build logic in workflow YAML.</Goal>
+      <Goal>Pass all four CI suites (Source, Correctness, ArchitectureSecurity, ProvingSlice) on fresh clean environments.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Repository-owned CI runner Invoke-WorldlineCi.ps1 owns the build invocation for external native test fixtures.</Constraint>
+      <Constraint>GitHub Actions workflow files remain thin orchestration invoking Invoke-WorldlineCi.ps1 suites.</Constraint>
+      <Constraint>No green by skipping: all native provider, violator, and S1 proving tests remain strict required gates.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Hardcoding platform-specific paths or binary locations outside Cargo's target profile directory.</NonGoal>
+      <NonGoal>Modifying capability broker authorization or plugin runtime contracts.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>Invoke-WorldlineCi.ps1 builds worldline-native-host binary targets in Correctness, ArchitectureSecurity, and ProvingSlice suites before invoking tests that spawn child processes.</Criterion>
+      <Criterion>ArchitectureSecurity and ProvingSlice suites pass on clean target environments without relying on prior workspace test runs.</Criterion>
+      <Criterion>Invoke-WorldlineCi.ps1 -Suite All passes completely.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+      <ExpectedEvidence>All suites build native helper fixtures explicitly and pass protocol robustness, cross-mode conformance, and external S1 proving tests.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>Cargo output directory follows standard target/debug layout on host runner.</Assumption>
+    </Assumptions>
+  </C-INFRA-CI-NATIVE-FIXTURES-BOOTSTRAP-20260831>
+</GraceChangeSpec>

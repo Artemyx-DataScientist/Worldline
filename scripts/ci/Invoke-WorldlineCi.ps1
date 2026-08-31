@@ -74,8 +74,13 @@ function Invoke-SourceSuite {
     Invoke-WorldlineCommand -Label 'plugin protocol manifest and envelope schema' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-plugin-protocol')
 }
 
+function Build-ExternalNativeFixtures {
+    Invoke-WorldlineCommand -Label 'build native test helpers' -FilePath 'cargo' -Arguments @('build', '-p', 'worldline-native-host', '--bins')
+}
+
 function Invoke-CorrectnessSuite {
     Write-Host '--- Correctness suite ---'
+    Build-ExternalNativeFixtures
     Invoke-WorldlineCommand -Label 'workspace tests' -FilePath 'cargo' -Arguments @('test', '--workspace')
     Invoke-WorldlineCommand -Label 'storage hard-kill recovery tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-storage', '--features', 'test-failpoints', '--test', 'recovery_acceptance', '--', '--test-threads=1')
     Invoke-WorldlineCommand -Label 'upgrade chaos recovery tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-storage', '--features', 'test-failpoints', '--test', 'upgrade_chaos_acceptance', '--', '--test-threads=1')
@@ -86,6 +91,7 @@ function Invoke-CorrectnessSuite {
 
 function Invoke-ArchitectureSecuritySuite {
     Write-Host '--- Architecture and security suite ---'
+    Build-ExternalNativeFixtures
     Invoke-WorldlineCommand -Label 'architecture guard' -FilePath 'pwsh' -Arguments @('-NoProfile', '-File', $architectureGuard)
     Invoke-WorldlineCommand -Label 'kernel acceptance tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-kernel')
     Invoke-WorldlineCommand -Label 'kernel property tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-kernel', '--test', 'property_tests')
@@ -98,6 +104,7 @@ function Invoke-ArchitectureSecuritySuite {
 
 function Invoke-ProvingSliceSuite {
     Write-Host '--- Proving-slice suite ---'
+    Build-ExternalNativeFixtures
     Invoke-WorldlineCommand -Label 'reference boundary acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 'boundary_acceptance')
     Invoke-WorldlineCommand -Label 'production persistence S1 acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 'persistence_acceptance')
     Invoke-WorldlineCommand -Label 'worldline-demo S0/S1 proving slice' -FilePath 'cargo' -Arguments @('run', '-p', 'worldline-demo')
