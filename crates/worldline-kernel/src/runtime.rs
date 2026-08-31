@@ -19,7 +19,7 @@ pub struct RuntimeId {
 }
 
 impl RuntimeId {
-    pub(crate) const fn new(incarnation: u64, sequence: u64) -> Self {
+    pub const fn new(incarnation: u64, sequence: u64) -> Self {
         Self {
             incarnation,
             sequence,

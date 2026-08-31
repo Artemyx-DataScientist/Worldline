@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "package_id": "worldline.reference.echo-provider-n-minus-1",
+  "package_version": { "major": 0, "minor": 6, "patch": 0 },
+  "plugin_definitions": ["reference.echo.provider"],
+  "execution_mode": "wasm_component",
+  "required_abi": {
+    "component_model": "0.3",
+    "wasi": "0.3",
+    "protocol_major": 1
+  },
+  "provided_capability_contracts": [
+    "reference.echo/echo@1.0"
+  ],
+  "required_capability_contracts": [],
+  "requested_permissions": [],
+  "resource_limit_hints": {
+    "memory_bytes": 16777216,
+    "table_entries": 100,
+    "host_call_concurrency": 4,
+    "host_call_payload_bytes": 65536,
+    "invocation_rate_per_sec": 1000,
+    "wall_time_ms": 5000
+  },
+  "artifact_path": "guest.wasm"
+}

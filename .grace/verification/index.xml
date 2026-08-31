@@ -9,6 +9,7 @@
         <V-M-CI-BASELINE />
         <V-M-PERSISTENCE-RECOVERY />
         <V-M-EXTERNAL-PLUGIN-BOUNDARY />
+        <V-M-OPERABILITY-COMPATIBILITY-UPGRADE />
       </Owns>
     </VD-MAIN>
   </VerificationDocuments>

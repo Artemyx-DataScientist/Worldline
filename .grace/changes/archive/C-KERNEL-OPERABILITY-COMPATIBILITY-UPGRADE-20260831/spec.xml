@@ -1,0 +1,1492 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-KERNEL-OPERABILITY-COMPATIBILITY-UPGRADE-20260831>
+  <ChangeId>C-KERNEL-OPERABILITY-COMPATIBILITY-UPGRADE-20260831</ChangeId>
+
+  <Title>
+    Operability, Compatibility and Upgrade v1:
+    Stable Contracts, Staged Plugin Update, Rollback, Safe Mode,
+    Diagnostics and Chaos Hardening
+  </Title>
+
+  <Constraints>
+    <Constraint>UPGRADE IS A TRANSACTIONAL STATE TRANSITION, NOT "REPLACE SOME FILES".</Constraint>
+    <Constraint>INSTALLATION IDENTITY DOES NOT CHANGE MERELY BECAUSE PACKAGE VERSION CHANGES.</Constraint>
+    <Constraint>PACKAGE REVISION, INSTALLATION IDENTITY AND RUNTIME IDENTITY ARE THREE DISTINCT CONCEPTS.</Constraint>
+    <Constraint>A STAGED VERSION HAS NO ACTIVE PROVIDER AUTHORITY BEFORE SWITCH.</Constraint>
+    <Constraint>MIGRATION RUNS AGAINST STAGED/COPIED STATE BEFORE ACTIVE STATE IS IRREVERSIBLY REPLACED.</Constraint>
+    <Constraint>FAILED HEALTH VALIDATION MUST NOT REPLACE THE LAST KNOWN GOOD REVISION.</Constraint>
+    <Constraint>ROLLBACK RESTORES A PREVIOUSLY VALIDATED REVISION, NOT AN ASSUMED VERSION.</Constraint>
+    <Constraint>CRASH RECOVERY RECONSTRUCTS EXACTLY ONE AUTHORITATIVE CURRENT REVISION.</Constraint>
+    <Constraint>SAFE MODE REDUCES COMPOSITION; IT DOES NOT BYPASS AUTHORIZATION.</Constraint>
+    <Constraint>OPERATIONAL METRICS DO NOT CONTAIN RAW PRIVATE RPC/EVENT/STATE PAYLOAD.</Constraint>
+    <Constraint>UNKNOWN EXTERNAL SIDE EFFECT OUTCOME IS INCOMPLETE, NEVER SYNTHETIC SUCCESS OR FAILURE.</Constraint>
+  </Constraints>
+
+  <AffectedAreas>
+    <M-KERNEL-CAPABILITY-RUNTIME />
+    <M-EXTERNAL-PLUGIN-BOUNDARY />
+    <M-PERSISTENCE-RECOVERY />
+    <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+    <M-CI-BASELINE />
+  </AffectedAreas>
+
+  <VerificationIntent>
+    <ExpectedCommand>cargo test -p worldline-plugin-protocol</ExpectedCommand>
+    <ExpectedCommand>cargo test -p worldline-kernel --test compatibility_acceptance</ExpectedCommand>
+    <ExpectedCommand>cargo test -p worldline-kernel --test upgrade_acceptance</ExpectedCommand>
+    <ExpectedCommand>cargo test -p worldline-kernel --test property_tests</ExpectedCommand>
+    <ExpectedCommand>cargo test -p worldline-kernel --test negative_security</ExpectedCommand>
+    <ExpectedCommand>cargo test -p worldline-kernel --test fuzz_smoke</ExpectedCommand>
+    <ExpectedCommand>cargo test -p worldline-storage --features test-failpoints --test recovery_acceptance -- --test-threads=1</ExpectedCommand>
+    <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+    <ExpectedEvidence>Fresh local evidence proves contract stability rules, staged migration on copy, health validation, atomic switch, rollback, quarantine, safe mode, bisect, telemetry, diagnostics, and process-kill chaos matrix pass without raw payload leakage or authority inheritance.</ExpectedEvidence>
+  </VerificationIntent>
+
+  <AcceptanceCriteria>
+    <Criterion>Stable compatible minor provider works with unchanged consumer.</Criterion>
+    <Criterion>Stable incompatible major is rejected before activation.</Criterion>
+    <Criterion>Experimental unsupported revision is rejected explicitly.</Criterion>
+    <Criterion>Compatibility classification grants no authority.</Criterion>
+    <Criterion>SDK N/N-1/N-2 designated fixtures pass supported current kernel matrix.</Criterion>
+    <Criterion>Staged revision has no provider publication before switch.</Criterion>
+    <Criterion>Failed migration-on-copy preserves current state and revision.</Criterion>
+    <Criterion>Failed health validation preserves current revision.</Criterion>
+    <Criterion>Successful staged update atomically changes active package revision.</Criterion>
+    <Criterion>New revision receives fresh RuntimeId and inherits no old runtime grants.</Criterion>
+    <Criterion>Post-switch health failure triggers rollback.</Criterion>
+    <Criterion>Rollback restores last-known-good package/state without stale authority.</Criterion>
+    <Criterion>Repeated broken optional plugin enters quarantine and does not auto-activate.</Criterion>
+    <Criterion>Safe mode boots without quarantined/optional plugins and enforces authorization.</Criterion>
+    <Criterion>Automated bisect identifies single deterministic offending optional plugin.</Criterion>
+    <Criterion>Interacting failures return Inconclusive.</Criterion>
+    <Criterion>Runtime metrics observe activation/crash/denial/mailbox without raw payload.</Criterion>
+    <Criterion>Correlation diagnostic reconstructs known causal chain and flags gaps.</Criterion>
+    <Criterion>Side-effect outcome becomes Incomplete on crash and unsafe operations are not retried.</Criterion>
+  </AcceptanceCriteria>
+
+  <Summary>
+    Закрыть M0 созданием эксплуатационного contract для уже существующей
+    plugin platform Worldline.
+
+    После этого change Worldline должен уметь не только запускать,
+    изолировать и восстанавливать plugins, но и безопасно жить во времени:
+
+      - определять, совместимы ли kernel/SDK/plugin contracts;
+      - отклонять несовместимый upgrade ДО switch;
+      - staging нового plugin/package/runtime отдельно от current active version;
+      - мигрировать state на копии;
+      - проверять health staged version;
+      - атомарно переключать active installation/package revision;
+      - откатываться к предыдущей working revision;
+      - локализовать broken plugin через quarantine/safe mode;
+      - автоматически находить offending plugin/revision bounded bisect;
+      - показывать причинную цепочку failure через correlation/causation;
+      - сохранять явный Incomplete outcome там, где crash делает внешний
+        side effect недоказуемым.
+
+    M0.7 также превращает существующие tests в систематическую hardening matrix:
+
+      compatibility/property/fuzz/negative-security/process-kill chaos.
+
+    Главный proving scenario:
+
+      working composition
+        -> staged incompatible/broken update
+        -> incompatibility или health failure обнаружена до switch
+        -> previous revision продолжает работать
+
+      И отдельно:
+
+      compatible staged update
+        -> migration on copy
+        -> health validation
+        -> atomic switch
+        -> post-switch failure
+        -> rollback
+        -> previous state/package restored
+        -> unrelated runtimes продолжают работать.
+
+    M0.7 НЕ реализует browser product UX.
+    Safe mode/degraded shell на этом milestone означает generic host/runtime
+    composition state и diagnostic/control surface; M1 позже даст этому
+    пользовательскую UI surface.
+  </Summary>
+
+  <RoadmapAlignment>
+    <Milestone>M0.7 — Operability, compatibility and upgrade</Milestone>
+
+    <Preconditions>
+      <Precondition>M0.1 — State hardening — Done.</Precondition>
+      <Precondition>M0.2 — Kernel boundary — Done.</Precondition>
+      <Precondition>M0.3 — Plugin Runtime v1 — Done.</Precondition>
+      <Precondition>M0.4 — RPC/Event Transport — Done.</Precondition>
+      <Precondition>M0.5 — Persistence and Recovery — Done.</Precondition>
+      <Precondition>M0.6 — Stable IPC and WASM Component Boundary — Done.</Precondition>
+    </Preconditions>
+
+    <Postcondition>
+      Успешное завершение M0.7 закрывает M0 и открывает M1.1 —
+      Browser Contract and Engine Spike.
+    </Postcondition>
+  </RoadmapAlignment>
+
+  <ArchitecturalInvariants>
+    <Invariant>
+      UPGRADE IS A TRANSACTIONAL STATE TRANSITION, NOT "REPLACE SOME FILES".
+    </Invariant>
+
+    <Invariant>
+      INSTALLATION IDENTITY DOES NOT CHANGE MERELY BECAUSE PACKAGE VERSION
+      CHANGES.
+    </Invariant>
+
+    <Invariant>
+      PACKAGE REVISION, INSTALLATION IDENTITY AND RUNTIME IDENTITY ARE DISTINCT.
+    </Invariant>
+
+    <Invariant>
+      A STAGED VERSION HAS NO ACTIVE PROVIDER AUTHORITY BEFORE SWITCH.
+    </Invariant>
+
+    <Invariant>
+      MIGRATION RUNS AGAINST STAGED/COPIED STATE BEFORE ACTIVE STATE IS
+      IRREVERSIBLY REPLACED.
+    </Invariant>
+
+    <Invariant>
+      FAILED HEALTH VALIDATION MUST NOT REPLACE THE LAST KNOWN GOOD REVISION.
+    </Invariant>
+
+    <Invariant>
+      ROLLBACK RESTORES A PREVIOUSLY VALIDATED REVISION, NOT AN ASSUMED VERSION.
+    </Invariant>
+
+    <Invariant>
+      CONTRACT COMPATIBILITY IS DETERMINISTIC AND MACHINE-CHECKABLE.
+    </Invariant>
+
+    <Invariant>
+      STABLE AND EXPERIMENTAL CONTRACTS HAVE DIFFERENT COMPATIBILITY PROMISES.
+    </Invariant>
+
+    <Invariant>
+      A BROKEN OPTIONAL PLUGIN MUST NOT DESTROY AN INDEPENDENT CAPABILITY
+      SUBGRAPH.
+    </Invariant>
+
+    <Invariant>
+      SAFE MODE REDUCES COMPOSITION; IT DOES NOT BYPASS AUTHORIZATION.
+    </Invariant>
+
+    <Invariant>
+      QUARANTINE REMOVES A RUNTIME/PACKAGE FROM AUTOMATIC ACTIVATION;
+      IT DOES NOT DELETE ITS STATE.
+    </Invariant>
+
+    <Invariant>
+      DIAGNOSTICS ARE OBSERVATION, NOT AUTHORITY.
+    </Invariant>
+
+    <Invariant>
+      UNKNOWN EXTERNAL SIDE EFFECT OUTCOME IS INCOMPLETE, NEVER SYNTHETIC
+      SUCCESS.
+    </Invariant>
+
+    <Invariant>
+      REPLAY IS ONLY AVAILABLE FOR DOMAINS THAT EXPLICITLY SELECTED
+      EVENT SOURCING.
+    </Invariant>
+
+    <Invariant>
+      NON-EVENT-SOURCED DOMAINS RECOVER THROUGH STATE/OUTBOX CONTRACTS.
+    </Invariant>
+  </ArchitecturalInvariants>
+
+  <Goals>
+    <Goal>
+      Зафиксировать compatibility policy для capability/API/package contracts.
+    </Goal>
+
+    <Goal>
+      Ввести Stable и Experimental lifecycle для contracts.
+    </Goal>
+
+    <Goal>
+      Реализовать executable compatibility matrix.
+    </Goal>
+
+    <Goal>
+      Реализовать staged plugin/package upgrade.
+    </Goal>
+
+    <Goal>
+      Реализовать migration-on-copy.
+    </Goal>
+
+    <Goal>
+      Реализовать pre-switch health validation.
+    </Goal>
+
+    <Goal>
+      Реализовать atomic active revision switch.
+    </Goal>
+
+    <Goal>
+      Реализовать rollback на last-known-good revision.
+    </Goal>
+
+    <Goal>
+      Реализовать generic safe mode и persistent quarantine.
+    </Goal>
+
+    <Goal>
+      Реализовать bounded automated plugin bisect.
+    </Goal>
+
+    <Goal>
+      Ввести per-plugin operational metrics.
+    </Goal>
+
+    <Goal>
+      Реализовать causality/time-travel diagnostic query.
+    </Goal>
+
+    <Goal>
+      Добавить resolver property testing, fuzzing, negative-security и
+      process-kill chaos suites.
+    </Goal>
+
+    <Goal>
+      Формализовать Incomplete для side effects с неизвестным crash outcome.
+    </Goal>
+  </Goals>
+
+  <NonGoals>
+    <NonGoal>Browser UI.</NonGoal>
+    <NonGoal>Graphical safe-mode screen.</NonGoal>
+    <NonGoal>Automatic internet plugin update service.</NonGoal>
+    <NonGoal>Marketplace.</NonGoal>
+    <NonGoal>Remote package registry.</NonGoal>
+    <NonGoal>Automatic update download.</NonGoal>
+    <NonGoal>Delta patching.</NonGoal>
+    <NonGoal>Cloud profile sync.</NonGoal>
+    <NonGoal>Public long-term 1.0 ABI guarantee.</NonGoal>
+    <NonGoal>Universal deterministic replay.</NonGoal>
+    <NonGoal>Event-source conversion of existing state domains.</NonGoal>
+    <NonGoal>Distributed upgrade coordination.</NonGoal>
+  </NonGoals>
+
+  <RequiredADR>
+    <File>docs/adr/ADR-OPERABILITY-COMPATIBILITY-UPGRADE-V1.md</File>
+
+    <RequiredSection>Contract stability model</RequiredSection>
+    <RequiredSection>Compatibility rules</RequiredSection>
+    <RequiredSection>Supported SDK/kernel matrix</RequiredSection>
+    <RequiredSection>Package revision model</RequiredSection>
+    <RequiredSection>Staged upgrade protocol</RequiredSection>
+    <RequiredSection>Migration-on-copy</RequiredSection>
+    <RequiredSection>Health validation</RequiredSection>
+    <RequiredSection>Atomic switch and rollback</RequiredSection>
+    <RequiredSection>Safe mode</RequiredSection>
+    <RequiredSection>Quarantine and bisect</RequiredSection>
+    <RequiredSection>Operational telemetry</RequiredSection>
+    <RequiredSection>Incomplete external outcomes</RequiredSection>
+    <RequiredSection>Replay boundaries</RequiredSection>
+    <RequiredSection>Cordis-rs lineage and deliberate divergence</RequiredSection>
+    <RequiredSection>Rejected alternatives</RequiredSection>
+    <RequiredSection>Reopen conditions</RequiredSection>
+
+    <Requirement>
+      Cordis-rs lifecycle/effect ownership remains architectural lineage,
+      but ADR explicitly records that Worldline upgrade/compatibility,
+      process/WASM isolation, persistent revision identity and rollback semantics
+      are stronger contracts rather than inherited Cordis-rs behavior.
+    </Requirement>
+  </RequiredADR>
+
+  <ContractStability>
+    <Class name="Experimental">
+      Contract may change incompatibly between minor/pre-1.0 platform revisions.
+
+      Compatibility guarantee:
+        - exact supported range only;
+        - no N-2 promise;
+        - incompatibility MUST still be detected before activation.
+    </Class>
+
+    <Class name="Stable">
+      Contract follows explicit semantic compatibility rules.
+
+      Compatibility guarantee:
+        - supported stable major lines have defined negotiation;
+        - compatible minor evolution MUST NOT require consumer rewrite;
+        - breaking semantic change requires new major.
+    </Class>
+
+    <Invariant>
+      Stability class is metadata of a contract version line,
+      not of a provider implementation.
+    </Invariant>
+
+    <Invariant>
+      Provider cannot self-declare a Stable incompatible implementation and
+      thereby force acceptance.
+    </Invariant>
+  </ContractStability>
+
+  <CompatibilityRules>
+    <StableMajor>
+      Different major versions are incompatible unless an explicit adapter
+      contract exists.
+    </StableMajor>
+
+    <StableMinor>
+      Minor evolution may add backward-compatible optional semantics according
+      to declared negotiation rules.
+    </StableMinor>
+
+    <Patch>
+      Patch does not intentionally change public semantics.
+    </Patch>
+
+    <Requirement>
+      Compatibility is evaluated from machine-readable contract metadata.
+    </Requirement>
+
+    <Requirement>
+      No compatibility decision is based on package filename, plugin name prefix
+      or lexical version guessing.
+    </Requirement>
+
+    <Requirement>
+      Negotiated contract version is observable.
+    </Requirement>
+  </CompatibilityRules>
+
+  <CompatibilityMatrix>
+    <RequiredMatrix>
+      current kernel vs SDK N
+      current kernel vs SDK N-1
+      current kernel vs SDK N-2
+
+      current SDK vs each currently supported kernel baseline
+    </RequiredMatrix>
+
+    <Clarification>
+      N/N-1/N-2 guarantee initially applies to designated Stable SDK/contract
+      fixtures, not every experimental internal interface.
+    </Clarification>
+
+    <Requirement>
+      Repository keeps versioned compatibility fixtures/golden packages.
+    </Requirement>
+
+    <Requirement>
+      CI executes old fixture artifacts rather than recompiling every old SDK
+      fixture against current sources where that would erase ABI/protocol
+      evidence.
+    </Requirement>
+
+    <Requirement>
+      Unsupported version produces explicit CompatibilityRejected before runtime
+      provider publication.
+    </Requirement>
+  </CompatibilityMatrix>
+
+  <PackageRevisionModel>
+    <Types>
+      <Type>PackageRevisionId</Type>
+      <Type>InstallationRevision</Type>
+    </Types>
+
+    <Rule>
+      InstallationId remains stable across compatible package updates.
+    </Rule>
+
+    <Rule>
+      PackageRevisionId identifies immutable installed artifact revision.
+    </Rule>
+
+    <Rule>
+      Every successful activation records exact package digest/revision.
+    </Rule>
+
+    <Rule>
+      RuntimeId always belongs to exactly one InstallationRevision.
+    </Rule>
+
+    <Rule>
+      A rollback creates a fresh RuntimeId for the restored revision.
+    </Rule>
+  </PackageRevisionModel>
+
+  <UpgradeStateMachine>
+    <States>
+      <State>Current</State>
+      <State>Staging</State>
+      <State>CompatibilityRejected</State>
+      <State>MigratingCopy</State>
+      <State>Validating</State>
+      <State>ReadyToSwitch</State>
+      <State>Switching</State>
+      <State>CurrentCandidate</State>
+      <State>RollingBack</State>
+      <State>RolledBack</State>
+      <State>Failed</State>
+    </States>
+
+    <Invariant>
+      Only one revision is authoritative Current for an InstallationId.
+    </Invariant>
+
+    <Invariant>
+      Staging does not mutate current package artifact.
+    </Invariant>
+
+    <Invariant>
+      Failed staged revision is never silently promoted.
+    </Invariant>
+
+    <Invariant>
+      Switch metadata is crash-recoverable.
+    </Invariant>
+  </UpgradeStateMachine>
+
+  <MigrationOnCopy>
+    <Requirement>
+      State migration for upgrade runs against a staged copy/snapshot when
+      rollback requires preserving previous schema/state.
+    </Requirement>
+
+    <Requirement>
+      Original last-known-good state remains intact until new revision passes
+      health validation and switch protocol reaches committed boundary.
+    </Requirement>
+
+    <Requirement>
+      Migration provenance records:
+        - source revision;
+        - target revision;
+        - source schema;
+        - target schema;
+        - migration path;
+        - result.
+    </Requirement>
+
+    <Rule>
+      Destructive migration without rollback path requires explicit policy and
+      cannot be the default M0.7 upgrade mechanism.
+    </Rule>
+
+    <Rule>
+      Failed staged migration cannot alter current installation state.
+    </Rule>
+  </MigrationOnCopy>
+
+  <HealthValidation>
+    <Purpose>
+      Prove staged revision sufficiently healthy before switch.
+    </Purpose>
+
+    <RequiredChecks>
+      <Check>manifest and ABI compatibility</Check>
+      <Check>state migration success</Check>
+      <Check>runtime activation</Check>
+      <Check>required capability publication</Check>
+      <Check>required dependency resolution</Check>
+      <Check>bounded health probe</Check>
+      <Check>no immediate crash/trap/quota failure</Check>
+    </RequiredChecks>
+
+    <Requirement>
+      Health probe has deadline and resource budget.
+    </Requirement>
+
+    <Invariant>
+      Passing health validation grants no additional authority.
+    </Invariant>
+
+    <Rule>
+      Optional capability degradation is represented explicitly rather than
+      automatically failing whole host if composition policy permits it.
+    </Rule>
+  </HealthValidation>
+
+  <AtomicSwitch>
+    <Requirement>
+      Switch from previous revision to staged revision has one durable committed
+      active-revision decision.
+    </Requirement>
+
+    <Requirement>
+      Crash before committed switch recovers previous Current revision.
+    </Requirement>
+
+    <Requirement>
+      Crash after committed switch recovers new Current revision or an explicit
+      rollback-required state; never two authoritative Current revisions.
+    </Requirement>
+
+    <Requirement>
+      Provider registry never exposes both old and new revision accidentally
+      under single-provider semantics.
+    </Requirement>
+  </AtomicSwitch>
+
+  <Rollback>
+    <Requirement>
+      LastKnownGoodRevision is persisted.
+    </Requirement>
+
+    <Requirement>
+      Rollback restores:
+        - package revision;
+        - compatible state snapshot/copy;
+        - composition selection metadata.
+    </Requirement>
+
+    <Requirement>
+      Rollback creates fresh runtime identity and fresh live authority.
+    </Requirement>
+
+    <Invariant>
+      Runtime grants from failed candidate are never inherited by rollback
+      runtime.
+    </Invariant>
+
+    <Invariant>
+      Rollback does not resurrect old RuntimeId or stale handles.
+    </Invariant>
+
+    <Requirement>
+      Failed rollback enters explicit recovery-required state.
+    </Requirement>
+  </Rollback>
+
+  <PostSwitchObservationWindow>
+    <Purpose>
+      Detect immediate failure after technically successful switch.
+    </Purpose>
+
+    <Signals>
+      <Signal>activation crash</Signal>
+      <Signal>repeated restart</Signal>
+      <Signal>required provider disappearance</Signal>
+      <Signal>health probe failure</Signal>
+      <Signal>protocol incompatibility</Signal>
+      <Signal>resource exhaustion loop</Signal>
+    </Signals>
+
+    <Rule>
+      Host composition policy may trigger automatic rollback during bounded
+      validation window.
+    </Rule>
+
+    <Rule>
+      Automatic rollback threshold is deterministic/configured and observable.
+    </Rule>
+  </PostSwitchObservationWindow>
+
+  <SafeMode>
+    <Purpose>
+      Boot a minimal known-good composition when normal composition cannot become
+      healthy.
+    </Purpose>
+
+    <Requirements>
+      <Requirement>
+        Safe mode does not automatically activate optional third-party plugins.
+      </Requirement>
+
+      <Requirement>
+        Core diagnostic/control facilities remain available.
+      </Requirement>
+
+      <Requirement>
+        Persistent user/plugin data is not deleted.
+      </Requirement>
+
+      <Requirement>
+        Safe mode does not bypass capability authorization.
+      </Requirement>
+
+      <Requirement>
+        Disabled/quarantined plugins and reasons are observable.
+      </Requirement>
+    </Requirements>
+
+    <Clarification>
+      M0.7 safe mode may be headless/CLI/diagnostic-host level.
+      M1 may later surface it graphically.
+    </Clarification>
+  </SafeMode>
+
+  <Quarantine>
+    <Triggers>
+      <Trigger>repeated activation failure</Trigger>
+      <Trigger>repeated crash</Trigger>
+      <Trigger>repeated WASM trap/resource violation</Trigger>
+      <Trigger>protocol violation</Trigger>
+      <Trigger>failed post-upgrade health policy</Trigger>
+    </Triggers>
+
+    <Requirement>
+      Quarantine state is persistent across host restart.
+    </Requirement>
+
+    <Requirement>
+      Quarantine has reason, timestamp/sequence and originating revision.
+    </Requirement>
+
+    <Requirement>
+      Quarantine prevents automatic activation but not inspection/removal/
+      explicit recovery.
+    </Requirement>
+
+    <Invariant>
+      Quarantine is per installation/revision according to recorded reason;
+      it is not a global ban on PluginDefinition without explicit policy.
+    </Invariant>
+  </Quarantine>
+
+  <AutomatedBisect>
+    <Purpose>
+      Identify likely offending optional installation/revision when composition
+      fails.
+    </Purpose>
+
+    <Requirements>
+      <Requirement>Operates only on bounded candidate set.</Requirement>
+      <Requirement>Preserves required core composition.</Requirement>
+      <Requirement>Does not delete state/packages.</Requirement>
+      <Requirement>Every activation trial has deadline/budget.</Requirement>
+      <Requirement>Result includes tested set and evidence.</Requirement>
+    </Requirements>
+
+    <Rule>
+      Bisect may disable subsets of optional plugins and re-run health proof.
+    </Rule>
+
+    <Rule>
+      Multiple interacting failures may yield Inconclusive rather than invented
+      single culprit.
+    </Rule>
+
+    <Outcomes>
+      <Outcome>LikelyCulprit</Outcome>
+      <Outcome>MultipleCandidates</Outcome>
+      <Outcome>Inconclusive</Outcome>
+    </Outcomes>
+  </AutomatedBisect>
+
+  <OperationalMetrics>
+    <PerRuntime>
+      <Metric>activation duration</Metric>
+      <Metric>deactivation duration</Metric>
+      <Metric>restart count</Metric>
+      <Metric>crash count</Metric>
+      <Metric>hung count</Metric>
+      <Metric>quarantine count</Metric>
+      <Metric>RPC in-flight</Metric>
+      <Metric>RPC queue depth</Metric>
+      <Metric>event mailbox depth</Metric>
+      <Metric>event drops/backpressure</Metric>
+      <Metric>authorization denials</Metric>
+      <Metric>memory/resource limit usage where available</Metric>
+      <Metric>CPU/execution budget usage where available</Metric>
+    </PerRuntime>
+
+    <Invariant>
+      Operational metrics do not contain raw private RPC/event/state payload.
+    </Invariant>
+
+    <Rule>
+      Metrics are diagnostic observations and do not become security decisions
+      unless explicit policy consumes them.
+    </Rule>
+  </OperationalMetrics>
+
+  <DiagnosticCausality>
+    <Purpose>
+      Reconstruct bounded "why did this happen?" chain.
+    </Purpose>
+
+    <Query>
+      Given:
+        EventId / InvocationId / RuntimeId / CorrelationId
+
+      return ordered relevant causal facts:
+        admission
+        -> provider selection
+        -> invocation
+        -> state/outbox change
+        -> observation
+        -> lifecycle/crash/restart
+        -> follow-up action
+    </Query>
+
+    <Requirement>
+      Diagnostic chain uses existing correlation/causation metadata.
+    </Requirement>
+
+    <Requirement>
+      It does not invent causal edges merely from close timestamps.
+    </Requirement>
+
+    <Requirement>
+      Missing/pruned evidence appears explicitly as gap.
+    </Requirement>
+
+    <Requirement>
+      Query never exposes payloads/authority beyond caller diagnostic permission.
+    </Requirement>
+  </DiagnosticCausality>
+
+  <SideEffectOutcome>
+    <States>
+      <State>NotStarted</State>
+      <State>CommittedLocal</State>
+      <State>Succeeded</State>
+      <State>Failed</State>
+      <State>Incomplete</State>
+    </States>
+
+    <Meaning name="Incomplete">
+      Host has durable evidence that an external action may have started, but
+      after crash/disconnect cannot prove whether the remote side effect occurred.
+    </Meaning>
+
+    <Invariant>
+      Incomplete != Failed.
+    </Invariant>
+
+    <Invariant>
+      Incomplete != Succeeded.
+    </Invariant>
+
+    <Invariant>
+      Incomplete external action is not automatically retried unless operation
+      contract proves retry/idempotency safe.
+    </Invariant>
+
+    <Requirement>
+      Incomplete outcome carries CorrelationId/InvocationId and diagnostic reason.
+    </Requirement>
+  </SideEffectOutcome>
+
+  <ReplayPolicy>
+    <Invariant>
+      No global replay engine is introduced.
+    </Invariant>
+
+    <Rule>
+      Domain may expose deterministic replay only if its ADR explicitly selected
+      event sourcing.
+    </Rule>
+
+    <Rule>
+      Installation state, outbox, jobs and other non-event-sourced domains recover
+      from their authoritative stores.
+    </Rule>
+
+    <Requirement>
+      Diagnostics may replay recorded facts for visualization without treating
+      that as authoritative state reconstruction.
+    </Requirement>
+  </ReplayPolicy>
+
+  <PropertyTesting>
+    <ResolverProperties>
+      <Property>
+        provider selection is deterministic for identical inputs/state
+      </Property>
+
+      <Property>
+        incompatible provider is never selected
+      </Property>
+
+      <Property>
+        adding an irrelevant incompatible provider does not change valid selected
+        provider
+      </Property>
+
+      <Property>
+        authority does not affect compatibility classification
+      </Property>
+
+      <Property>
+        compatibility does not grant authority
+      </Property>
+
+      <Property>
+        runtime replacement never revives old RuntimeId authority
+      </Property>
+    </ResolverProperties>
+
+    <UpgradeProperties>
+      <Property>
+        exactly one active revision after recoverable switch
+      </Property>
+
+      <Property>
+        failed pre-switch validation preserves previous revision
+      </Property>
+
+      <Property>
+        rollback never resurrects stale handles
+      </Property>
+    </UpgradeProperties>
+  </PropertyTesting>
+
+  <Fuzzing>
+    <RequiredTargets>
+      <Target>plugin manifest parser</Target>
+      <Target>IPC envelope decoder</Target>
+      <Target>compatibility/version negotiation metadata</Target>
+      <Target>WIT/host-call input adapters where practical</Target>
+      <Target>diagnostic causality record parser/query</Target>
+    </RequiredTargets>
+
+    <Invariant>
+      Arbitrary fuzz input must not panic privileged host code.
+    </Invariant>
+
+    <Requirement>
+      Reproducible corpus/seed is preserved for discovered failures.
+    </Requirement>
+  </Fuzzing>
+
+  <NegativeSecurityTests>
+    <RequiredAreas>
+      <Area>cross-runtime opaque handle reuse</Area>
+      <Area>revoked handle reuse</Area>
+      <Area>manifest self-grant attempt</Area>
+      <Area>WASI filesystem/network escape</Area>
+      <Area>ProviderSelf after replacement</Area>
+      <Area>state handle after rollback</Area>
+      <Area>authority inheritance after package upgrade</Area>
+    </RequiredAreas>
+  </NegativeSecurityTests>
+
+  <ChaosSuite>
+    <RequiredKillPoints>
+      <KillPoint>during staged state migration</KillPoint>
+      <KillPoint>after health validation before switch</KillPoint>
+      <KillPoint>during active-revision switch</KillPoint>
+      <KillPoint>immediately after switch</KillPoint>
+      <KillPoint>during rollback</KillPoint>
+      <KillPoint>during outbox recovery</KillPoint>
+      <KillPoint>while native provider handles invocation</KillPoint>
+      <KillPoint>while WASM provider handles invocation</KillPoint>
+    </RequiredKillPoints>
+
+    <Requirement>
+      Recovery occurs in a fresh host process against persistent state.
+    </Requirement>
+
+    <Requirement>
+      Chaos tests assert exact post-crash authoritative revision/state.
+    </Requirement>
+
+    <Requirement>
+      Tests never pass merely because host can boot; they verify no dual-current
+      revision, authority leakage or lost committed state.
+    </Requirement>
+  </ChaosSuite>
+
+  <CompatibilityFixtures>
+    <Requirement>
+      Repository contains fixtures representing supported prior SDK/protocol
+      versions.
+    </Requirement>
+
+    <Requirement>
+      Fixture metadata includes exact historical contract/protocol version.
+    </Requirement>
+
+    <Rule>
+      Stable fixture may be a small reference package rather than whole historical
+      Worldline checkout.
+    </Rule>
+
+    <Rule>
+      N-1/N-2 support becomes a real promise only for versions for which fixtures
+      exist and CI remains green.
+    </Rule>
+  </CompatibilityFixtures>
+
+  <RequiredTests>
+    <Test>
+      Stable compatible minor provider works with unchanged consumer.
+    </Test>
+
+    <Test>
+      Stable incompatible major is rejected before activation.
+    </Test>
+
+    <Test>
+      Experimental unsupported revision is rejected explicitly.
+    </Test>
+
+    <Test>
+      Compatibility classification grants no authority.
+    </Test>
+
+    <Test>
+      SDK N/N-1/N-2 designated fixtures pass supported current kernel matrix.
+    </Test>
+
+    <Test>
+      Current SDK fixture rejects unsupported historical kernel baseline cleanly.
+    </Test>
+
+    <Test>
+      Staged revision has no provider publication before switch.
+    </Test>
+
+    <Test>
+      Failed migration-on-copy preserves current state and revision.
+    </Test>
+
+    <Test>
+      Failed health validation preserves current revision.
+    </Test>
+
+    <Test>
+      Successful staged update atomically changes active package revision.
+    </Test>
+
+    <Test>
+      New revision receives fresh RuntimeId.
+    </Test>
+
+    <Test>
+      New revision inherits no old runtime grants.
+    </Test>
+
+    <Test>
+      Crash before switch restores old Current revision.
+    </Test>
+
+    <Test>
+      Crash during switch yields exactly one recoverable Current revision.
+    </Test>
+
+    <Test>
+      Post-switch health failure can trigger rollback.
+    </Test>
+
+    <Test>
+      Rollback restores last-known-good package/state.
+    </Test>
+
+    <Test>
+      Rollback creates fresh RuntimeId and no stale authority.
+    </Test>
+
+    <Test>
+      Crash during rollback remains explicitly recoverable.
+    </Test>
+
+    <Test>
+      Repeated broken optional plugin enters quarantine.
+    </Test>
+
+    <Test>
+      Quarantined plugin does not auto-activate after restart.
+    </Test>
+
+    <Test>
+      Quarantine leaves installation state inspectable/intact.
+    </Test>
+
+    <Test>
+      Safe mode boots without quarantined optional plugins.
+    </Test>
+
+    <Test>
+      Safe mode still enforces capability authorization.
+    </Test>
+
+    <Test>
+      Broken optional plugin does not prevent independent capability subgraph.
+    </Test>
+
+    <Test>
+      Automated bisect identifies single deterministic offending optional plugin.
+    </Test>
+
+    <Test>
+      Interacting failures may return Inconclusive rather than false culprit.
+    </Test>
+
+    <Test>
+      Runtime metrics observe activation/crash/denial/mailbox state without raw
+      payload.
+    </Test>
+
+    <Test>
+      Correlation diagnostic reconstructs known causal chain.
+    </Test>
+
+    <Test>
+      Missing causal record is represented as diagnostic gap.
+    </Test>
+
+    <Test>
+      Crash after external side-effect dispatch but before outcome acknowledgement
+      becomes Incomplete.
+    </Test>
+
+    <Test>
+      Incomplete unsafe operation is not automatically retried.
+    </Test>
+
+    <Test>
+      Event-sourced replay is unavailable for domain without explicit ADR choice.
+    </Test>
+
+    <Test>
+      Resolver property suite passes generated provider/version combinations.
+    </Test>
+
+    <Test>
+      Manifest/IPC/version fuzz targets have no privileged panic for corpus.
+    </Test>
+
+    <Test>
+      Cross-runtime/revoked authority negative suite remains green.
+    </Test>
+
+    <Test>
+      Process-kill chaos suite preserves state/authority/revision invariants.
+    </Test>
+
+    <Test>
+      Existing S0 and S1 proving slices remain green.
+    </Test>
+
+    <Test>
+      Builtin/native/WASM external reference conformance remains green.
+    </Test>
+
+    <Test>
+      Existing M0.1-M0.6 acceptance suites remain green.
+    </Test>
+  </RequiredTests>
+
+  <StaticArchitectureChecks>
+    <Requirement>
+      Compatibility/update code does not import browser/agent/UI domain types.
+    </Requirement>
+
+    <Requirement>
+      Upgrade manager does not bypass plugin runtime lifecycle.
+    </Requirement>
+
+    <Requirement>
+      Upgrade manager does not mutate StateBackend internals directly outside
+      declared persistence transaction APIs.
+    </Requirement>
+
+    <Requirement>
+      Safe mode does not contain special-case browser/agent family branches.
+    </Requirement>
+
+    <Requirement>
+      Compatibility resolver and capability authorization remain distinct.
+    </Requirement>
+
+    <Requirement>
+      Diagnostic subsystem cannot call arbitrary capabilities merely because it
+      can observe their metadata.
+    </Requirement>
+  </StaticArchitectureChecks>
+
+  <CIIntegration>
+    <Invariant>
+      Existing stable repository-owned suites remain the orchestration contract.
+    </Invariant>
+
+    <Mapping>
+      <Suite name="Source">
+        format/check/docs plus compatibility fixture/schema sanity.
+      </Suite>
+
+      <Suite name="Correctness">
+        compatibility matrix, upgrade state machine, rollback and property tests.
+      </Suite>
+
+      <Suite name="ArchitectureSecurity">
+        negative host-function/authority tests, safe-mode isolation and static
+        boundary checks.
+      </Suite>
+
+      <Suite name="ProvingSlice">
+        staged upgrade/rollback/crash proving scenarios plus existing S0/S1.
+      </Suite>
+    </Mapping>
+
+    <Requirement>
+      Expensive fuzz/chaos repetitions may run in deep/nightly CI, but a bounded
+      deterministic smoke subset MUST remain in required repository verification.
+    </Requirement>
+  </CIIntegration>
+
+  <ImplementationGuidance>
+    <Guidance>
+      Do not begin by creating an updater/downloader.
+    </Guidance>
+
+    <Guidance>
+      First implement local immutable package revision upgrade semantics.
+    </Guidance>
+
+    <Guidance>
+      Separate:
+        compatibility decision,
+        state staging,
+        health validation,
+        active revision switch,
+        rollback.
+
+      Do not hide all five in one update() function.
+    </Guidance>
+
+    <Guidance>
+      Keep LastKnownGood explicit and durable.
+    </Guidance>
+
+    <Guidance>
+      Do not migrate the only copy of production state before health proof.
+    </Guidance>
+
+    <Guidance>
+      Do not implement rollback by "run reverse migration and hope".
+      Preserve a validated rollback source.
+    </Guidance>
+
+    <Guidance>
+      Do not make safe mode synonymous with "security disabled".
+    </Guidance>
+
+    <Guidance>
+      Do not use timestamps alone to infer causality; reuse M0.4
+      correlation/causation graph.
+    </Guidance>
+
+    <Guidance>
+      Do not create universal deterministic replay machinery.
+    </Guidance>
+
+    <Guidance>
+      Operational telemetry belongs to generic runtime/plugin identity,
+      not browser-specific concepts.
+    </Guidance>
+
+    <Guidance>
+      Keep Cordis-rs lineage documentation explicit:
+      lifecycle/effect ownership is ancestry, while external compatibility,
+      upgrade transactionality, persistent package revisions and crash rollback
+      are Worldline contracts.
+    </Guidance>
+  </ImplementationGuidance>
+
+  <SuggestedExecutionOrder>
+    <Step index="1">
+      Inventory current package/protocol/capability version metadata and runtime
+      quarantine/restart facilities.
+    </Step>
+
+    <Step index="2">
+      Write ADR and freeze Stable/Experimental compatibility rules.
+    </Step>
+
+    <Step index="3">
+      Introduce PackageRevisionId/InstallationRevision and LastKnownGood metadata.
+    </Step>
+
+    <Step index="4">
+      Add executable compatibility resolver + fixtures.
+    </Step>
+
+    <Step index="5">
+      Implement staged package revision storage without activation.
+    </Step>
+
+    <Step index="6">
+      Implement migration-on-copy.
+    </Step>
+
+    <Step index="7">
+      Implement bounded staged health validation.
+    </Step>
+
+    <Step index="8">
+      Implement durable atomic active-revision switch.
+    </Step>
+
+    <Step index="9">
+      Add crash tests around each switch boundary.
+    </Step>
+
+    <Step index="10">
+      Implement LastKnownGood rollback.
+    </Step>
+
+    <Step index="11">
+      Add post-switch observation/automatic rollback policy.
+    </Step>
+
+    <Step index="12">
+      Harden persistent quarantine and generic safe mode.
+    </Step>
+
+    <Step index="13">
+      Implement bounded optional-plugin bisect.
+    </Step>
+
+    <Step index="14">
+      Add runtime operational metrics.
+    </Step>
+
+    <Step index="15">
+      Implement causality diagnostic query.
+    </Step>
+
+    <Step index="16">
+      Introduce explicit Incomplete side-effect outcome.
+    </Step>
+
+    <Step index="17">
+      Add resolver/upgrade property suites.
+    </Step>
+
+    <Step index="18">
+      Add fuzz targets and negative security corpus.
+    </Step>
+
+    <Step index="19">
+      Add process-kill chaos matrix.
+    </Step>
+
+    <Step index="20">
+      Route bounded required subset through repository-owned CI.
+    </Step>
+
+    <Step index="21">
+      Run full M0 regression: S0/S1 + builtin/native/WASM + persistence recovery.
+    </Step>
+
+    <Step index="22">
+      Update GRACE and ROADMAP to M0 Done only after evidence passes.
+    </Step>
+  </SuggestedExecutionOrder>
+
+  <ReviewQuestions>
+    <Question>
+      Может ли staged revision получить provider authority до switch?
+    </Question>
+
+    <Question>
+      Может ли failed migration испортить единственную current state copy?
+    </Question>
+
+    <Question>
+      Есть ли в любой момент два authoritative Current revisions?
+    </Question>
+
+    <Question>
+      Может ли rollback воскресить RuntimeId/grant/handle старого runtime?
+    </Question>
+
+    <Question>
+      Совместимость и authority где-нибудь смешаны?
+    </Question>
+
+    <Question>
+      Может ли package объявить себя Stable и обойти compatibility rules?
+    </Question>
+
+    <Question>
+      Реально ли N-1/N-2 проверяется historical fixture, а не current recompilation?
+    </Question>
+
+    <Question>
+      Safe mode уменьшает composition или случайно отключает security?
+    </Question>
+
+    <Question>
+      Quarantine удаляет данные?
+    </Question>
+
+    <Question>
+      Может ли bisect ошибочно заявить одного виновника при interaction failure?
+    </Question>
+
+    <Question>
+      Содержит ли metrics/diagnostics private payload?
+    </Question>
+
+    <Question>
+      Выводится ли causality из реальных IDs, а не соседства timestamps?
+    </Question>
+
+    <Question>
+      Может ли crash-неопределённый внешний side effect стать Succeeded?
+    </Question>
+
+    <Question>
+      Может ли Incomplete unsafe operation автоматически retry?
+    </Question>
+
+    <Question>
+      Не появился ли global replay/event-sourcing engine "для удобства"?
+    </Question>
+  </ReviewQuestions>
+
+  <FailureConditions>
+    <Failure>
+      Несовместимый update обнаруживается только после active switch.
+    </Failure>
+
+    <Failure>
+      Failed staged migration повреждает last-known-good state.
+    </Failure>
+
+    <Failure>
+      Upgrade может оставить две authoritative active revisions.
+    </Failure>
+
+    <Failure>
+      Rollback наследует authority failed runtime.
+    </Failure>
+
+    <Failure>
+      Safe mode bypasses security.
+    </Failure>
+
+    <Failure>
+      Quarantine уничтожает installation state.
+    </Failure>
+
+    <Failure>
+      Stable compatibility существует только как документация без executable
+      fixtures.
+    </Failure>
+
+    <Failure>
+      Metrics/diagnostics логируют raw sensitive payloads.
+    </Failure>
+
+    <Failure>
+      Unknown external outcome маркируется success/failure без evidence.
+    </Failure>
+
+    <Failure>
+      Generic replay reconstructs non-event-sourced domain state.
+    </Failure>
+
+    <Failure>
+      Broken optional plugin делает весь host необратимо нерабочим.
+    </Failure>
+  </FailureConditions>
+
+  <Verification>
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source
+    </Command>
+
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness
+    </Command>
+
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity
+    </Command>
+
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice
+    </Command>
+
+    <Command>
+      pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All
+    </Command>
+  </Verification>
+
+  <ExitCriteria>
+    <Criterion>
+      Stable/Experimental capability compatibility semantics are explicit,
+      executable and versioned.
+    </Criterion>
+
+    <Criterion>
+      Supported N/N-1/N-2 compatibility fixtures pass CI.
+    </Criterion>
+
+    <Criterion>
+      Incompatible upgrade is rejected before switch.
+    </Criterion>
+
+    <Criterion>
+      Staged update migrates copied state and validates health before becoming
+      authoritative.
+    </Criterion>
+
+    <Criterion>
+      Active revision switch is crash-recoverable and atomic.
+    </Criterion>
+
+    <Criterion>
+      Last-known-good rollback restores package/state without restoring stale
+      runtime authority.
+    </Criterion>
+
+    <Criterion>
+      Repeated broken plugin is quarantined without destroying unrelated
+      composition or installation state.
+    </Criterion>
+
+    <Criterion>
+      Safe mode can boot a minimal generic host composition with security intact.
+    </Criterion>
+
+    <Criterion>
+      Operational metrics and causal diagnostics explain runtime failures without
+      exposing raw sensitive payloads.
+    </Criterion>
+
+    <Criterion>
+      Unknown external side-effect outcome is represented explicitly as
+      Incomplete.
+    </Criterion>
+
+    <Criterion>
+      Property/fuzz/negative-security/process-kill suites exercise platform
+      invariants.
+    </Criterion>
+
+    <Criterion>
+      S0/S1, persistence recovery and builtin/native/WASM conformance remain
+      green.
+    </Criterion>
+
+    <Criterion>
+      M0 exit criteria from ROADMAP are all evidenced.
+    </Criterion>
+
+    <Criterion>
+      ROADMAP can mark M0.7 Done and M0 complete.
+    </Criterion>
+
+    <Criterion>
+      Worldline is ready to begin M1.1 Browser Contract and Engine Spike without
+      another kernel identity/authority/persistence/external-ABI redesign.
+    </Criterion>
+  </ExitCriteria>
+
+  <NextChange>
+    C-BROWSER-CONTRACT-ENGINE-SPIKE-*
+  </NextChange>
+  </C-KERNEL-OPERABILITY-COMPATIBILITY-UPGRADE-20260831>
+</GraceChangeSpec>

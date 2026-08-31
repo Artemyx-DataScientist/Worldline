@@ -270,6 +270,90 @@ impl AbiVersion {
     }
 }
 
+/// Cryptographically verifiable or deterministic identity of an immutable
+/// installed package artifact revision.
+///
+/// Invariant: PackageRevisionId identifies the immutable artifact content
+/// and metadata revision. InstallationId remains stable across package updates,
+/// but PackageRevisionId advances with each staged or committed artifact revision.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct PackageRevisionId(String);
+
+impl PackageRevisionId {
+    /// Validates and wraps a package revision identifier.
+    pub fn try_new(value: impl Into<String>) -> Result<Self, ProtocolError> {
+        let value = value.into();
+        validate_identifier("package revision id", &value)?;
+        Ok(Self(value))
+    }
+
+    /// Creates a package revision identifier from package version and sequence number.
+    #[must_use]
+    pub fn from_version(version: &PackageVersion, sequence: u64) -> Self {
+        Self(format!(
+            "rev-{}-{}-{}-{}",
+            version.major, version.minor, version.patch, sequence
+        ))
+    }
+
+    /// The validated identifier text.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for PackageRevisionId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl Serialize for PackageRevisionId {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for PackageRevisionId {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        Self::try_new(value).map_err(serde::de::Error::custom)
+    }
+}
+
+/// Durable association of an `installation_id` with an active package revision,
+/// state revision, and schema version.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct InstallationRevision {
+    /// Stable installation identity string.
+    pub installation_id: String,
+    /// Active package revision digest/identity.
+    pub package_revision: PackageRevisionId,
+    /// Persisted state revision counter.
+    pub state_revision: u64,
+    /// Persisted state schema version.
+    pub schema_version: u64,
+}
+
+impl InstallationRevision {
+    /// Constructs a new installation revision record.
+    #[must_use]
+    pub fn new(
+        installation_id: impl Into<String>,
+        package_revision: PackageRevisionId,
+        state_revision: u64,
+        schema_version: u64,
+    ) -> Self {
+        Self {
+            installation_id: installation_id.into(),
+            package_revision,
+            state_revision,
+            schema_version,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

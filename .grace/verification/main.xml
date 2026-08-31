@@ -90,5 +90,28 @@
       <Scenario>One unchanged reference consumer executes against builtin Rust, supervised native process, and sandboxed WASM Component providers with identical observable capability, state, and event semantics. Hostile WASM and malformed IPC traffic are contained deterministically.</Scenario>
       <TraceAssertion>Process isolation and WASM sandboxing never replace broker authorization, host handles are runtime-scoped and attenuated, WASM instances hold zero ambient WASI permissions, and installation state survives external provider restart without inheriting live authority.</TraceAssertion>
     </V-M-EXTERNAL-PLUGIN-BOUNDARY>
+    <V-M-OPERABILITY-COMPATIBILITY-UPGRADE>
+      <TestFiles>
+        <File>docs/adr/ADR-OPERABILITY-COMPATIBILITY-UPGRADE-V1.md</File>
+        <File>crates/worldline-kernel/tests/compatibility_acceptance.rs</File>
+        <File>crates/worldline-kernel/tests/upgrade_acceptance.rs</File>
+        <File>crates/worldline-kernel/tests/property_tests.rs</File>
+        <File>crates/worldline-kernel/tests/negative_security.rs</File>
+        <File>crates/worldline-kernel/tests/fuzz_smoke.rs</File>
+        <File>crates/worldline-storage/tests/upgrade_chaos_acceptance.rs</File>
+        <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+        <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      </TestFiles>
+      <Command>cargo test -p worldline-plugin-protocol</Command>
+      <Command>cargo test -p worldline-kernel --test compatibility_acceptance</Command>
+      <Command>cargo test -p worldline-kernel --test upgrade_acceptance</Command>
+      <Command>cargo test -p worldline-kernel --test property_tests</Command>
+      <Command>cargo test -p worldline-kernel --test negative_security</Command>
+      <Command>cargo test -p worldline-kernel --test fuzz_smoke</Command>
+      <Command>cargo test -p worldline-storage --features test-failpoints --test upgrade_chaos_acceptance -- --test-threads=1</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      <Scenario>Kernel evaluates contract compatibility without granting authority, rejects incompatible updates before switch, isolates staged migrations on copy, validates pre-switch health, switches active revision atomically, rolls back to LastKnownGood upon post-switch failure, quarantines crashing plugins, executes safe mode with core composition, bisects candidate sets, gathers payload-free telemetry, and flags diagnostic gaps.</Scenario>
+      <TraceAssertion>Staged updates possess zero authority prior to switch, migrations execute on copy, failed validation never replaces LastKnownGood, rollback mints fresh RuntimeId without grant inheritance, and unprovable external side effects remain explicitly Incomplete without synthetic retry.</TraceAssertion>
+    </V-M-OPERABILITY-COMPATIBILITY-UPGRADE>
   </VD-MAIN>
 </GraceVerificationDocument>

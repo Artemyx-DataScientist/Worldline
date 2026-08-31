@@ -26,8 +26,15 @@
   least-authority WASI/quotas, supervised native host, sandboxed WASM host,
   malicious WASM containment, protocol robustness, 3-mode cross-conformance
   и external S1 proving paths.
-- **M0.7 — Next.** Следующий implementation milestone — Operability,
-  compatibility and upgrade.
+- **M0.7 — Done.** Operability, compatibility and upgrade закрыт machine-checkable
+  compatibility matrix (SDK N/N-1/N-2), staged updates, migration-on-copy,
+  LastKnownGood rollback, persistent quarantine, safe mode, automated bisect,
+  payload-free operational telemetry, causality diagnostics, property tests,
+  negative security tests, fuzzing smoke tests, process-kill chaos matrix и
+  explicit incomplete side-effects.
+- **M0 — Complete.** Базовая архитектура платформы Worldline (M0.1–M0.7)
+  полностью построена, проверена сквозными CI-гейтами и готова к разработке
+  первого прикладного плагина — браузерного движка (Milestone M1).
 
 ## 1. Куда идёт Worldline
 
@@ -523,7 +530,7 @@ GitHub Actions результата.
 сохранить ничего, что ему явно не делегировано, и не может повредить работу
 других runtimes.
 
-### M0.7 — Operability, compatibility and upgrade — Next
+### M0.7 — Operability, compatibility and upgrade — Done
 
 - stable/experimental capability lifecycle и правила major-version change;
 - compatibility matrix: current kernel с SDK `N`, `N-1`, `N-2` и current SDK с

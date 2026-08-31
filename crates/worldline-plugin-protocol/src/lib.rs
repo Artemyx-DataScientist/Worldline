@@ -22,14 +22,22 @@
 
 #![forbid(unsafe_code)]
 
+mod compatibility;
 mod envelope;
 mod error;
 mod identity;
 mod manifest;
 
+pub use compatibility::{
+    ContractCompatibilityOutcome, ContractSpec, ContractStability, SUPPORTED_SDK_VERSIONS,
+    evaluate_abi_compatibility, is_supported_sdk_version,
+};
 pub use envelope::{Envelope, MessageKind, PROTOCOL_VERSION};
 pub use error::ProtocolError;
-pub use identity::{AbiVersion, PackageVersion, PluginDefinitionId, PluginPackageId};
+pub use identity::{
+    AbiVersion, InstallationRevision, PackageRevisionId, PackageVersion, PluginDefinitionId,
+    PluginPackageId,
+};
 pub use manifest::{
     ExecutionMode, MANIFEST_SCHEMA_VERSION, PermissionClass, PluginManifest, RequestedPermission,
     ResourceLimitHints,

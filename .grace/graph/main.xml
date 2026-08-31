@@ -62,5 +62,26 @@
       <M-REFERENCE-PROVING-SLICE />
       <M-CI-BASELINE />
     </M-EXTERNAL-PLUGIN-BOUNDARY>
+    <M-OPERABILITY-COMPATIBILITY-UPGRADE>
+      <Summary>Operability, compatibility, staged plugin updates, LastKnownGood rollback, persistent quarantine, security-preserving safe mode, automated bisect, operational metrics, causality diagnostics, and explicit incomplete side-effect outcomes.</Summary>
+      <Path>docs/adr/ADR-OPERABILITY-COMPATIBILITY-UPGRADE-V1.md</Path>
+      <Path>crates/worldline-kernel/src/upgrade.rs</Path>
+      <Path>crates/worldline-kernel/src/quarantine.rs</Path>
+      <Path>crates/worldline-kernel/src/safe_mode.rs</Path>
+      <Path>crates/worldline-kernel/src/bisect.rs</Path>
+      <Path>crates/worldline-kernel/src/telemetry.rs</Path>
+      <Path>crates/worldline-kernel/src/diagnostics.rs</Path>
+      <Path>crates/worldline-kernel/src/side_effect.rs</Path>
+      <Path>crates/worldline-plugin-protocol/src/compatibility.rs</Path>
+      <Path>crates/worldline-kernel/tests/compatibility_acceptance.rs</Path>
+      <Path>crates/worldline-kernel/tests/upgrade_acceptance.rs</Path>
+      <Path>crates/worldline-kernel/tests/property_tests.rs</Path>
+      <Path>crates/worldline-kernel/tests/negative_security.rs</Path>
+      <Path>crates/worldline-kernel/tests/fuzz_smoke.rs</Path>
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-PERSISTENCE-RECOVERY />
+      <M-CI-BASELINE />
+    </M-OPERABILITY-COMPATIBILITY-UPGRADE>
   </GD-MAIN>
 </GraceGraphDocument>

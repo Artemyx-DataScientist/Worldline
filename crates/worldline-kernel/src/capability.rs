@@ -35,11 +35,27 @@ impl fmt::Display for InterfaceVersion {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ContractStability {
+    Stable,
+    Experimental,
+}
+
+impl fmt::Display for ContractStability {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Stable => formatter.write_str("stable"),
+            Self::Experimental => formatter.write_str("experimental"),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CapabilityId {
     namespace: String,
     name: String,
     interface_version: InterfaceVersion,
+    stability: ContractStability,
 }
 
 impl CapabilityId {
@@ -52,6 +68,21 @@ impl CapabilityId {
             namespace: namespace.into(),
             name: name.into(),
             interface_version,
+            stability: ContractStability::Stable,
+        }
+    }
+
+    pub fn with_stability(
+        namespace: impl Into<String>,
+        name: impl Into<String>,
+        interface_version: InterfaceVersion,
+        stability: ContractStability,
+    ) -> Self {
+        Self {
+            namespace: namespace.into(),
+            name: name.into(),
+            interface_version,
+            stability,
         }
     }
 
@@ -67,6 +98,10 @@ impl CapabilityId {
         self.interface_version
     }
 
+    pub const fn stability(&self) -> ContractStability {
+        self.stability
+    }
+
     pub fn contract(&self) -> crate::CapabilityContract {
         crate::CapabilityContract::from(self)
     }
@@ -76,20 +111,41 @@ impl CapabilityId {
     }
 
     pub fn is_compatible_with(&self, required: &Self) -> bool {
-        self.namespace == required.namespace
-            && self.name == required.name
-            && self.interface_version.major == required.interface_version.major
-            && self.interface_version.minor >= required.interface_version.minor
+        if self.namespace != required.namespace
+            || self.name != required.name
+            || self.stability != required.stability
+        {
+            return false;
+        }
+
+        match self.stability {
+            ContractStability::Stable => {
+                self.interface_version.major == required.interface_version.major
+                    && self.interface_version.minor >= required.interface_version.minor
+            }
+            ContractStability::Experimental => {
+                self.interface_version.major == required.interface_version.major
+                    && self.interface_version.minor == required.interface_version.minor
+            }
+        }
     }
 }
 
 impl fmt::Display for CapabilityId {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "{}/{}@{}",
-            self.namespace, self.name, self.interface_version
-        )
+        if self.stability == ContractStability::Experimental {
+            write!(
+                formatter,
+                "experimental:{}/{}@{}",
+                self.namespace, self.name, self.interface_version
+            )
+        } else {
+            write!(
+                formatter,
+                "{}/{}@{}",
+                self.namespace, self.name, self.interface_version
+            )
+        }
     }
 }
 

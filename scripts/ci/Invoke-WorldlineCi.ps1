@@ -77,6 +77,9 @@ function Invoke-CorrectnessSuite {
     Write-Host '--- Correctness suite ---'
     Invoke-WorldlineCommand -Label 'workspace tests' -FilePath 'cargo' -Arguments @('test', '--workspace')
     Invoke-WorldlineCommand -Label 'storage hard-kill recovery tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-storage', '--features', 'test-failpoints', '--test', 'recovery_acceptance', '--', '--test-threads=1')
+    Invoke-WorldlineCommand -Label 'upgrade chaos recovery tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-storage', '--features', 'test-failpoints', '--test', 'upgrade_chaos_acceptance', '--', '--test-threads=1')
+    Invoke-WorldlineCommand -Label 'compatibility acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-kernel', '--test', 'compatibility_acceptance')
+    Invoke-WorldlineCommand -Label 'upgrade and rollback acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-kernel', '--test', 'upgrade_acceptance')
     Invoke-WorldlineCommand -Label 'cross-mode logical conformance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'cross_mode_conformance')
 }
 
@@ -84,6 +87,9 @@ function Invoke-ArchitectureSecuritySuite {
     Write-Host '--- Architecture and security suite ---'
     Invoke-WorldlineCommand -Label 'architecture guard' -FilePath 'pwsh' -Arguments @('-NoProfile', '-File', $architectureGuard)
     Invoke-WorldlineCommand -Label 'kernel acceptance tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-kernel')
+    Invoke-WorldlineCommand -Label 'kernel property tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-kernel', '--test', 'property_tests')
+    Invoke-WorldlineCommand -Label 'kernel negative security tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-kernel', '--test', 'negative_security')
+    Invoke-WorldlineCommand -Label 'kernel fuzzing smoke tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-kernel', '--test', 'fuzz_smoke')
     Invoke-WorldlineCommand -Label 'storage contract tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-storage', '--test', 'contract_acceptance')
     Invoke-WorldlineCommand -Label 'malicious wasm acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'malicious_wasm_acceptance')
     Invoke-WorldlineCommand -Label 'external protocol robustness' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'protocol_robustness')

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "package_id": "worldline.reference.echo-provider-unsupported",
+  "package_version": { "major": 1, "minor": 0, "patch": 0 },
+  "plugin_definitions": ["reference.echo.provider"],
+  "execution_mode": "wasm_component",
+  "required_abi": {
+    "component_model": "99.0",
+    "wasi": "99.0",
+    "protocol_major": 99
+  },
+  "provided_capability_contracts": [
+    "reference.echo/echo@1.0"
+  ],
+  "required_capability_contracts": [],
+  "requested_permissions": [],
+  "resource_limit_hints": {},
+  "artifact_path": "guest.wasm"
+}

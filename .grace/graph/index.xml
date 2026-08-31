@@ -9,6 +9,7 @@
         <M-CI-BASELINE />
         <M-PERSISTENCE-RECOVERY />
         <M-EXTERNAL-PLUGIN-BOUNDARY />
+        <M-OPERABILITY-COMPATIBILITY-UPGRADE />
       </Owns>
     </GD-MAIN>
   </GraphDocuments>

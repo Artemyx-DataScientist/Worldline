@@ -1,0 +1,374 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-KERNEL-OPERABILITY-COMPATIBILITY-UPGRADE-20260831>
+    <IntentSummary>Establish the operability, compatibility, and upgrade contracts for Worldline: machine-checkable Stable/Experimental contract lifecycle rules and SDK N/N-1/N-2 matrix; staged package upgrade with migration-on-copy, bounded pre-switch health validation, and atomic active-revision switch; LastKnownGood rollback with fresh runtime identity and authority isolation; persistent quarantine and security-preserving safe mode; bounded automated plugin bisect; per-runtime operational metrics without raw payload leakage; diagnostic causality reconstruction; explicit Incomplete side-effect outcomes; and property, fuzzing, negative-security, and process-kill chaos hardening suites.</IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-KERNEL-CAPABILITY-RUNTIME</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>M-PERSISTENCE-RECOVERY</Value>
+        <Value>M-EXTERNAL-PLUGIN-BOUNDARY</Value>
+        <Value>crates/worldline-kernel/src/lib.rs</Value>
+        <Value>crates/worldline-plugin-protocol/src/lib.rs</Value>
+        <Value>crates/worldline-storage/src/lib.rs</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>.grace/graph/index.xml</Value>
+        <Value>.grace/verification/index.xml</Value>
+      </MustExist>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>docs/adr/ADR-OPERABILITY-COMPATIBILITY-UPGRADE-V1.md</Value>
+        <Value>crates/worldline-plugin-protocol/src/compatibility.rs</Value>
+        <Value>crates/worldline-kernel/src/upgrade.rs</Value>
+        <Value>crates/worldline-kernel/src/quarantine.rs</Value>
+        <Value>crates/worldline-kernel/src/safe_mode.rs</Value>
+        <Value>crates/worldline-kernel/src/bisect.rs</Value>
+        <Value>crates/worldline-kernel/src/telemetry.rs</Value>
+        <Value>crates/worldline-kernel/src/diagnostics.rs</Value>
+        <Value>crates/worldline-kernel/src/side_effect.rs</Value>
+        <Value>crates/worldline-kernel/tests/compatibility_acceptance.rs</Value>
+        <Value>crates/worldline-kernel/tests/upgrade_acceptance.rs</Value>
+        <Value>crates/worldline-kernel/tests/property_tests.rs</Value>
+        <Value>crates/worldline-kernel/tests/negative_security.rs</Value>
+        <Value>crates/worldline-kernel/tests/fuzz_smoke.rs</Value>
+        <Value>crates/worldline-storage/tests/upgrade_chaos_acceptance.rs</Value>
+      </MustExist>
+      <MustVerify>
+        <Module>M-OPERABILITY-COMPATIBILITY-UPGRADE</Module>
+        <Module>M-EXTERNAL-PLUGIN-BOUNDARY</Module>
+        <Module>M-KERNEL-CAPABILITY-RUNTIME</Module>
+        <Module>M-REFERENCE-PROVING-SLICE</Module>
+        <Module>M-PERSISTENCE-RECOVERY</Module>
+        <Module>M-CI-BASELINE</Module>
+      </MustVerify>
+      <MustPassCommand>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+        <M-EXTERNAL-PLUGIN-BOUNDARY />
+        <M-KERNEL-CAPABILITY-RUNTIME />
+        <M-REFERENCE-PROVING-SLICE />
+        <M-PERSISTENCE-RECOVERY />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-OPERABILITY-COMPATIBILITY-UPGRADE />
+        <V-M-EXTERNAL-PLUGIN-BOUNDARY />
+        <V-M-KERNEL-CAPABILITY-RUNTIME />
+        <V-M-REFERENCE-PROVING-SLICE />
+        <V-M-PERSISTENCE-RECOVERY />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>docs/adr/ADR-OPERABILITY-COMPATIBILITY-UPGRADE-V1.md</File>
+      <File>Cargo.toml</File>
+      <File>Cargo.lock</File>
+      <File>crates/worldline-plugin-protocol/Cargo.toml</File>
+      <File>crates/worldline-plugin-protocol/src/lib.rs</File>
+      <File>crates/worldline-plugin-protocol/src/identity.rs</File>
+      <File>crates/worldline-plugin-protocol/src/manifest.rs</File>
+      <File>crates/worldline-plugin-protocol/src/compatibility.rs</File>
+      <File>crates/worldline-plugin-protocol/fixtures/manifest_v1_valid.json</File>
+      <File>crates/worldline-plugin-protocol/fixtures/manifest_v1_n_minus_1.json</File>
+      <File>crates/worldline-plugin-protocol/fixtures/manifest_v1_n_minus_2.json</File>
+      <File>crates/worldline-plugin-protocol/fixtures/manifest_v1_unsupported_abi.json</File>
+      <File>crates/worldline-kernel/Cargo.toml</File>
+      <File>crates/worldline-kernel/src/lib.rs</File>
+      <File>crates/worldline-kernel/src/error.rs</File>
+      <File>crates/worldline-kernel/src/capability.rs</File>
+      <File>crates/worldline-kernel/src/kernel.rs</File>
+      <File>crates/worldline-kernel/src/state.rs</File>
+      <File>crates/worldline-kernel/src/runtime.rs</File>
+      <File>crates/worldline-kernel/src/rpc.rs</File>
+      <File>crates/worldline-kernel/src/trajectory.rs</File>
+      <File>crates/worldline-kernel/src/upgrade.rs</File>
+      <File>crates/worldline-kernel/src/quarantine.rs</File>
+      <File>crates/worldline-kernel/src/safe_mode.rs</File>
+      <File>crates/worldline-kernel/src/bisect.rs</File>
+      <File>crates/worldline-kernel/src/telemetry.rs</File>
+      <File>crates/worldline-kernel/src/diagnostics.rs</File>
+      <File>crates/worldline-kernel/src/side_effect.rs</File>
+      <File>crates/worldline-kernel/tests/compatibility_acceptance.rs</File>
+      <File>crates/worldline-kernel/tests/upgrade_acceptance.rs</File>
+      <File>crates/worldline-kernel/tests/property_tests.rs</File>
+      <File>crates/worldline-kernel/tests/negative_security.rs</File>
+      <File>crates/worldline-kernel/tests/fuzz_smoke.rs</File>
+      <File>crates/worldline-storage/Cargo.toml</File>
+      <File>crates/worldline-storage/src/lib.rs</File>
+      <File>crates/worldline-storage/src/sqlite.rs</File>
+      <File>crates/worldline-storage/src/failpoints.rs</File>
+      <File>crates/worldline-storage/src/bin/upgrade-chaos-child.rs</File>
+      <File>crates/worldline-storage/tests/upgrade_chaos_acceptance.rs</File>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      <File>README.md</File>
+      <File>ROADMAP.md</File>
+      <File>.grace/graph/index.xml</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.grace/verification/index.xml</File>
+      <File>.grace/verification/main.xml</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Inventory current interfaces and write ADR-OPERABILITY-COMPATIBILITY-UPGRADE-V1 including Cordis-rs lineage</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>ADR-OPERABILITY-COMPATIBILITY-UPGRADE-V1.md exists and covers all required sections: Contract stability model, Compatibility rules, Supported SDK/kernel matrix, Package revision model, Staged upgrade protocol, Migration-on-copy, Health validation, Atomic switch and rollback, Safe mode, Quarantine and bisect, Operational telemetry, Incomplete external outcomes, Replay boundaries, Cordis-rs lineage and deliberate divergence, Rejected alternatives, and Reopen conditions.</Criterion>
+          <Criterion>The ADR explicitly records that Cordis-rs lifecycle/effect ownership is architectural lineage, while external compatibility, upgrade transactionality, persistent package revisions, and crash rollback are Worldline contracts.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Introduce contract stability, package revisions, and compatibility resolver in worldline-plugin-protocol</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-plugin-protocol defines PackageRevisionId, InstallationRevision, ContractStability (Stable, Experimental), and machine-readable CompatibilityMatrix rules.</Criterion>
+          <Criterion>Capability contract stability is metadata of a contract version line, not a provider self-declaration. Provider cannot self-declare Stable to bypass negotiation.</Criterion>
+          <Criterion>Compatibility evaluation is deterministic and machine-readable; no decisions based on filename or lexical guessing.</Criterion>
+          <Criterion>Versioned compatibility fixtures for SDK N, N-1, and N-2 are added under fixtures directory.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-plugin-protocol</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Implement staged package revision storage without activation and compatibility resolver in kernel</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-kernel implements CompatibilityResolver evaluating provider capability declarations against required contracts under Stable/Experimental rules.</Criterion>
+          <Criterion>Staging a new package revision registers the revision metadata but grants NO active provider authority, publishes NO capability broker endpoints, and mutates no active installation state.</Criterion>
+          <Criterion>Incompatible major or unsupported experimental revision produces explicit CompatibilityRejected prior to activation.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --test compatibility_acceptance</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Implement migration-on-copy and migration provenance</Title>
+        <DependsOn>
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>State migration for upgrade executes against an isolated staged copy/snapshot of installation state.</Criterion>
+          <Criterion>Original state remains intact until new revision passes health validation and switch commits.</Criterion>
+          <Criterion>Migration provenance records source revision, target revision, source schema, target schema, migration path, and result.</Criterion>
+          <Criterion>Failed migration preserves current state and revision intact.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --test upgrade_acceptance</Command>
+        </Verification>
+      </T-004>
+
+      <T-005>
+        <Title>Implement pre-switch health validation and probe execution</Title>
+        <DependsOn>
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Pre-switch health validation runs required checks: manifest and ABI compatibility, state migration success on copy, runtime activation, required capability publication, dependency resolution, bounded health probe (deadline and budget), and no immediate traps/crashes.</Criterion>
+          <Criterion>Passing health validation grants no additional authority.</Criterion>
+          <Criterion>Failed health validation preserves current revision and leaves active state unaltered.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --test upgrade_acceptance</Command>
+        </Verification>
+      </T-005>
+
+      <T-006>
+        <Title>Implement durable atomic active-revision switch and crash recovery</Title>
+        <DependsOn>
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Switch has a single durable committed active-revision decision in storage.</Criterion>
+          <Criterion>Crash before switch recovers previous Current revision; crash after switch recovers new Current revision (or explicit rollback-required); never two authoritative Current revisions.</Criterion>
+          <Criterion>Capability broker never exposes both old and new revisions simultaneously under single-provider semantics.</Criterion>
+          <Criterion>New revision receives a fresh RuntimeId and inherits zero runtime grants from previous runtime.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --test upgrade_acceptance</Command>
+        </Verification>
+      </T-006>
+
+      <T-007>
+        <Title>Implement LastKnownGood rollback and post-switch observation window</Title>
+        <DependsOn>
+          <T-006 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>LastKnownGoodRevision is durably recorded and restored on rollback.</Criterion>
+          <Criterion>Rollback restores package revision, compatible state snapshot, and composition selection metadata.</Criterion>
+          <Criterion>Rollback creates fresh RuntimeId and fresh live authority; does not resurrect old handles or grants.</Criterion>
+          <Criterion>Post-switch observation window detects activation crashes, repeated restarts, required provider disappearance, health probe failures, and triggers automatic rollback according to policy.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --test upgrade_acceptance</Command>
+        </Verification>
+      </T-007>
+
+      <T-008>
+        <Title>Implement persistent quarantine, safe mode, and bounded automated bisect</Title>
+        <DependsOn>
+          <T-007 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Repeatedly broken plugins enter persistent quarantine with reason, sequence/timestamp, and originating revision; quarantined plugins do not auto-activate across host restart.</Criterion>
+          <Criterion>Quarantine preserves installation state and does not delete packages.</Criterion>
+          <Criterion>Safe mode boots a minimal known-good composition suppressing optional third-party plugins while strictly enforcing capability authorization.</Criterion>
+          <Criterion>Automated bisect isolates offending optional plugins over a bounded candidate set with outcomes LikelyCulprit, MultipleCandidates, or Inconclusive.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --test upgrade_acceptance</Command>
+        </Verification>
+      </T-008>
+
+      <T-009>
+        <Title>Implement per-runtime operational metrics and diagnostic causality queries</Title>
+        <DependsOn>
+          <T-008 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Operational metrics record activation/deactivation durations, restart/crash/hung/quarantine counts, RPC in-flight/queue depth, event mailbox depth/drops, authorization denials, memory/CPU usage without raw payload data.</Criterion>
+          <Criterion>Diagnostic causality query reconstructs ordered causal facts from correlation/causation metadata without timestamp guessing.</Criterion>
+          <Criterion>Missing or pruned causal evidence appears explicitly as a diagnostic gap.</Criterion>
+          <Criterion>Diagnostic query enforces caller permissions and never leaks payload data.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --test upgrade_acceptance</Command>
+        </Verification>
+      </T-009>
+
+      <T-010>
+        <Title>Implement explicit Incomplete side-effect outcome and replay boundary policy</Title>
+        <DependsOn>
+          <T-009 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>SideEffectOutcome defines NotStarted, CommittedLocal, Succeeded, Failed, and Incomplete.</Criterion>
+          <Criterion>Crash after external side-effect dispatch but before outcome acknowledgement yields Incomplete.</Criterion>
+          <Criterion>Incomplete is not treated as Failed or Succeeded, and is not automatically retried unless idempotency is verified.</Criterion>
+          <Criterion>Deterministic replay is restricted to explicitly designated event-sourced domains; other domains recover via authoritative stores.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --test upgrade_acceptance</Command>
+        </Verification>
+      </T-010>
+
+      <T-011>
+        <Title>Add resolver and upgrade property tests</Title>
+        <DependsOn>
+          <T-003 />
+          <T-007 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Resolver properties verify determinism, incompatible provider rejection, irrelevant provider independence, authority separation from compatibility, and authority non-inheritance.</Criterion>
+          <Criterion>Upgrade properties verify single active revision invariant, pre-switch failure safety, and stale handle non-revival on rollback.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --test property_tests</Command>
+        </Verification>
+      </T-011>
+
+      <T-012>
+        <Title>Add negative security suite and fuzzing smoke suite</Title>
+        <DependsOn>
+          <T-008 />
+          <T-009 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Negative security suite tests cross-runtime handle reuse, revoked handle reuse, manifest self-grants, WASI escapes, ProviderSelf after replacement, state handle after rollback, and authority inheritance after upgrade.</Criterion>
+          <Criterion>Fuzzing smoke suite tests manifest parser, IPC envelopes, compatibility negotiation, and diagnostic causality query parser against arbitrary/malformed inputs without host panics.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --test negative_security</Command>
+          <Command>cargo test -p worldline-kernel --test fuzz_smoke</Command>
+        </Verification>
+      </T-012>
+
+      <T-013>
+        <Title>Implement process-kill chaos matrix in worldline-storage</Title>
+        <DependsOn>
+          <T-006 />
+          <T-007 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Storage failpoints cover staged migration, pre-switch validation, active switch commit, post-switch, rollback, and outbox recovery.</Criterion>
+          <Criterion>Hard process kills at each kill point recover into a fresh host process with exact single-revision assertions and no corrupted state.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-storage --features test-failpoints --test upgrade_chaos_acceptance -- --test-threads=1</Command>
+        </Verification>
+      </T-013>
+
+      <T-014>
+        <Title>Integrate M0.7 verification into repository-owned CI and static architecture guard</Title>
+        <DependsOn>
+          <T-011 />
+          <T-012 />
+          <T-013 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Invoke-WorldlineCi.ps1 suites Source, Correctness, ArchitectureSecurity, and ProvingSlice run all new compatibility, upgrade, property, negative-security, fuzzing, and chaos suites.</Criterion>
+          <Criterion>Test-WorldlineArchitecture.ps1 verifies that upgrade/compatibility code does not import browser/agent/UI domain types, safe mode has no product-specific branches, and diagnostics cannot bypass broker.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-014>
+
+      <T-015>
+        <Title>Run full M0 regression and verify permanent proving slices</Title>
+        <DependsOn>
+          <T-014 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>S0, S1, external-provider S1 proving paths, and staged upgrade proving scenarios run green.</Criterion>
+          <Criterion>Builtin, native-process, and WASM provider conformance remains green.</Criterion>
+          <Criterion>All M0 exit criteria from ROADMAP.md are proven by fresh evidence.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-015>
+
+      <T-016>
+        <Title>Reconcile durable GRACE projections and close milestone M0 in ROADMAP</Title>
+        <DependsOn>
+          <T-015 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>M-OPERABILITY-COMPATIBILITY-UPGRADE and V-M-OPERABILITY-COMPATIBILITY-UPGRADE are routed in graph and verification documents.</Criterion>
+          <Criterion>ROADMAP.md marks M0.7 Done and M0 Complete, and sets M1.1 Browser Contract and Engine Spike as Next.</Criterion>
+          <Criterion>Completion packet reports all required fields with explicit separation of scaffolded, wired, and verified evidence.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-016>
+    </ImplementationPlan>
+  </C-KERNEL-OPERABILITY-COMPATIBILITY-UPGRADE-20260831>
+</GraceChangePlan>
