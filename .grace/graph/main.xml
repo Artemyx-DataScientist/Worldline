@@ -154,5 +154,34 @@
       <M-BROWSER-CONTRACT-ENGINE-SPIKE />
       <M-CI-BASELINE />
     </M-BROWSER-ENGINE-PROVIDER-PROCESS>
+    <M-BROWSER-SERVICE-PLUGINS>
+      <Summary>Second M1.3 browser-service slice: independent downloads and cookies/site-data service plugins above engine primitives. Downloads manages durable DownloadRecordId lifecycle, pre-engine intent persistence, opaque ArtifactRef handoff without path authority, and post-crash Reconciling reconciliation. Cookies separates CookieMetadata inspection from CookieValue disclosure, applies policy-scoped context isolation, and delegates value authority to the Chromium profile cookie store. Site-data clearing is origin-scoped and context-bounded. Verified by proving slice S3B.</Summary>
+      <Path>docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md</Path>
+      <Path>crates/worldline-browser-services-contract/Cargo.toml</Path>
+      <Path>crates/worldline-browser-services-contract/src/lib.rs</Path>
+      <Path>crates/worldline-browser-services-contract/src/downloads.rs</Path>
+      <Path>crates/worldline-browser-services-contract/src/cookies.rs</Path>
+      <Path>crates/worldline-browser-services-contract/src/site_data.rs</Path>
+      <Path>crates/worldline-browser-services-contract/src/tabs.rs</Path>
+      <Path>crates/worldline-browser-services-contract/src/history.rs</Path>
+      <Path>crates/worldline-browser-services-contract/tests/contract_acceptance.rs</Path>
+      <Path>crates/worldline-browser-downloads/Cargo.toml</Path>
+      <Path>crates/worldline-browser-downloads/src/lib.rs</Path>
+      <Path>crates/worldline-browser-downloads/src/state.rs</Path>
+      <Path>crates/worldline-browser-downloads/src/service.rs</Path>
+      <Path>crates/worldline-browser-downloads/src/artifact.rs</Path>
+      <Path>crates/worldline-browser-downloads/tests/downloads_acceptance.rs</Path>
+      <Path>crates/worldline-browser-cookies/Cargo.toml</Path>
+      <Path>crates/worldline-browser-cookies/src/lib.rs</Path>
+      <Path>crates/worldline-browser-cookies/src/service.rs</Path>
+      <Path>crates/worldline-browser-cookies/src/policy.rs</Path>
+      <Path>crates/worldline-browser-cookies/src/site_data.rs</Path>
+      <Path>crates/worldline-browser-cookies/tests/cookies_acceptance.rs</Path>
+      <Path>crates/worldline-reference/src/s3b.rs</Path>
+      <Path>crates/worldline-reference/tests/s3b_acceptance.rs</Path>
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-CI-BASELINE />
+    </M-BROWSER-SERVICE-PLUGINS>
   </GD-MAIN>
 </GraceGraphDocument>

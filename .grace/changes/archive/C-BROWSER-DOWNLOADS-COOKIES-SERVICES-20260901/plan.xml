@@ -1,0 +1,304 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901>
+    <IntentSummary>
+      Deliver the second bounded M1.3 browser-service slice: implement independent
+      downloads and cookies/site-data service plugins above the existing M1.2
+      browser engine primitives, decomposed into dependency-ordered packages P1
+      through P4.
+    </IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-BROWSER-ENGINE-PROVIDER-PROCESS</Value>
+        <Value>M-BROWSER-CONTRACT-ENGINE-SPIKE</Value>
+        <Value>M-PERSISTENCE-RECOVERY</Value>
+        <Value>M-EXTERNAL-PLUGIN-BOUNDARY</Value>
+        <Value>M-OPERABILITY-COMPATIBILITY-UPGRADE</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>V-M-BROWSER-ENGINE-PROVIDER-PROCESS</Value>
+        <Value>V-M-CI-BASELINE</Value>
+        <Value>crates/worldline-browser-contract/Cargo.toml</Value>
+        <Value>crates/worldline-browser-contract/src/contracts.rs</Value>
+        <Value>crates/worldline-browser-contract/src/primitives.rs</Value>
+        <Value>crates/worldline-browser-provider/Cargo.toml</Value>
+        <Value>crates/worldline-browser-services-contract/Cargo.toml</Value>
+        <Value>crates/worldline-browser-tabs/Cargo.toml</Value>
+        <Value>crates/worldline-browser-history/Cargo.toml</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>.grace/graph/index.xml</Value>
+        <Value>.grace/verification/index.xml</Value>
+      </MustExist>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md</Value>
+        <Value>crates/worldline-browser-services-contract/Cargo.toml</Value>
+        <Value>crates/worldline-browser-services-contract/src/lib.rs</Value>
+        <Value>crates/worldline-browser-services-contract/src/downloads.rs</Value>
+        <Value>crates/worldline-browser-services-contract/src/cookies.rs</Value>
+        <Value>crates/worldline-browser-services-contract/src/site_data.rs</Value>
+        <Value>crates/worldline-browser-downloads/Cargo.toml</Value>
+        <Value>crates/worldline-browser-downloads/src/lib.rs</Value>
+        <Value>crates/worldline-browser-cookies/Cargo.toml</Value>
+        <Value>crates/worldline-browser-cookies/src/lib.rs</Value>
+        <Value>crates/worldline-reference/src/s3b.rs</Value>
+      </MustExist>
+      <MustPassCommand>
+        <Command>cargo fmt --all -- --check</Command>
+        <Command>cargo check --workspace --all-targets</Command>
+        <Command>cargo test -p worldline-browser-contract</Command>
+        <Command>cargo test -p worldline-browser-services-contract</Command>
+        <Command>cargo test -p worldline-browser-downloads</Command>
+        <Command>cargo test -p worldline-browser-cookies</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+        <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <M-PERSISTENCE-RECOVERY />
+        <M-EXTERNAL-PLUGIN-BOUNDARY />
+        <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+        <M-REFERENCE-PROVING-SLICE />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-BROWSER-ENGINE-PROVIDER-PROCESS />
+        <V-M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <V-M-PERSISTENCE-RECOVERY />
+        <V-M-EXTERNAL-PLUGIN-BOUNDARY />
+        <V-M-OPERABILITY-COMPATIBILITY-UPGRADE />
+        <V-M-REFERENCE-PROVING-SLICE />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md</File>
+      <File>Cargo.toml</File>
+      <File>Cargo.lock</File>
+      <File>crates/worldline-browser-services-contract/Cargo.toml</File>
+      <File>crates/worldline-browser-services-contract/src/lib.rs</File>
+      <File>crates/worldline-browser-services-contract/src/downloads.rs</File>
+      <File>crates/worldline-browser-services-contract/src/cookies.rs</File>
+      <File>crates/worldline-browser-services-contract/src/site_data.rs</File>
+      <File>crates/worldline-browser-services-contract/tests/contract_acceptance.rs</File>
+      <File>crates/worldline-browser-downloads/Cargo.toml</File>
+      <File>crates/worldline-browser-downloads/src/lib.rs</File>
+      <File>crates/worldline-browser-downloads/src/state.rs</File>
+      <File>crates/worldline-browser-downloads/src/service.rs</File>
+      <File>crates/worldline-browser-downloads/src/artifact.rs</File>
+      <File>crates/worldline-browser-downloads/tests/downloads_acceptance.rs</File>
+      <File>crates/worldline-browser-cookies/Cargo.toml</File>
+      <File>crates/worldline-browser-cookies/src/lib.rs</File>
+      <File>crates/worldline-browser-cookies/src/service.rs</File>
+      <File>crates/worldline-browser-cookies/src/policy.rs</File>
+      <File>crates/worldline-browser-cookies/src/site_data.rs</File>
+      <File>crates/worldline-browser-cookies/tests/cookies_acceptance.rs</File>
+      <File>crates/worldline-reference/Cargo.toml</File>
+      <File>crates/worldline-reference/src/lib.rs</File>
+      <File>crates/worldline-reference/src/s3b.rs</File>
+      <File>crates/worldline-reference/tests/s3b_acceptance.rs</File>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      <File>.github/workflows/pr.yml</File>
+      <File>.github/workflows/master.yml</File>
+      <File>README.md</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.grace/verification/main.xml</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <!-- Package P1: Architecture ADR and service contracts -->
+      <T-001>
+        <Title>Extend ADR-BROWSER-SERVICE-PLUGINS-V1 with downloads, cookies, site-data, artifact handoff, and secret redaction architecture</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>ADR documents downloads and cookies/site-data service boundaries, DownloadRecordId vs engine DownloadId, opaque ArtifactRef handoff without path authority, cookie metadata vs secret value authority separation, redacted Debug representation for cookie secrets, and incomplete outcome post-crash reconciliation.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-001>
+      <T-002>
+        <Title>Extend worldline-browser-services-contract with experimental v0.1 downloads, cookies, and site-data contracts</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-browser-services-contract defines browser.downloads/0.1 with DownloadRecordId, lifecycle states, progress/reconciliation DTOs, and opaque ArtifactRef without host path leaks.</Criterion>
+          <Criterion>worldline-browser-services-contract defines browser.cookies/0.1 separating CookieMetadata from CookieValue, with redacted Debug representation on secret value containers.</Criterion>
+          <Criterion>worldline-browser-services-contract defines browser.site-data/0.1 with context/origin-scoped ClearSiteData operations.</Criterion>
+          <Criterion>Authority identifiers distinguish downloads read vs control, cookies metadata read vs secret value read vs mutation vs admin policy, and site-data clear.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-services-contract --all-targets</Command>
+          <Command>cargo test -p worldline-browser-services-contract</Command>
+        </Verification>
+      </T-002>
+      <T-003>
+        <Title>Add contract wire, secret redaction, and authority separation acceptance tests in worldline-browser-services-contract</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Compatibility tests prove JSON wire stability for experimental 0.1 downloads, cookies, and site-data requests/responses.</Criterion>
+          <Criterion>Diagnostic tests prove that CookieValue Debug formatting redacts secret values to prevent plaintext leakage in logs/traces.</Criterion>
+          <Criterion>Authority separation tests verify cookie metadata authority does not grant secret value read, cookie mutation, or site data clearing.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-services-contract --test contract_acceptance</Command>
+        </Verification>
+      </T-003>
+
+      <!-- Package P2: Downloads service plugin -->
+      <T-004>
+        <Title>Implement worldline-browser-downloads plugin state machine, DownloadRecordId persistence, and capability RPC</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-browser-downloads manages DownloadRecordId lifecycle (Pending, Active, Paused, Completed, Cancelled, Failed, Reconciling).</Criterion>
+          <Criterion>Durable download intent/record is committed to transactional installation state before invoking non-idempotent engine operations.</Criterion>
+          <Criterion>Durable records persist only bounded product metadata (PageId, URL, suggested filename, media type, byte counts, lifecycle, engine DownloadId, ArtifactRef) and do not store host destination paths.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-downloads --all-targets</Command>
+          <Command>cargo test -p worldline-browser-downloads</Command>
+        </Verification>
+      </T-004>
+      <T-005>
+        <Title>Implement engine download hook integration, opaque artifact materialization, and crash reconciliation in worldline-browser-downloads</Title>
+        <DependsOn>
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Completed downloads are materialized through the generic host blob/artifact mechanism returning an opaque ArtifactRef to consumers rather than a filesystem path.</Criterion>
+          <Criterion>Staging cleanup operates safely within the authorized staging root.</Criterion>
+          <Criterion>Service restart reconciles non-terminal downloads against engine state and marks uncertain outcomes as Reconciling without automatically restarting downloads.</Criterion>
+          <Criterion>Redelivered engine download facts do not produce duplicate DownloadRecordId entries.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-downloads</Command>
+        </Verification>
+      </T-005>
+      <T-006>
+        <Title>Add downloads service acceptance suite covering durable intent, lifecycle, opaque artifact handoff, and recovery</Title>
+        <DependsOn>
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Acceptance tests verify start, pause, resume, cancel, lifecycle progression, durable intent before engine start, crash recovery reconciliation, and failure isolation.</Criterion>
+          <Criterion>Tests prove that possession of DownloadRecordId or download-read authority does not grant artifact content byte read authority without independent blob-read authority.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-downloads --test downloads_acceptance</Command>
+        </Verification>
+      </T-006>
+
+      <!-- Package P3: Cookies and site-data service plugin -->
+      <T-007>
+        <Title>Implement worldline-browser-cookies plugin metadata inspection, secret value disclosure, and capability RPC</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-browser-cookies exposes distinct capability RPC operations for metadata inspection (GetCookieMetadata), secret value disclosure (GetCookieValue), mutation (SetCookie/DeleteCookie), and policy administration.</Criterion>
+          <Criterion>Cookie metadata responses contain no raw cookie value.</Criterion>
+          <Criterion>Debug and diagnostic representations of types carrying cookie values are strictly redacted.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-cookies --all-targets</Command>
+          <Command>cargo test -p worldline-browser-cookies</Command>
+        </Verification>
+      </T-007>
+      <T-008>
+        <Title>Implement context-scoped cookie engine projection, origin site-data clear, and cross-context isolation in worldline-browser-cookies</Title>
+        <DependsOn>
+          <T-007 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Cookie and site-data operations validate exact BrowserContextId and canonical URL/origin/domain scope.</Criterion>
+          <Criterion>Chromium profile cookie store (engine.cookies/0.1) remains the source of truth for cookie values; the service does not persist a second cookie database.</Criterion>
+          <Criterion>browser.site-data/0.1 clears context/origin-scoped storage via engine.storage/0.1 without affecting unrelated contexts, download records, tabs, or history.</Criterion>
+          <Criterion>Cross-context access is strictly denied even when visiting the same origin/host.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-cookies</Command>
+        </Verification>
+      </T-008>
+      <T-009>
+        <Title>Add cookies and site-data service acceptance suite covering authority separation, redaction, cross-context isolation, and restart</Title>
+        <DependsOn>
+          <T-008 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Acceptance tests verify metadata-only readers cannot access cookie values, cross-context access is denied, secret redaction is preserved, site-data clearing is isolated, and restarting cookies service reloads from engine store without data corruption.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-cookies --test cookies_acceptance</Command>
+        </Verification>
+      </T-009>
+
+      <!-- Package P4: Proving slice S3B, CI integration and closure -->
+      <T-010>
+        <Title>Implement bounded proving slice S3B in worldline-reference</Title>
+        <DependsOn>
+          <T-006 />
+          <T-009 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Proving slice S3B executes end-to-end against the real M1.2 browser provider on loopback content: start download -> durable DownloadRecordId -> complete artifact -> verify bytes -> restart downloads service -> verify record persists.</Criterion>
+          <Criterion>S3B proves download metadata authority cannot read completed artifact bytes without blob read authority.</Criterion>
+          <Criterion>S3B creates two isolated contexts for same origin with distinct cookies, proves metadata vs value authority separation, restarts cookies service, and verifies values remain engine-authoritative and context-isolated.</Criterion>
+          <Criterion>S3B writes localStorage in both contexts, clears one context via browser.site-data/0.1, and proves other context remains untouched.</Criterion>
+          <Criterion>S3B proves terminating downloads or cookies service leaves direct navigation, tabs, and history operational.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-reference --test s3b_acceptance</Command>
+        </Verification>
+      </T-010>
+      <T-011>
+        <Title>Integrate downloads, cookies, site-data and S3B into BrowserServices CI suite, architecture guard, and workflows</Title>
+        <DependsOn>
+          <T-010 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Invoke-WorldlineCi BrowserServices suite includes worldline-browser-downloads, worldline-browser-cookies, and S3B acceptance tests.</Criterion>
+          <Criterion>Test-WorldlineArchitecture.ps1 verifies kernel and CEF do not depend on worldline-browser-downloads, worldline-browser-cookies, DownloadRecordId, or cookie policy.</Criterion>
+          <Criterion>PR and master workflows run BrowserServices suite cross-platform without public network access.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+        </Verification>
+      </T-011>
+      <T-012>
+        <Title>Run full target verification and reconcile documentation</Title>
+        <DependsOn>
+          <T-011 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>README is updated with M1.3 downloads and cookies/site-data browser services documentation.</Criterion>
+          <Criterion>Full repository verification passes for all suites (BrowserServices, Source, Correctness, ArchitectureSecurity, ProvingSlice, RealChromium, BrowserProvider, All).</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-012>
+    </ImplementationPlan>
+  </C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901>
+</GraceChangePlan>

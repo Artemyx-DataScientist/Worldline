@@ -164,5 +164,25 @@
       <Scenario>Supervised native browser provider process executes all 12 browser capability contracts, enforces strict authority separation and document revision-scoped CAS validation, provides bounded accessibility tree snapshots and content-addressed visual capture streaming, isolates cookie and local storage partitions across contexts, terminates multi-process CEF process trees automatically via Windows Job Object containment upon host close, and successfully passes the end-to-end S2 proving slice.</Scenario>
       <TraceAssertion>Process tree containment guarantees zero orphaned renderer/GPU helper processes, CAS generation reservation prevents stale action execution, capability authorizations are default-deny and verified at the native IPC boundary, and proving slice S2 provides durable verification parity.</TraceAssertion>
     </V-M-BROWSER-ENGINE-PROVIDER-PROCESS>
+    <V-M-BROWSER-SERVICE-PLUGINS>
+      <TestFiles>
+        <File>docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md</File>
+        <File>crates/worldline-browser-services-contract/tests/contract_acceptance.rs</File>
+        <File>crates/worldline-browser-downloads/tests/downloads_acceptance.rs</File>
+        <File>crates/worldline-browser-cookies/tests/cookies_acceptance.rs</File>
+        <File>crates/worldline-reference/src/s3b.rs</File>
+        <File>crates/worldline-reference/tests/s3b_acceptance.rs</File>
+        <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+        <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      </TestFiles>
+      <Command>cargo test -p worldline-browser-services-contract</Command>
+      <Command>cargo test -p worldline-browser-downloads</Command>
+      <Command>cargo test -p worldline-browser-cookies</Command>
+      <Command>cargo test -p worldline-reference --test s3b_acceptance</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+      <Scenario>Downloads service persists DownloadRecordId intent before issuing non-idempotent engine operations, materializes opaque ArtifactRef without exposing host filesystem paths, reconciles non-terminal records after crash without automatic re-dispatch, and deduplicates redelivered engine events. Cookies service separates metadata inspection from secret-value disclosure, redacts cookie values in all diagnostic and log representations, enforces BrowserContextId isolation for cross-context access, delegates value authority to the engine Chromium profile cookie store, and clears origin-scoped storage without affecting unrelated contexts. Proving slice S3B passes all nine sub-scenarios end-to-end, including service failure isolation verifying that direct page navigation, tabs, and history remain operational after downloads and cookies service termination.</Scenario>
+      <TraceAssertion>Kernel and CEF manifests contain no reference to worldline-browser-downloads, worldline-browser-cookies, DownloadRecordId, or CookieMetadata. CookieValue Debug formatting redacts the secret value. A DownloadRecord or metadata-read authority alone is insufficient to obtain artifact content bytes without independent blob-read authority. Archive-format authority constants AUTH_DOWNLOADS_READ and AUTH_COOKIES_METADATA_READ are disjoint from AUTH_DOWNLOADS_CONTROL, AUTH_COOKIES_VALUE_READ, AUTH_COOKIES_MUTATE, and AUTH_COOKIES_ADMIN.</TraceAssertion>
+    </V-M-BROWSER-SERVICE-PLUGINS>
   </VD-MAIN>
 </GraceVerificationDocument>

@@ -1844,6 +1844,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "worldline-browser-cookies"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "worldline-browser-contract",
+ "worldline-browser-services-contract",
+ "worldline-kernel",
+]
+
+[[package]]
+name = "worldline-browser-downloads"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "worldline-browser-contract",
+ "worldline-browser-services-contract",
+ "worldline-kernel",
+]
+
+[[package]]
 name = "worldline-browser-history"
 version = "0.1.0"
 dependencies = [
@@ -1947,6 +1969,8 @@ dependencies = [
  "serde_json",
  "worldline-browser-cef",
  "worldline-browser-contract",
+ "worldline-browser-cookies",
+ "worldline-browser-downloads",
  "worldline-browser-history",
  "worldline-browser-provider",
  "worldline-browser-services-contract",

@@ -67,7 +67,9 @@ pub struct DeleteCookiesResponse {
 
 // --- Storage Primitives ---
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum StorageType {
     #[default]

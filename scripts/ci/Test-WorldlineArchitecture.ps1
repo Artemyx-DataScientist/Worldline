@@ -317,8 +317,10 @@ Write-Host 'Checking browser services anti-corruption and dependency isolation b
 [void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-services-contract/Cargo.toml' -Kind File)
 [void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-tabs/Cargo.toml' -Kind File)
 [void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-history/Cargo.toml' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-downloads/Cargo.toml' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-cookies/Cargo.toml' -Kind File)
 
-foreach ($forbiddenToken in @('worldline-browser-services-contract', 'worldline-browser-tabs', 'worldline-browser-history', 'TabId', 'HistoryEntryId')) {
+foreach ($forbiddenToken in @('worldline-browser-services-contract', 'worldline-browser-tabs', 'worldline-browser-history', 'worldline-browser-downloads', 'worldline-browser-cookies', 'TabId', 'HistoryEntryId', 'DownloadRecordId', 'CookieMetadata')) {
     Assert-Condition (-not $kernelManifest.Contains($forbiddenToken)) "worldline-kernel manifest must not mention service token '${forbiddenToken}'."
 }
 
@@ -333,8 +335,14 @@ Assert-Condition (-not $tabsManifest.Contains('worldline-browser-cef')) 'worldli
 $historyManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-history/Cargo.toml') -Raw
 Assert-Condition (-not $historyManifest.Contains('worldline-browser-cef')) 'worldline-browser-history must not depend on worldline-browser-cef.'
 
+$downloadsManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-downloads/Cargo.toml') -Raw
+Assert-Condition (-not $downloadsManifest.Contains('worldline-browser-cef')) 'worldline-browser-downloads must not depend on worldline-browser-cef.'
+
+$cookiesManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-cookies/Cargo.toml') -Raw
+Assert-Condition (-not $cookiesManifest.Contains('worldline-browser-cef')) 'worldline-browser-cookies must not depend on worldline-browser-cef.'
+
 $cefManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-cef/Cargo.toml') -Raw
-foreach ($forbiddenToken in @('worldline-browser-tabs', 'worldline-browser-history', 'TabId', 'HistoryEntryId')) {
+foreach ($forbiddenToken in @('worldline-browser-tabs', 'worldline-browser-history', 'worldline-browser-downloads', 'worldline-browser-cookies', 'TabId', 'HistoryEntryId', 'DownloadRecordId', 'CookieMetadata')) {
     Assert-Condition (-not $cefManifest.Contains($forbiddenToken)) "worldline-browser-cef manifest must not depend on service token '${forbiddenToken}'."
 }
 

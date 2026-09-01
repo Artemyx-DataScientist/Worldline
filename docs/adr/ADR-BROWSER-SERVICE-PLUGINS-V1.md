@@ -1,7 +1,7 @@
 # ADR: Browser Service Plugins Architecture, Experimental Contracts, and Failure Isolation (v1)
 
 Статус: accepted  
-Change: C-BROWSER-TABS-HISTORY-SERVICES-20260901  
+Change: C-BROWSER-TABS-HISTORY-SERVICES-20260901, C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901  
 Рубеж: M1.3 — Browser service plugins  
 
 ---
@@ -65,6 +65,9 @@ Change: C-BROWSER-TABS-HISTORY-SERVICES-20260901
 |---|---|---|---|---|
 | `browser.tabs` | `0.1` | Experimental | `create`, `list`, `get`, `select`, `move`, `pin`, `group`, `ungroup`, `close` | `browser.tabs.read` (чтение/список), `browser.tabs.mutate` (модификация) |
 | `browser.history` | `0.1` | Experimental | `query`, `get`, `delete`, `clear` | `browser.history.read` (поиск/чтение), `browser.history.delete` (удаление/очистка) |
+| `browser.downloads` | `0.1` | Experimental | `start`, `get`, `list`, `pause`, `resume`, `cancel` | `browser.downloads.read` (чтение/список), `browser.downloads.control` (управление) |
+| `browser.cookies` | `0.1` | Experimental | `get_metadata`, `get_value`, `set`, `delete` | `browser.cookies.metadata_read` (метаданные), `browser.cookies.value_read` (значения), `browser.cookies.mutate` (модификация), `browser.cookies.admin` (политика) |
+| `browser.site-data` | `0.1` | Experimental | `clear` | `browser.site_data.clear` (деструктивная очистка хранилища) |
 
 ### 3.1 Правила стабильности
 1. Экспериментальные контракты 0.1 могут уточняться на основе опыта интеграции с пользовательским интерфейсом (M1.4) без нарушения гарантий стабильности ядра.
@@ -81,6 +84,9 @@ Change: C-BROWSER-TABS-HISTORY-SERVICES-20260901
 | **Ресурсы движка** | `ContextId`, `PageId`, `DocumentRevision`, CEF HWND | `BrowserEngineProvider` | Установочное состояние провайдера (`installation state CAS`) |
 | **Вкладки** | `TabId`, `TabGroupId`, порядок, закрепление, привязка к `PageId`, активная вкладка | `TabsService` | Транзакционное хранилище установки плагина вкладок |
 | **История пользователя** | `HistoryEntryId`, URL, `NavigationId`, `PageId`, `DocumentRevision`, timestamp, заголовок | `HistoryService` | Транзакционное хранилище установки плагина истории |
+| **Загрузки пользователя** | `DownloadRecordId`, `PageId`, URL, suggested filename, байты, статус, `ArtifactRef` | `DownloadsService` | Транзакционное хранилище установки плагина загрузок |
+| **Политика Cookie** | `CookiePolicy`, правила доступа сервиса к метаданным | `CookiesService` | Транзакционное хранилище установки плагина cookies |
+| **Значения Cookie / Storage** | Реальные значения cookies, localStorage, IndexedDB | CEF Engine Profile | Файловая БД профиля Chromium (`engine.cookies/0.1`, `engine.storage/0.1`) |
 | **Сессионная навигация** | Стек назад/вперед Chromium | CEF Engine | Внутреннее состояние процесса движка |
 | **Транспорт событий** | Очередь доставки `EventEnvelope` | Kernel Event Transport | Оперативная память / логический журнал |
 
@@ -105,24 +111,49 @@ Change: C-BROWSER-TABS-HISTORY-SERVICES-20260901
 
 ---
 
-## 7. Degraded Composition and Failure Isolation
+## 7. Downloads Service: Opaque Artifact Model and Incomplete-Outcome Reconciliation
+
+1. **`DownloadRecordId` vs `DownloadId`:** `DownloadRecordId` — долговременный идентификатор записи о загрузке в пользовательском сервисе. Движковый `DownloadId` — временный дескриптор I/O операции в CEF.
+2. **Непрозрачный артефакт вместо путей хоста:** Завершённая загрузка материализуется в generic host blob/artifact хранилище и возвращается клиентам сервиса как непрозрачный `ArtifactRef`. Путь `destination_path` является деталью staging провайдера и никогда не транслируется в авторитет доступа к файловой системе.
+3. **Разделение прав на чтение:** Обладание правом `browser.downloads.read` позволяет видеть прогресс, метаданные и `ArtifactRef`, но **не позволяет** читать байты контента без отдельного generic права на чтение блобов/артефактов (`blob.read`).
+4. **Фиксация намерения до неидемпотентного старта:** Запись о загрузке создаётся в транзакционном хранилище сервиса до отправки команды старта движку.
+5. **Пост-краш сверка (`Reconciling`):** При потере RPC-ответа или аварии сервиса состояние фиксируется как `Reconciling`. Сервис не производит автоматический повторный старт, предотвращая дублирование внешних побочных эффектов.
+6. **Безопасная очистка staging:** Очистка временных файлов провайдера выполняется строго внутри доверенного staging-каталога.
+
+---
+
+## 8. Cookies & Site-Data Service: Sensitive Redaction and Scope Isolation
+
+1. **Разделение чтения метаданных и секретных значений:**
+   - Чтение метаданных (`browser.cookies.metadata_read`) возвращает имена, домены, пути и атрибуты безопасности без значений cookie.
+   - Чтение значений (`browser.cookies.value_read`) требует отдельного повышенного авторитета.
+2. **Redacted Debug для секретов:** Все структуры, несущие секретные значения (`CookieValue`), реализуют кастомный `Debug` с выводом `[REDACTED]`, предотвращая утечку секретов в логи, трассировки и ошибки.
+3. **Chromium как единственный источник истины для значений:** Сервис cookies не создаёт вторичную базу данных cookie. Актуальные значения всегда запрашиваются из профиля Chromium (`engine.cookies/0.1`).
+4. **Строгая контекстная изоляция:** Любые операции с cookies и site-data валидируют точный `BrowserContextId` и канонические селекторы. Контекст A не может читать или удалять cookies/данные Контекста B даже при совпадении origin.
+5. **Очистка `browser.site-data/0.1`:** Очищает данные origin через `engine.storage/0.1` без побочного удаления истории, вкладок или загрузок.
+
+---
+
+## 9. Degraded Composition and Failure Isolation
 
 Сервисы изолированы по сбоям:
 1. **Авария сервиса истории:** Навигация и работа страниц в браузере продолжаются штатно.
 2. **Авария сервиса вкладок:** Страницы движка `PageId` остаются работоспособными, доступными для прямых операций и визуализации.
-3. **Авария движка:** Сервисы вкладок и истории сохраняют свои транзакционные данные и восстанавливают проекции после перезапуска провайдера.
-4. **Конфиденциальность метрик:** Метрики и телеметрия сервисов вкладок и истории не содержат URL, тел страниц, введенных форм или значений cookie.
+3. **Авария сервиса загрузок:** Навигация, страницы, вкладки и история продолжают функционировать.
+4. **Авария сервиса cookies:** Навигация и внутреннее управление сессионными cookies в Chromium продолжают работу.
+5. **Авария движка:** Сервисы сохраняют свои транзакционные данные и восстанавливают проекции после перезапуска провайдера.
+6. **Конфиденциальность метрик:** Метрики и телеметрия не содержат URL, тел страниц, введенных форм, значений cookie или содержимого загрузок.
 
 ---
 
-## 8. Planned M1.3 Bounded Service Bundle Sequence
+## 10. Planned M1.3 Bounded Service Bundle Sequence
 
 Milestone M1.3 декомпозирован на строгую последовательность изолированных изменений:
 
-1. **`C-BROWSER-TABS-HISTORY-SERVICES-20260901` (текущий):**
+1. **`C-BROWSER-TABS-HISTORY-SERVICES-20260901` (applied):**
    Общая архитектура сервисов, экспериментальные контракты `browser.tabs/v0.1` и `browser.history/v0.1`, плагины вкладок и истории, проверочный срез S3A и CI suite `BrowserServices`.
-2. **`C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901`:**
-   Сервис управления загрузками (артефакты, прогресс, назначение) и сервис инспекции/политики cookie/storage.
+2. **`C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901` (active):**
+   Сервис управления загрузками (артефакты, прогресс, назначение) и сервис инспекции/политики cookie/storage, проверочный срез S3B.
 3. **`C-BROWSER-REQUEST-POLICY-ADBLOCK-20260901`:**
    Асинхронный перехват сетевых запросов, политики фильтрации контента, защита от рекурсии и fail-open деградация.
 4. **`C-BROWSER-DIAGNOSTICS-SEARCH-SERVICES-20260901`:**

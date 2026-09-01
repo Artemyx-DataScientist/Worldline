@@ -112,7 +112,10 @@ function Invoke-BrowserServicesSuite {
     Invoke-WorldlineCommand -Label 'browser services contract acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-services-contract')
     Invoke-WorldlineCommand -Label 'browser tabs acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-tabs')
     Invoke-WorldlineCommand -Label 'browser history acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-history')
+    Invoke-WorldlineCommand -Label 'browser downloads acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-downloads')
+    Invoke-WorldlineCommand -Label 'browser cookies acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-cookies')
     Invoke-WorldlineCommand -Label 'browser services S3A proving slice' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3a_acceptance')
+    Invoke-WorldlineCommand -Label 'browser services S3B proving slice' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3b_acceptance')
 }
 
 function Invoke-ArchitectureSecuritySuite {

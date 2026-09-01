@@ -1,0 +1,129 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901</Change>
+  <NormativeStatus>non-normative; spec.xml wins on every conflict</NormativeStatus>
+
+  <Rationale>
+    The accepted M1.3 architecture intentionally separates browser product
+    services from the engine provider. The previous bounded slice proved this
+    model with tabs and durable history; this slice applies the same pattern to
+    two higher-risk domains containing filesystem-adjacent state and secrets.
+
+    The current low-level cookie primitive intentionally exposes complete Cookie
+    objects, including raw values. That is appropriate only behind a narrower
+    product boundary. The service therefore separates metadata and value
+    authority rather than publishing the engine DTO unchanged.
+
+    The current low-level download surfaces contain destination-path text.
+    Product-level download semantics must not promote those strings into
+    filesystem authority. Completed content should become an opaque generic
+    artifact/blob capability, while the downloads service owns durable metadata
+    and lifecycle state.
+
+    Download side effects also differ from tabs/history because start/cancel
+    outcomes may cross a process or I/O boundary before the service receives a
+    definitive result. The service therefore follows M0.7 incomplete-outcome
+    semantics and reconciles rather than blindly retrying.
+
+    Chromium remains the source of truth for cookie values and engine-managed
+    storage. Worldline service state stores only product policy, durable download
+    records and projections required for recovery.
+  </Rationale>
+
+  <Alternatives>
+    <Alternative>
+      Expose engine.cookies/0.1 directly to UI and agents.
+      Rejected because metadata-only consumers would necessarily receive cookie
+      secrets and product policy would be coupled to the engine primitive.
+    </Alternative>
+
+    <Alternative>
+      Persist a second Worldline cookie database.
+      Rejected because two authoritative cookie stores would create divergence
+      across Chromium/network mutations, expiration and restart.
+    </Alternative>
+
+    <Alternative>
+      Store completed download destination_path as the user-visible artifact.
+      Rejected because a path is host implementation detail and possession of a
+      string must not become filesystem authority.
+    </Alternative>
+
+    <Alternative>
+      Automatically retry a download start after timeout or provider crash.
+      Rejected because the first start may already have produced an external
+      side effect.
+    </Alternative>
+
+    <Alternative>
+      Implement third-party cookie blocking in this bundle.
+      Rejected because network-time request/cookie interception belongs with the
+      later request-policy provider seam and has different callback/deadline
+      semantics.
+    </Alternative>
+  </Alternatives>
+
+  <DeferredDecisions>
+    <Decision>
+      Final save/export to arbitrary user filesystem locations is deferred until
+      Worldline has an explicit generic authorized sink/filesystem capability or
+      equivalent host boundary.
+    </Decision>
+
+    <Decision>
+      Network-time third-party cookie restrictions and request interception are
+      deferred to C-BROWSER-REQUEST-POLICY-ADBLOCK-20260901.
+    </Decision>
+
+    <Decision>
+      Malware/reputation inspection of downloaded artifacts is deferred to a
+      future replaceable service rather than embedded in downloads core.
+    </Decision>
+
+    <Decision>
+      Final downloads and cookies settings UI belongs to M1.4 composition.
+    </Decision>
+
+    <Decision>
+      Stable v1 promotion of downloads/cookies/site-data service contracts is
+      deferred until real UI/agent consumers provide compatibility evidence.
+    </Decision>
+  </DeferredDecisions>
+
+  <Scenarios>
+    <Scenario>
+      A caller with admitted page/download authority asks browser.downloads/0.1
+      to start a deterministic loopback download. The service first creates its
+      durable DownloadRecordId, invokes the engine through bounded authority,
+      observes completion, converts completed content to an opaque artifact
+      reference and persists only product metadata plus that reference. A reader
+      without artifact-read authority can inspect status but cannot read bytes.
+    </Scenario>
+
+    <Scenario>
+      The engine accepts a download but the service loses the RPC result before
+      commit is known. After restart the record is Incomplete/Reconciling.
+      Reconciliation finds the existing engine operation or completion fact and
+      updates the same record; no second download is started automatically.
+    </Scenario>
+
+    <Scenario>
+      Two persistent contexts visit the same loopback origin and hold different
+      cookie values. A metadata-only principal sees permitted cookie metadata but
+      no value. A separately authorized principal reads the value from Context A
+      but cannot read Context B. Restarting the cookies service does not duplicate
+      cookie state because Chromium remains authoritative.
+    </Scenario>
+
+    <Scenario>
+      Both contexts contain localStorage for the same origin. An authorized
+      browser.site-data clear against Context A removes only A's requested storage
+      class; Context B remains unchanged.
+    </Scenario>
+
+    <Scenario>
+      Downloads or cookies service is terminated while tabs/history and the real
+      engine provider remain active. Ordinary browsing continues. The terminated
+      service later reconstructs only its own durable state and engine projection.
+    </Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

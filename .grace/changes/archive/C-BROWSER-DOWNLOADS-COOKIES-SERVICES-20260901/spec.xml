@@ -1,0 +1,604 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901>
+    <Summary>
+      Deliver the second bounded M1.3 browser-service slice by adding independent
+      downloads and cookies/site-data service plugins above the existing M1.2
+      browser engine primitives.
+
+      The downloads service owns durable product-level download records and
+      artifact identity without exposing provider staging paths as filesystem
+      authority.
+
+      The cookies service separates metadata inspection, secret-value disclosure,
+      mutation and service policy while leaving Chromium's profile cookie store
+      authoritative for actual cookie values.
+
+      All new service contracts remain experimental version 0.1.
+      Stable Browser Contract v1.0 remains wire-compatible.
+    </Summary>
+
+    <Problem>
+      M1.2 exposes low-level experimental engine primitives for cookies, storage
+      and download hooks, while M1.3 currently contains only tabs and durable
+      history services.
+
+      The engine primitive surface is intentionally too low-level to expose
+      directly as product semantics:
+
+      cookie reads return raw values together with metadata;
+
+      low-level download contracts contain destination-path strings;
+
+      engine DownloadId represents an engine operation rather than a durable
+      user-visible download record;
+
+      successful completion of engine I/O does not itself define durable artifact
+      ownership;
+
+      Chromium cookie storage is authoritative for cookie contents, while user
+      policy and service access rules belong outside the engine provider.
+
+      A product service layer is therefore required to establish separate
+      authority, persistence, recovery, privacy and artifact boundaries without
+      turning the CEF provider into a download manager or cookies product.
+    </Problem>
+
+    <Goals>
+      <Goal>
+        Extend the existing engine-neutral browser-services contract crate with
+        experimental browser.downloads/0.1, browser.cookies/0.1 and the minimum
+        browser.site-data/0.1 surface justified by existing engine primitives.
+      </Goal>
+
+      <Goal>
+        Implement an ordinary downloads plugin with durable DownloadRecordId
+        identity, lifecycle state, progress/reconciliation metadata and completed
+        artifact references independent from engine DownloadId.
+      </Goal>
+
+      <Goal>
+        Ensure completed download content is represented to service consumers by
+        an opaque artifact/blob reference rather than a host filesystem path.
+      </Goal>
+
+      <Goal>
+        Implement an ordinary cookies service that exposes metadata inspection
+        separately from raw cookie-value access and mutation.
+      </Goal>
+
+      <Goal>
+        Implement bounded site-data clearing over existing context/origin-scoped
+        storage primitives without exposing Chromium profile files or databases.
+      </Goal>
+
+      <Goal>
+        Persist service-owned policy and durable product records while preserving
+        Chromium profile storage as the source of truth for cookie values and
+        engine-managed site data.
+      </Goal>
+
+      <Goal>
+        Prove crash/restart reconciliation and optional-service failure isolation
+        through a bounded S3B proving slice.
+      </Goal>
+    </Goals>
+
+    <Constraints>
+      <Constraint>
+        SPEC APPROVAL AND EXACT PLAN APPROVAL REMAIN SEPARATE; THIS DRAFT DOES
+        NOT AUTHORIZE IMPLEMENTATION.
+      </Constraint>
+
+      <Constraint>
+        C-BROWSER-TABS-HISTORY-SERVICES-20260901 MUST REMAIN APPLIED AND
+        ARCHIVED BEFORE THIS CHANGE'S PLAN IS APPROVED OR EXECUTED.
+      </Constraint>
+
+      <Constraint>
+        DOWNLOADS, COOKIES AND SITE-DATA SERVICES ARE ORDINARY PLUGINS.
+        NO PRODUCT POLICY OR PRODUCT TYPE MAY ENTER THE KERNEL.
+      </Constraint>
+
+      <Constraint>
+        STABLE Browser Contract v1.0 REQUEST/RESPONSE WIRE FORMS, INCLUDING
+        browser.download/v1.0, MUST REMAIN COMPATIBLE.
+      </Constraint>
+
+      <Constraint>
+        EXISTING STABLE BROWSER EVENTS MUST NOT RECEIVE REQUIRED NEW FIELDS.
+      </Constraint>
+
+      <Constraint>
+        EXISTING EXPERIMENTAL engine.cookies/0.1, engine.storage/0.1 AND
+        engine.download_hook/0.1 MUST NOT BE INCOMPATIBLY REDEFINED IN PLACE.
+      </Constraint>
+
+      <Constraint>
+        IF A SAFER ENGINE DOWNLOAD ARTIFACT/HANDOFF SURFACE IS REQUIRED, IT MUST
+        BE AN ADDITIVE OPERATION OR A SEPARATELY VERSIONED EXPERIMENTAL REVISION
+        SUCH AS 0.2, WITH 0.1 FIXTURES PRESERVED.
+      </Constraint>
+
+      <Constraint>
+        NEW PRODUCT SERVICE CONTRACTS START AS EXPERIMENTAL 0.1 AND MUST NOT
+        CLAIM V1 STABILITY.
+      </Constraint>
+
+      <Constraint>
+        DOWNLOAD PATH TEXT IS DATA, NOT FILESYSTEM AUTHORITY.
+      </Constraint>
+
+      <Constraint>
+        THE DOWNLOADS SERVICE MUST NOT EXPOSE PROVIDER STAGING PATHS, CEF PATHS,
+        TEMPORARY FILE LOCATIONS OR HOST-LOCAL FILESYSTEM STRUCTURE AS ITS
+        PRODUCT CONTRACT.
+      </Constraint>
+
+      <Constraint>
+        POSSESSION OF DownloadRecordId, DownloadId, ArtifactRef OR BLOB IDENTITY
+        ALONE MUST NOT CONFER READ, WRITE, CONTROL OR EXPORT AUTHORITY.
+      </Constraint>
+
+      <Constraint>
+        FINAL EXPORT TO AN ARBITRARY USER FILESYSTEM DESTINATION IS OUT OF SCOPE
+        UNLESS AN EXISTING GENERIC AUTHORIZED FILE/SINK CAPABILITY ALREADY
+        PROVIDES THAT AUTHORITY.
+      </Constraint>
+
+      <Constraint>
+        DOWNLOAD START OR CONTROL MUST NOT USE THE SERVICE AS A CONFUSED DEPUTY
+        TO BYPASS PageId OR DownloadId AUTHORIZATION.
+      </Constraint>
+
+      <Constraint>
+        NON-IDEMPOTENT DOWNLOAD OPERATIONS MUST NOT BE AUTOMATICALLY RETRIED
+        AFTER AN UNKNOWN EXTERNAL OUTCOME.
+      </Constraint>
+
+      <Constraint>
+        ACTUAL COOKIE VALUES REMAIN AUTHORITATIVE IN THE ENGINE PROFILE COOKIE
+        STORE; THE COOKIES SERVICE MUST NOT MAINTAIN A SECOND COOKIE DATABASE.
+      </Constraint>
+
+      <Constraint>
+        COOKIE METADATA READ AUTHORITY MUST NOT IMPLY COOKIE VALUE READ
+        AUTHORITY.
+      </Constraint>
+
+      <Constraint>
+        COOKIE VALUE READ AUTHORITY MUST NOT IMPLY COOKIE MUTATION AUTHORITY.
+      </Constraint>
+
+      <Constraint>
+        COOKIE MUTATION AUTHORITY MUST NOT IMPLY SITE-DATA CLEAR AUTHORITY.
+      </Constraint>
+
+      <Constraint>
+        RAW COOKIE VALUES MUST NEVER ENTER GENERIC METRICS, TRAJECTORY,
+        DIAGNOSTIC TEXT, PANIC TEXT, ORDINARY DEBUG OUTPUT OR SERVICE EVENTS.
+      </Constraint>
+
+      <Constraint>
+        SERVICE CONTRACT TYPES CARRYING COOKIE SECRETS MUST HAVE REDACTED DEBUG
+        REPRESENTATION OR AN EQUIVALENT MECHANISM THAT PREVENTS ACCIDENTAL
+        PLAINTEXT DEBUG LOGGING.
+      </Constraint>
+
+      <Constraint>
+        COOKIE AND SITE-DATA OPERATIONS MUST VALIDATE EXACT BrowserContextId
+        OWNERSHIP AND CANONICAL URL/ORIGIN/DOMAIN SCOPE; STRING SUFFIX MATCHING
+        IS NOT AN AUTHORIZATION RULE.
+      </Constraint>
+
+      <Constraint>
+        CROSS-PROFILE OR CROSS-CONTEXT COOKIE/SITE-DATA ACCESS IS DENIED EVEN
+        WHEN HOSTNAMES OR ORIGINS MATCH.
+      </Constraint>
+
+      <Constraint>
+        NETWORK-TIME THIRD-PARTY COOKIE FILTERING OR REQUEST INTERCEPTION IS NOT
+        IMPLEMENTED HERE; THAT BELONGS TO THE REQUEST-POLICY BUNDLE.
+      </Constraint>
+
+      <Constraint>
+        EVENT BUS IS NOT RPC. DOWNLOAD CONTROL AND COOKIE/SITE-DATA MUTATION ARE
+        CAPABILITY RPC OPERATIONS; EVENTS REPORT FACTS ONLY AFTER OUTCOME.
+      </Constraint>
+
+      <Constraint>
+        ALL DURABLE SERVICE STATE USES A DECLARED TRANSACTIONAL SOURCE OF TRUTH;
+        THE EVENT JOURNAL IS NOT DOWNLOAD OR COOKIE-POLICY STATE.
+      </Constraint>
+
+      <Constraint>
+        TEST AND PROVING NETWORK CONTENT IS LOCAL/LOOPBACK AND DOES NOT REQUIRE
+        PUBLIC INTERNET ACCESS.
+      </Constraint>
+
+      <Constraint>
+        PROTECTED M0, M1.1, M1.2 AND EXISTING M1.3 TABS/HISTORY TESTS ARE NOT
+        WEAKENED OR SKIPPED TO MAKE THIS CHANGE GREEN.
+      </Constraint>
+    </Constraints>
+
+    <NonGoals>
+      <NonGoal>Request interception or ad blocking.</NonGoal>
+      <NonGoal>Third-party-cookie network policy enforcement.</NonGoal>
+      <NonGoal>DevTools diagnostics.</NonGoal>
+      <NonGoal>Search providers.</NonGoal>
+      <NonGoal>Worldline Shell or final downloads/cookies UI.</NonGoal>
+      <NonGoal>Native save-file picker integration.</NonGoal>
+      <NonGoal>Ambient arbitrary filesystem write access.</NonGoal>
+      <NonGoal>Opening downloaded files through OS shell integration.</NonGoal>
+      <NonGoal>Malware scanning or reputation services.</NonGoal>
+      <NonGoal>Password storage, autofill or credential management.</NonGoal>
+      <NonGoal>Direct IndexedDB inspection or arbitrary database access.</NonGoal>
+      <NonGoal>Duplicating Chromium cookie/storage databases into Worldline state.</NonGoal>
+      <NonGoal>Promoting new M1.3 service contracts to stable v1.</NonGoal>
+      <NonGoal>Final full M1.3 S3 closure.</NonGoal>
+    </NonGoals>
+
+    <AcceptanceCriteria>
+      <Criterion>
+        docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md is extended, or a bounded
+        downloads/cookies companion ADR is added, documenting authority,
+        persistence, sensitive-data, artifact and reconciliation semantics without
+        reopening the accepted M1.3 plugin architecture.
+      </Criterion>
+
+      <Criterion>
+        worldline-browser-services-contract adds engine-neutral experimental
+        browser.downloads/0.1 and browser.cookies/0.1 contracts and only the
+        browser.site-data/0.1 operations justified by implemented engine
+        primitives.
+      </Criterion>
+
+      <Criterion>
+        The service-contract crate remains independent from CEF, CDP, Chromium
+        structs, HWND, provider-private implementations and host filesystem paths.
+      </Criterion>
+
+      <Criterion>
+        Contract compatibility tests prove stable Browser Contract v1.0 fixtures
+        remain unchanged and all existing experimental engine 0.1 fixtures remain
+        decodable/accepted.
+      </Criterion>
+
+      <Criterion>
+        Any required evolution of engine.download_hook is introduced additively
+        or as a separately negotiated experimental revision and is covered by
+        explicit 0.1-to-new-version compatibility tests.
+      </Criterion>
+
+      <Criterion>
+        Downloads service defines opaque DownloadRecordId identity independent
+        from engine DownloadId.
+      </Criterion>
+
+      <Criterion>
+        The durable download record contains only product-relevant bounded
+        metadata such as originating PageId, URL, suggested filename, media type,
+        byte counts, lifecycle status, engine DownloadId where known and an
+        optional opaque completed-artifact reference.
+      </Criterion>
+
+      <Criterion>
+        Durable download records do not persist raw staging paths or arbitrary
+        host filesystem destinations.
+      </Criterion>
+
+      <Criterion>
+        Downloads service defines explicit lifecycle states covering at least
+        pending/start, active, paused, completed, cancelled, failed and
+        unknown/incomplete outcome where external completion cannot be proven.
+      </Criterion>
+
+      <Criterion>
+        A download intent/record is durably established before issuing a
+        non-idempotent engine start operation, with correlation metadata sufficient
+        for post-crash reconciliation.
+      </Criterion>
+
+      <Criterion>
+        If engine start may have occurred but RPC completion is lost, the service
+        records an explicit incomplete/reconciling state and does not
+        automatically issue a second start.
+      </Criterion>
+
+      <Criterion>
+        Re-delivered engine download facts or repeated reconciliation do not create
+        duplicate logical DownloadRecordId records.
+      </Criterion>
+
+      <Criterion>
+        Service restart reconciles every non-terminal download against the engine
+        where its current outcome is knowable and preserves explicit uncertainty
+        where it is not.
+      </Criterion>
+
+      <Criterion>
+        Download pause/resume/cancel require explicit service control authority
+        scoped to the target DownloadRecordId and cannot control another caller's
+        record merely by guessing an engine DownloadId.
+      </Criterion>
+
+      <Criterion>
+        Starting a download for a PageId cannot cause the service to manufacture
+        page or engine authority absent an admitted delegated/authorized path.
+      </Criterion>
+
+      <Criterion>
+        A deterministic completed download is materialized through the existing
+        generic host blob/artifact mechanism or a generic additive extension to
+        it; browser-service consumers receive an opaque artifact reference rather
+        than a path.
+      </Criterion>
+
+      <Criterion>
+        Reading completed artifact bytes requires an independent generic blob/
+        artifact read authorization; a principal possessing only download-read
+        authority cannot read the content bytes.
+      </Criterion>
+
+      <Criterion>
+        Completed artifact content is content-verified in acceptance evidence
+        against deterministic fixture bytes or hash.
+      </Criterion>
+
+      <Criterion>
+        Temporary provider staging data is either cleaned after successful
+        artifact handoff or remains under an explicitly bounded recovery policy;
+        cleanup never deletes a file outside the authorized staging root.
+      </Criterion>
+
+      <Criterion>
+        Downloads-service crash does not terminate or deadlock the browser engine,
+        existing pages, tabs or history services.
+      </Criterion>
+
+      <Criterion>
+        Cookies service exposes distinct authority classes for metadata
+        inspection, secret-value disclosure, mutation and service-policy
+        administration.
+      </Criterion>
+
+      <Criterion>
+        Cookie metadata DTOs contain no raw cookie value.
+      </Criterion>
+
+      <Criterion>
+        Cookie-value responses use a sensitive value representation whose Debug
+        or equivalent diagnostic formatting is redacted while authorized wire
+        serialization still returns the value to the admitted caller.
+      </Criterion>
+
+      <Criterion>
+        A metadata-only principal can enumerate authorized cookie names/domain/
+        path/security metadata but cannot obtain raw values through response,
+        error, event, metric or debug side channel.
+      </Criterion>
+
+      <Criterion>
+        Cookie mutation validates BrowserContextId and canonical selector scope
+        before invoking the engine primitive.
+      </Criterion>
+
+      <Criterion>
+        Context A cannot inspect, read, mutate or delete cookies belonging to
+        Context B even when both contexts visit the same loopback origin.
+      </Criterion>
+
+      <Criterion>
+        Cookie service does not persist cookie values as its authoritative state;
+        restart reloads actual cookie contents from the engine profile store.
+      </Criterion>
+
+      <Criterion>
+        Service-owned cookie access/policy configuration, if implemented in this
+        slice, is persisted independently from the actual cookie store and cannot
+        grant engine authority.
+      </Criterion>
+
+      <Criterion>
+        The scope and limits of cookie policy are explicit: this change may govern
+        service-mediated inspection/mutation behavior but does not claim
+        network-time third-party-cookie enforcement.
+      </Criterion>
+
+      <Criterion>
+        browser.site-data/0.1 exposes only context/origin-scoped clearing
+        supported by the existing engine.storage primitive and requires separate
+        destructive authority.
+      </Criterion>
+
+      <Criterion>
+        Site-data clear canonicalizes the target origin, rejects non-origin or
+        privileged scheme ambiguity, and cannot clear another context's storage.
+      </Criterion>
+
+      <Criterion>
+        Clearing origin storage does not implicitly delete unrelated download
+        records, history, tabs or cookies unless the exact requested storage class
+        semantically includes them and that behavior is documented/tested.
+      </Criterion>
+
+      <Criterion>
+        Cookie values, authorization data and downloaded content bytes never enter
+        generic browser-service metrics or ordinary events.
+      </Criterion>
+
+      <Criterion>
+        Service events contain only bounded post-outcome facts such as download
+        record lifecycle changes or cookie-policy configuration changes and never
+        act as command dispatch.
+      </Criterion>
+
+      <Criterion>
+        Static architecture checks prove worldline-kernel and
+        worldline-browser-cef do not depend on DownloadRecordId, browser cookies
+        product policy or the downloads/cookies service implementations.
+      </Criterion>
+
+      <Criterion>
+        BrowserServices CI is extended with downloads/cookies contract,
+        authority, persistence, privacy, recovery and failure-isolation tests.
+      </Criterion>
+
+      <Criterion>
+        One bounded S3B path against the real M1.2 provider downloads deterministic
+        loopback content, produces a durable DownloadRecordId and authorized
+        artifact reference, verifies bytes, restarts the downloads service and
+        preserves the completed record.
+      </Criterion>
+
+      <Criterion>
+        The same S3B path proves a principal with download metadata authority but
+        no artifact-read authority cannot obtain completed bytes.
+      </Criterion>
+
+      <Criterion>
+        S3B creates two isolated browser contexts for the same loopback origin,
+        establishes distinct cookie values, proves metadata/value authority
+        separation, restarts the cookies service and proves actual cookie values
+        remain engine-authoritative and context-isolated.
+      </Criterion>
+
+      <Criterion>
+        S3B writes deterministic localStorage in both contexts, clears one
+        authorized context/origin through browser.site-data/0.1 and proves the
+        other context remains unchanged.
+      </Criterion>
+
+      <Criterion>
+        Killing downloads or cookies service individually leaves direct browser
+        navigation, tabs and durable history operational.
+      </Criterion>
+
+      <Criterion>
+        Existing Source, Correctness, ArchitectureSecurity, ProvingSlice,
+        RealChromium, BrowserProvider, BrowserServices and All evidence remains
+        green locally, and the required hosted master run is named separately.
+      </Criterion>
+
+      <Criterion>
+        After fresh evidence and explicit apply confirmation, GRACE may add
+        dedicated downloads and cookies/site-data modules and verification
+        projections; M1.3 remains Active.
+      </Criterion>
+    </AcceptanceCriteria>
+
+    <AffectedAreas>
+      <M-BROWSER-SERVICES-CONTRACT />
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-PERSISTENCE-RECOVERY />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-PROVING-SLICES />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+
+    <VerificationIntent>
+      <ExpectedCommand>
+        cargo fmt --all -- --check
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo clippy --workspace --all-targets --all-features -- -D warnings
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test --workspace
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-contract
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-services-contract
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-downloads
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-cookies
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All
+      </ExpectedCommand>
+
+      <ExpectedEvidence>
+        Fresh evidence names service-contract compatibility fixtures, download
+        durable-intent and incomplete-outcome recovery tests, no-path artifact
+        handoff and independent blob-read authority, cookie metadata/value
+        authority separation, secret redaction, cross-context isolation,
+        site-data clear isolation, service restart/failure isolation, real
+        provider S3B evidence and a successful hosted master run. Local and hosted
+        evidence are reported separately.
+      </ExpectedEvidence>
+    </VerificationIntent>
+
+    <Assumptions>
+      <Assumption>
+        C-BROWSER-TABS-HISTORY-SERVICES-20260901 remains applied and archived
+        before this change's plan is approved or executed.
+      </Assumption>
+
+      <Assumption>
+        Browser Contract v1.0 and the accepted M1.2 provider architecture remain
+        valid and are consumed rather than reopened by this service slice.
+      </Assumption>
+
+      <Assumption>
+        The generic external-plugin blob mechanism delivered in M1.2 can represent
+        completed download artifacts without leaking browser-provider filesystem
+        paths; if a reusable public generic blob-reference DTO is missing, the
+        plan may add one generically rather than introducing a browser-specific
+        host path.
+      </Assumption>
+
+      <Assumption>
+        Existing engine.cookies/0.1 and engine.storage/0.1 are sufficient for the
+        initial service-mediated cookie inspection/mutation and origin storage
+        clear operations.
+      </Assumption>
+
+      <Assumption>
+        Existing download primitives are sufficient for engine operation control,
+        while a safer artifact-completion handoff may require an additive or
+        separately versioned experimental engine primitive.
+      </Assumption>
+
+      <Assumption>
+        Exact physical service persistence schemas are chosen in the separately
+        approved implementation plan while preserving the source-of-truth rules
+        defined here.
+      </Assumption>
+
+      <Assumption>
+        Request-policy/adblock, diagnostics/search and final S3 closure remain
+        separately governed follow-on changes.
+      </Assumption>
+    </Assumptions>
+  </C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901>
+</GraceChangeSpec>
