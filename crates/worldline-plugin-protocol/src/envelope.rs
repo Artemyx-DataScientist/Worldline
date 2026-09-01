@@ -44,6 +44,10 @@ pub enum MessageKind {
     StateRequest,
     /// State access result for a correlated request.
     StateResult,
+    /// Content-addressed blob store access request.
+    BlobRequest,
+    /// Blob store access result for a correlated request.
+    BlobResult,
     /// Protocol-level error report (e.g. in reply to a malformed frame).
     ProtocolError,
 }

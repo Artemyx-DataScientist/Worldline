@@ -178,3 +178,321 @@ fn resource_identities_are_worldline_scoped() {
     assert_eq!(context_resource(&ctx), "browser-context/ctx-99");
     assert_eq!(page_resource(&page), "browser-page/page-42");
 }
+
+#[test]
+fn all_eight_v1_contracts_and_v0_1_experimental_contracts_wire_compatibility() {
+    use worldline_browser_contract::{
+        action::ClickActionRequest,
+        capture::{
+            CaptureFormat, CapturePageRequest, CapturePageResponse, CaptureTarget,
+            ReadCaptureArtifactRequest, ReadCaptureArtifactResponse,
+        },
+        contracts::{
+            CloseContextRequest, ClosePageRequest, ControlDownloadRequest, DownloadAction,
+            ListContextsResponse, ListPagesRequest, ListPagesResponse, NavigateRequest,
+            ObservePageRequest, QueryDocumentRequest, QueryPermissionRequest, ReloadRequest,
+            SetPermissionRequest, StartDownloadRequest, StopRequest,
+        },
+        events::{PageRestoredEvent, RendererCrashedEvent},
+        primitives::{
+            ClearStorageRequest, Cookie, DeleteCookiesRequest, DownloadHookAction,
+            DownloadHookDecision, GetCookiesRequest, SetCookieRequest, StorageType,
+        },
+    };
+
+    // 1. context v1.0
+    let close_ctx = CloseContextRequest {
+        context_id: BrowserContextId::new("c1"),
+    };
+    let json = serde_json::to_string(&close_ctx).unwrap();
+    assert_eq!(
+        serde_json::from_str::<CloseContextRequest>(&json).unwrap(),
+        close_ctx
+    );
+
+    let list_ctx_resp = ListContextsResponse {
+        contexts: vec![BrowserContextId::new("c1"), BrowserContextId::new("c2")],
+    };
+    let json = serde_json::to_string(&list_ctx_resp).unwrap();
+    assert_eq!(
+        serde_json::from_str::<ListContextsResponse>(&json).unwrap(),
+        list_ctx_resp
+    );
+
+    // 2. page v1.0
+    let close_page = ClosePageRequest {
+        page_id: PageId::new("p1"),
+    };
+    let json = serde_json::to_string(&close_page).unwrap();
+    assert_eq!(
+        serde_json::from_str::<ClosePageRequest>(&json).unwrap(),
+        close_page
+    );
+
+    let list_pages = ListPagesRequest {
+        context_id: BrowserContextId::new("c1"),
+    };
+    let json = serde_json::to_string(&list_pages).unwrap();
+    assert_eq!(
+        serde_json::from_str::<ListPagesRequest>(&json).unwrap(),
+        list_pages
+    );
+
+    let list_pages_resp = ListPagesResponse { pages: vec![] };
+    let json = serde_json::to_string(&list_pages_resp).unwrap();
+    assert_eq!(
+        serde_json::from_str::<ListPagesResponse>(&json).unwrap(),
+        list_pages_resp
+    );
+
+    // 3. navigate v1.0
+    let nav_req = NavigateRequest {
+        page_id: PageId::new("p1"),
+        url: "https://worldline.test/welcome".to_string(),
+    };
+    let json = serde_json::to_string(&nav_req).unwrap();
+    assert_eq!(
+        serde_json::from_str::<NavigateRequest>(&json).unwrap(),
+        nav_req
+    );
+
+    let reload_req = ReloadRequest {
+        page_id: PageId::new("p1"),
+        ignore_cache: true,
+    };
+    let json = serde_json::to_string(&reload_req).unwrap();
+    assert_eq!(
+        serde_json::from_str::<ReloadRequest>(&json).unwrap(),
+        reload_req
+    );
+
+    let stop_req = StopRequest {
+        page_id: PageId::new("p1"),
+    };
+    let json = serde_json::to_string(&stop_req).unwrap();
+    assert_eq!(
+        serde_json::from_str::<StopRequest>(&json).unwrap(),
+        stop_req
+    );
+
+    // 4. observe v1.0
+    let obs_req = ObservePageRequest {
+        page_id: PageId::new("p1"),
+    };
+    let json = serde_json::to_string(&obs_req).unwrap();
+    assert_eq!(
+        serde_json::from_str::<ObservePageRequest>(&json).unwrap(),
+        obs_req
+    );
+
+    // 5. query v1.0
+    let query_req = QueryDocumentRequest {
+        page_id: PageId::new("p1"),
+        bounds: Some(QueryBounds::default()),
+    };
+    let json = serde_json::to_string(&query_req).unwrap();
+    assert_eq!(
+        serde_json::from_str::<QueryDocumentRequest>(&json).unwrap(),
+        query_req
+    );
+
+    // 6. act v1.0
+    let click_req = ClickActionRequest {
+        element_ref: ElementRef::new(PageId::new("p1"), DocumentRevision::new(1), "btn-ok"),
+    };
+    let json = serde_json::to_string(&click_req).unwrap();
+    assert_eq!(
+        serde_json::from_str::<ClickActionRequest>(&json).unwrap(),
+        click_req
+    );
+
+    // 7. download v1.0
+    let start_dl = StartDownloadRequest {
+        page_id: PageId::new("p1"),
+        url: "https://worldline.test/file.zip".to_string(),
+        destination_path: Some("file.zip".to_string()),
+    };
+    let json = serde_json::to_string(&start_dl).unwrap();
+    assert_eq!(
+        serde_json::from_str::<StartDownloadRequest>(&json).unwrap(),
+        start_dl
+    );
+
+    let ctrl_dl = ControlDownloadRequest {
+        download_id: worldline_browser_contract::identity::DownloadId::new("d1"),
+        action: DownloadAction::Cancel,
+    };
+    let json = serde_json::to_string(&ctrl_dl).unwrap();
+    assert_eq!(
+        serde_json::from_str::<ControlDownloadRequest>(&json).unwrap(),
+        ctrl_dl
+    );
+
+    // 8. permission v1.0
+    let set_perm = SetPermissionRequest {
+        context_id: BrowserContextId::new("c1"),
+        permission_type: worldline_browser_contract::contracts::PermissionType::Geolocation,
+        origin: "https://worldline.test".to_string(),
+        decision: worldline_browser_contract::contracts::PermissionDecision::Granted,
+    };
+    let json = serde_json::to_string(&set_perm).unwrap();
+    assert_eq!(
+        serde_json::from_str::<SetPermissionRequest>(&json).unwrap(),
+        set_perm
+    );
+
+    let query_perm = QueryPermissionRequest {
+        context_id: BrowserContextId::new("c1"),
+        permission_type: worldline_browser_contract::contracts::PermissionType::Geolocation,
+        origin: "https://worldline.test".to_string(),
+    };
+    let json = serde_json::to_string(&query_perm).unwrap();
+    assert_eq!(
+        serde_json::from_str::<QueryPermissionRequest>(&json).unwrap(),
+        query_perm
+    );
+
+    // Experimental 0.1: capture
+    let cap_req = CapturePageRequest {
+        page_id: PageId::new("p1"),
+        target: CaptureTarget::PageViewport,
+        format: CaptureFormat::Png,
+        quality: Some(90),
+        max_bytes: Some(1024 * 1024),
+    };
+    let json = serde_json::to_string(&cap_req).unwrap();
+    assert_eq!(
+        serde_json::from_str::<CapturePageRequest>(&json).unwrap(),
+        cap_req
+    );
+
+    let cap_resp = CapturePageResponse {
+        artifact: worldline_browser_contract::capture::CaptureArtifactRef {
+            artifact_id: "art-1".to_string(),
+            page_id: PageId::new("p1"),
+            revision: DocumentRevision::new(1),
+            byte_len: 2048,
+            mime_type: "image/png".to_string(),
+            blob_id: "blob-sha256-abc".to_string(),
+        },
+    };
+    let json = serde_json::to_string(&cap_resp).unwrap();
+    assert_eq!(
+        serde_json::from_str::<CapturePageResponse>(&json).unwrap(),
+        cap_resp
+    );
+
+    let read_cap = ReadCaptureArtifactRequest {
+        artifact_id: "art-1".to_string(),
+        offset: 0,
+        max_bytes: 4096,
+    };
+    let json = serde_json::to_string(&read_cap).unwrap();
+    assert_eq!(
+        serde_json::from_str::<ReadCaptureArtifactRequest>(&json).unwrap(),
+        read_cap
+    );
+
+    let read_cap_resp = ReadCaptureArtifactResponse {
+        artifact_id: "art-1".to_string(),
+        data: vec![1, 2, 3, 4],
+        is_truncated: false,
+        total_bytes: 4,
+    };
+    let json = serde_json::to_string(&read_cap_resp).unwrap();
+    assert_eq!(
+        serde_json::from_str::<ReadCaptureArtifactResponse>(&json).unwrap(),
+        read_cap_resp
+    );
+
+    // Experimental 0.1: primitives (cookies, storage, download hook)
+    let get_cookies = GetCookiesRequest {
+        context_id: BrowserContextId::new("c1"),
+        url: Some("https://worldline.test".to_string()),
+        domain: None,
+    };
+    let json = serde_json::to_string(&get_cookies).unwrap();
+    assert_eq!(
+        serde_json::from_str::<GetCookiesRequest>(&json).unwrap(),
+        get_cookies
+    );
+
+    let set_cookie = SetCookieRequest {
+        context_id: BrowserContextId::new("c1"),
+        cookie: Cookie {
+            name: "session".to_string(),
+            value: "xyz".to_string(),
+            domain: "worldline.test".to_string(),
+            path: "/".to_string(),
+            secure: true,
+            http_only: true,
+            same_site: Some("Strict".to_string()),
+            expires_epoch_sec: Some(1893456000),
+        },
+    };
+    let json = serde_json::to_string(&set_cookie).unwrap();
+    assert_eq!(
+        serde_json::from_str::<SetCookieRequest>(&json).unwrap(),
+        set_cookie
+    );
+
+    let del_cookie = DeleteCookiesRequest {
+        context_id: BrowserContextId::new("c1"),
+        url: None,
+        name: Some("session".to_string()),
+        domain: Some("worldline.test".to_string()),
+    };
+    let json = serde_json::to_string(&del_cookie).unwrap();
+    assert_eq!(
+        serde_json::from_str::<DeleteCookiesRequest>(&json).unwrap(),
+        del_cookie
+    );
+
+    let clear_storage = ClearStorageRequest {
+        context_id: BrowserContextId::new("c1"),
+        origin: "https://worldline.test".to_string(),
+        storage_type: StorageType::LocalStorage,
+    };
+    let json = serde_json::to_string(&clear_storage).unwrap();
+    assert_eq!(
+        serde_json::from_str::<ClearStorageRequest>(&json).unwrap(),
+        clear_storage
+    );
+
+    let hook_dec = DownloadHookDecision {
+        download_id: worldline_browser_contract::identity::DownloadId::new("d1"),
+        action: DownloadHookAction::Redirect {
+            destination_path: "/safe/downloads/file.zip".to_string(),
+        },
+    };
+    let json = serde_json::to_string(&hook_dec).unwrap();
+    assert_eq!(
+        serde_json::from_str::<DownloadHookDecision>(&json).unwrap(),
+        hook_dec
+    );
+
+    // Additive Events
+    let restored_evt = PageRestoredEvent {
+        context_id: BrowserContextId::new("c1"),
+        page_id: PageId::new("p1"),
+        url: "https://worldline.test".to_string(),
+        document_revision: DocumentRevision::new(5),
+    };
+    let json = serde_json::to_string(&restored_evt).unwrap();
+    assert_eq!(
+        serde_json::from_str::<PageRestoredEvent>(&json).unwrap(),
+        restored_evt
+    );
+
+    let renderer_crashed = RendererCrashedEvent {
+        context_id: BrowserContextId::new("c1"),
+        page_id: PageId::new("p1"),
+        exit_code: Some(137),
+        reason: "Out of memory".to_string(),
+    };
+    let json = serde_json::to_string(&renderer_crashed).unwrap();
+    assert_eq!(
+        serde_json::from_str::<RendererCrashedEvent>(&json).unwrap(),
+        renderer_crashed
+    );
+}

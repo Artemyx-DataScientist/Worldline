@@ -136,5 +136,33 @@
       <Scenario>Browser Contract v1 compiles without engine types, enforces strict separation between observation and mutation, validates revision-scoped element references, and prevents browser events from dispatching commands. Executable engine spike navigates deterministic local pages, extracts accessibility trees, executes form interactions, proves context profile isolation, and verifies host survival under child process crash.</Scenario>
       <TraceAssertion>Observation and query authority cannot navigate or act, stale element references are rejected, browser events report facts rather than commands, profile storage remains strictly partitioned across contexts, and child crash containment preserves host and installation state.</TraceAssertion>
     </V-M-BROWSER-CONTRACT-ENGINE-SPIKE>
+    <V-M-BROWSER-ENGINE-PROVIDER-PROCESS>
+      <TestFiles>
+        <File>docs/adr/ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1.md</File>
+        <File>crates/worldline-browser-contract/tests/contract_acceptance.rs</File>
+        <File>crates/worldline-native-host/tests/containment_acceptance.rs</File>
+        <File>crates/worldline-browser-provider/tests/provider_core_acceptance.rs</File>
+        <File>crates/worldline-browser-provider/tests/semantic_action_capture_acceptance.rs</File>
+        <File>crates/worldline-browser-provider/tests/profiles_primitives_acceptance.rs</File>
+        <File>crates/worldline-browser-provider/tests/recovery_health_acceptance.rs</File>
+        <File>crates/worldline-browser-cef/tests/cef_headful_acceptance.rs</File>
+        <File>crates/worldline-browser-provider-process/tests/process_acceptance.rs</File>
+        <File>crates/worldline-reference/tests/s2_acceptance.rs</File>
+        <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+        <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      </TestFiles>
+      <Command>cargo test -p worldline-browser-contract</Command>
+      <Command>cargo test -p worldline-native-host</Command>
+      <Command>cargo test -p worldline-browser-provider</Command>
+      <Command>cargo test -p worldline-browser-cef</Command>
+      <Command>cargo test -p worldline-browser-provider-process</Command>
+      <Command>cargo test -p worldline-reference --test s2_acceptance</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      <Scenario>Supervised native browser provider process executes all 12 browser capability contracts, enforces strict authority separation and document revision-scoped CAS validation, provides bounded accessibility tree snapshots and content-addressed visual capture streaming, isolates cookie and local storage partitions across contexts, terminates multi-process CEF process trees automatically via Windows Job Object containment upon host close, and successfully passes the end-to-end S2 proving slice.</Scenario>
+      <TraceAssertion>Process tree containment guarantees zero orphaned renderer/GPU helper processes, CAS generation reservation prevents stale action execution, capability authorizations are default-deny and verified at the native IPC boundary, and proving slice S2 provides durable verification parity.</TraceAssertion>
+    </V-M-BROWSER-ENGINE-PROVIDER-PROCESS>
   </VD-MAIN>
 </GraceVerificationDocument>

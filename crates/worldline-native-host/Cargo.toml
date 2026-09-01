@@ -11,6 +11,14 @@ serde = { version = "1", features = ["derive"] }
 worldline-plugin-protocol = { path = "../worldline-plugin-protocol" }
 serde_json = "1"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+    "Win32_Security",
+] }
+
 [[bin]]
 name = "reference-native-provider"
 path = "src/bin/reference-native-provider.rs"
@@ -18,3 +26,4 @@ path = "src/bin/reference-native-provider.rs"
 [[bin]]
 name = "test-violator"
 path = "src/bin/test-violator.rs"
+

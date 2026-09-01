@@ -1,0 +1,485 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-BROWSER-ENGINE-PROVIDER-PROCESS-20260901>
+    <IntentSummary>
+      Deliver Milestone M1.2 as one governed change: a production CEF-backed browser
+      engine provider running through the ordinary supervised native-plugin boundary,
+      with engine-neutral contracts, generic host process containment and bounded
+      blob storage, crash-safe logical identity, headful S2 proving evidence, and
+      zero browser policy in the kernel, decomposed into dependency-ordered packages
+      P1 through P8.
+    </IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-BROWSER-CONTRACT-ENGINE-SPIKE</Value>
+        <Value>M-KERNEL-CAPABILITY-RUNTIME</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-PERSISTENCE-RECOVERY</Value>
+        <Value>M-EXTERNAL-PLUGIN-BOUNDARY</Value>
+        <Value>M-OPERABILITY-COMPATIBILITY-UPGRADE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>V-M-BROWSER-CONTRACT-ENGINE-SPIKE</Value>
+        <Value>V-M-CI-BASELINE</Value>
+        <Value>crates/worldline-browser-contract/Cargo.toml</Value>
+        <Value>crates/worldline-browser-contract/src/contracts.rs</Value>
+        <Value>crates/worldline-browser-contract/src/events.rs</Value>
+        <Value>crates/worldline-plugin-protocol/src/envelope.rs</Value>
+        <Value>crates/worldline-native-host/src/supervisor.rs</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>.grace/graph/index.xml</Value>
+        <Value>.grace/verification/index.xml</Value>
+      </MustExist>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>docs/adr/ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1.md</Value>
+        <Value>crates/worldline-browser-contract/src/capture.rs</Value>
+        <Value>crates/worldline-browser-contract/src/primitives.rs</Value>
+        <Value>crates/worldline-plugin-protocol/src/blob.rs</Value>
+        <Value>crates/worldline-native-host/src/containment.rs</Value>
+        <Value>crates/worldline-browser-provider/Cargo.toml</Value>
+        <Value>crates/worldline-browser-provider/src/lib.rs</Value>
+        <Value>crates/worldline-browser-provider/src/state.rs</Value>
+        <Value>crates/worldline-browser-provider/src/revision.rs</Value>
+        <Value>crates/worldline-browser-provider-process/Cargo.toml</Value>
+        <Value>crates/worldline-browser-provider-process/src/main.rs</Value>
+        <Value>crates/worldline-browser-provider-process/tests/s2_acceptance.rs</Value>
+      </MustExist>
+      <MustVerify>
+        <Module>M-BROWSER-ENGINE-PROVIDER</Module>
+        <Module>M-EXTERNAL-PLUGIN-BOUNDARY</Module>
+        <Module>M-CI-BASELINE</Module>
+      </MustVerify>
+      <MustPassCommand>
+        <Command>cargo fmt --all -- --check</Command>
+        <Command>cargo check -p worldline-browser-contract --all-targets</Command>
+        <Command>cargo check -p worldline-plugin-protocol --all-targets</Command>
+        <Command>cargo check -p worldline-native-host --all-targets</Command>
+        <Command>cargo check -p worldline-browser-provider --all-targets</Command>
+        <Command>cargo check -p worldline-browser-provider-process --all-targets</Command>
+        <Command>cargo test -p worldline-browser-contract</Command>
+        <Command>cargo test -p worldline-plugin-protocol</Command>
+        <Command>cargo test -p worldline-native-host</Command>
+        <Command>cargo test -p worldline-browser-provider</Command>
+        <Command>cargo test -p worldline-browser-provider-process</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-BROWSER-ENGINE-PROVIDER />
+        <M-EXTERNAL-PLUGIN-BOUNDARY />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-BROWSER-ENGINE-PROVIDER />
+        <V-M-EXTERNAL-PLUGIN-BOUNDARY />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>docs/adr/ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1.md</File>
+      <File>Cargo.toml</File>
+      <File>Cargo.lock</File>
+      <File>crates/worldline-browser-contract/Cargo.toml</File>
+      <File>crates/worldline-browser-contract/src/contracts.rs</File>
+      <File>crates/worldline-browser-contract/src/events.rs</File>
+      <File>crates/worldline-browser-contract/src/capture.rs</File>
+      <File>crates/worldline-browser-contract/src/primitives.rs</File>
+      <File>crates/worldline-browser-contract/src/lib.rs</File>
+      <File>crates/worldline-browser-contract/tests/contract_acceptance.rs</File>
+      <File>crates/worldline-plugin-protocol/Cargo.toml</File>
+      <File>crates/worldline-plugin-protocol/src/envelope.rs</File>
+      <File>crates/worldline-plugin-protocol/src/blob.rs</File>
+      <File>crates/worldline-plugin-protocol/src/lib.rs</File>
+      <File>crates/worldline-plugin-protocol/tests/protocol_acceptance.rs</File>
+      <File>crates/worldline-native-host/Cargo.toml</File>
+      <File>crates/worldline-native-host/src/supervisor.rs</File>
+      <File>crates/worldline-native-host/src/containment.rs</File>
+      <File>crates/worldline-native-host/src/connection.rs</File>
+      <File>crates/worldline-native-host/src/lib.rs</File>
+      <File>crates/worldline-native-host/tests/containment_acceptance.rs</File>
+      <File>crates/worldline-native-host/tests/native_host_acceptance.rs</File>
+      <File>crates/worldline-browser-provider/Cargo.toml</File>
+      <File>crates/worldline-browser-provider/src/lib.rs</File>
+      <File>crates/worldline-browser-provider/src/state.rs</File>
+      <File>crates/worldline-browser-provider/src/revision.rs</File>
+      <File>crates/worldline-browser-provider/src/engine.rs</File>
+      <File>crates/worldline-browser-provider/src/cef/mod.rs</File>
+      <File>crates/worldline-browser-provider/src/cef/ffi.rs</File>
+      <File>crates/worldline-browser-provider/src/cef/app.rs</File>
+      <File>crates/worldline-browser-provider/src/cef/client.rs</File>
+      <File>crates/worldline-browser-provider/src/cef/window.rs</File>
+      <File>crates/worldline-browser-provider/src/cef/query.rs</File>
+      <File>crates/worldline-browser-provider/src/cef/action.rs</File>
+      <File>crates/worldline-browser-provider/src/cef/capture.rs</File>
+      <File>crates/worldline-browser-provider/src/cef/cookie.rs</File>
+      <File>crates/worldline-browser-provider/src/cef/download.rs</File>
+      <File>crates/worldline-browser-provider/src/cef/permission.rs</File>
+      <File>crates/worldline-browser-provider/src/reference.rs</File>
+      <File>crates/worldline-browser-provider/src/dispatch.rs</File>
+      <File>crates/worldline-browser-provider/src/health.rs</File>
+      <File>crates/worldline-browser-provider/tests/provider_core_acceptance.rs</File>
+      <File>crates/worldline-browser-provider/tests/recovery_acceptance.rs</File>
+      <File>crates/worldline-browser-provider-process/Cargo.toml</File>
+      <File>crates/worldline-browser-provider-process/src/main.rs</File>
+      <File>crates/worldline-browser-provider-process/tests/process_acceptance.rs</File>
+      <File>crates/worldline-browser-provider-process/tests/s2_acceptance.rs</File>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      <File>.github/workflows/pr.yml</File>
+      <File>.github/workflows/master.yml</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.grace/verification/main.xml</File>
+      <File>ROADMAP.md</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <!-- Package P1: Architecture and compatibility freeze -->
+      <T-001>
+        <Title>Author ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1 documenting CEF process topology and boundary decisions</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>ADR documents native provider process topology, CEF FFI/thread boundary, subprocess dispatch before Worldline IPC, revision reservation safety, profile ownership, fail-closed security defaults, licensing, upgrade rollback limits, headful policy and OSR deferral.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-001>
+      <T-002>
+        <Title>Add experimental v0.1 capture and primitive engine contracts and additive versioned events</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>browser.capture/v0.1, browser.engine.cookies/v0.1, browser.engine.storage/v0.1 and browser.engine.download-hook/v0.1 are defined under experimental stability with operation-level authority.</Criterion>
+          <Criterion>Additive events (such as page restore, readiness, specific renderer state) carry explicit payload versions without breaking existing v1.0 events.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-contract</Command>
+        </Verification>
+      </T-002>
+      <T-003>
+        <Title>Add contract wire and API compatibility fixtures proving v1.0 preservation</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Compatibility tests prove that all eight stable Browser Contract v1.0 request/response JSON wire forms deserialize identically.</Criterion>
+          <Criterion>BrowserError enum retains compatibility without introducing mandatory variants that break public exhaustiveness.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-contract --test contract_acceptance</Command>
+        </Verification>
+      </T-003>
+
+      <!-- Package P2: Generic native host prerequisites -->
+      <T-004>
+        <Title>Implement generic process-tree containment in worldline-native-host</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-native-host implements ProcessTreeContainment (using Windows Job Objects with kill-on-close) established before child code can spawn descendants.</Criterion>
+          <Criterion>Hard-killing the parent or abnormal termination guarantees termination of all descendant child processes.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-native-host</Command>
+        </Verification>
+      </T-004>
+      <T-005>
+        <Title>Add bounded generic native blob host request protocol</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-plugin-protocol adds MessageKind::BlobRequest and MessageKind::BlobResult with bounded BlobPut, BlobGet and BlobVerify payloads.</Criterion>
+          <Criterion>worldline-native-host implements HostRequestSink blob handling bound to current RuntimeId and attenuated handles, preserving BlobStore path confinement.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-plugin-protocol</Command>
+          <Command>cargo test -p worldline-native-host</Command>
+        </Verification>
+      </T-005>
+      <T-006>
+        <Title>Add security and containment acceptance tests in worldline-native-host</Title>
+        <DependsOn>
+          <T-004 />
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Containment tests prove multi-process tree teardown under hard-kill and normal exit on Windows.</Criterion>
+          <Criterion>Blob protocol tests prove bounded chunk transfers, handle validation, and foreign handle rejection.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-native-host --test containment_acceptance</Command>
+          <Command>cargo test -p worldline-native-host --test native_host_acceptance</Command>
+        </Verification>
+      </T-006>
+
+      <!-- Package P3: Provider core and reference backend -->
+      <T-007>
+        <Title>Implement worldline-browser-provider core state machines and revision reservation</Title>
+        <DependsOn>
+          <T-003 />
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-browser-provider manages BrowserContextId, PageId and DocumentRevision lifecycle with strictly monotonically increasing generation reservations via installation-state CAS before returning/publishing refs.</Criterion>
+          <Criterion>ElementRef is scoped to (PageId, DocumentRevision, NodeKey); stale refs and resource mismatches are rejected deterministically.</Criterion>
+          <Criterion>Finite budgets (QueryBounds, mailbox size, dispatch queue, deadlines) fail explicitly on saturation.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-provider --all-targets</Command>
+          <Command>cargo test -p worldline-browser-provider</Command>
+        </Verification>
+      </T-007>
+      <T-008>
+        <Title>Implement worldline-browser-provider-process executable with native IPC loop</Title>
+        <DependsOn>
+          <T-007 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The executable speaks native IPC over stdio using worldline-plugin-protocol envelopes and handles handshake, lifecycle, capability RPC, state access and event publication.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-provider-process --all-targets</Command>
+        </Verification>
+      </T-008>
+      <T-009>
+        <Title>Add out-of-process provider acceptance suite with reference backend</Title>
+        <DependsOn>
+          <T-006 />
+          <T-008 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Supervisor launches provider process, establishes handshake, invokes all 8 v1.0 capabilities and experimental v0.1 surfaces, and validates typed event reception.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider-process --test process_acceptance</Command>
+        </Verification>
+      </T-009>
+
+      <!-- Package P4: CEF package, bootstrap and headful rendering -->
+      <T-010>
+        <Title>Implement CEF packaging, checksum validation and safe FFI adapter</Title>
+        <DependsOn>
+          <T-007 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>CEF binaries, resources and locales are validated against pinned checksums and loaded fail-closed.</Criterion>
+          <Criterion>CEF types, pointers and enums never cross the provider boundary into Worldline contracts.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-provider --all-targets</Command>
+        </Verification>
+      </T-010>
+      <T-011>
+        <Title>Implement CEF subprocess dispatch and thread-affine message loop</Title>
+        <DependsOn>
+          <T-010 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Executable executes CEF subprocess dispatch before Worldline IPC bootstrap; CEF child roles (renderer, GPU, utility) do not open Worldline IPC or hold host handles.</Criterion>
+          <Criterion>CEF message loop runs on a dedicated UI thread with bounded cross-thread dispatcher; no global provider mutex is held during CEF calls.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider</Command>
+        </Verification>
+      </T-011>
+      <T-012>
+        <Title>Implement native windowed headful navigation on Windows with security defaults</Title>
+        <DependsOn>
+          <T-011 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Provider creates a minimal native child window and navigates local HTTP/HTTPS/about:blank fixtures.</Criterion>
+          <Criterion>Privileged/local schemes (file, javascript, chrome, devtools) fail closed; CEF sandbox is enabled; no ambient debugging port.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider --test provider_core_acceptance</Command>
+        </Verification>
+      </T-012>
+
+      <!-- Package P5: Semantic query, action and capture -->
+      <T-013>
+        <Title>Implement bounded Blink accessibility tree extraction and semantic projection</Title>
+        <DependsOn>
+          <T-012 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>query_document extracts AX/DOM tree, enforces QueryBounds (nodes, depth, text bytes) with is_truncated flag, and binds actionable nodes to opaque backend-node ElementRefs.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider</Command>
+        </Verification>
+      </T-013>
+      <T-014>
+        <Title>Implement safe DOM action execution targeting resolved backend nodes</Title>
+        <DependsOn>
+          <T-013 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Input, click, focus, submit and scroll target exact resolved DOM nodes without JavaScript source interpolation.</Criterion>
+          <Criterion>Stale revision or detached node keys fail immediately with StaleElementReference or ElementNotFound.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider</Command>
+        </Verification>
+      </T-014>
+      <T-015>
+        <Title>Implement experimental browser.capture v0.1 backed by host blob storage</Title>
+        <DependsOn>
+          <T-005 />
+          <T-012 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>browser.capture captures window/page pixels, stores bounded chunks via BlobPut, and returns provider-scoped artifact reference.</Criterion>
+          <Criterion>Artifact read operations require authorized capability invocation; raw BlobId grants no read access.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider</Command>
+        </Verification>
+      </T-015>
+
+      <!-- Package P6: Profiles and engine primitives -->
+      <T-016>
+        <Title>Implement persistent context profile isolation and ephemeral incognito scavenging</Title>
+        <DependsOn>
+          <T-012 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Persistent contexts use installation-owned confined roots; logical profile IDs never leak filesystem paths.</Criterion>
+          <Criterion>Incognito contexts use ephemeral roots that are never restored and are cleaned during recovery.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider</Command>
+        </Verification>
+      </T-016>
+      <T-017>
+        <Title>Implement cookie and storage primitive capability operations</Title>
+        <DependsOn>
+          <T-016 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>browser.engine.cookies/v0.1 and browser.engine.storage/v0.1 provide separate read and mutation operations partitioned by ContextId and origin.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider</Command>
+        </Verification>
+      </T-017>
+      <T-018>
+        <Title>Implement fail-closed permission callbacks and download staging</Title>
+        <DependsOn>
+          <T-016 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>CEF permission callbacks consult the RPC-populated decision projection synchronously and fail closed (Denied) when no decision exists.</Criterion>
+          <Criterion>Downloads stage into a confined staging directory and reject directory traversal, UNC/device, and symlink escapes.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider</Command>
+        </Verification>
+      </T-018>
+
+      <!-- Package P7: Recovery, health and upgrade -->
+      <T-019>
+        <Title>Implement renderer crash containment, provider crash restart and host restart recovery</Title>
+        <DependsOn>
+          <T-012 />
+          <T-016 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Renderer crash terminates the specific page while provider remains alive; provider crash restarts with fresh RuntimeId and revokes old handles.</Criterion>
+          <Criterion>Host restart restores persistent ContextId, PageId, URL and navigation checkpoints from installation state.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider --test recovery_acceptance</Command>
+        </Verification>
+      </T-019>
+      <T-020>
+        <Title>Implement revision safety across recovery and pre-crash ElementRef rejection</Title>
+        <DependsOn>
+          <T-019 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Recovery reserves a strictly greater DocumentRevision generation before marking pages ready.</Criterion>
+          <Criterion>Failpoint tests verify that all pre-crash ElementRefs are rejected after restart.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider --test recovery_acceptance</Command>
+        </Verification>
+      </T-020>
+      <T-021>
+        <Title>Implement payload-free operational telemetry and staged upgrade validation</Title>
+        <DependsOn>
+          <T-019 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Provider health exposes startup latency, active page/context counts, crash counts, and engine version without leaking payload, URLs, DOM text or cookies.</Criterion>
+          <Criterion>Staged upgrade validates a fresh ephemeral profile before atomic switch, without modifying active profiles.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider</Command>
+        </Verification>
+      </T-021>
+
+      <!-- Package P8: S2 and CI closure -->
+      <T-022>
+        <Title>Implement full headful S2 proving slice acceptance test</Title>
+        <DependsOn>
+          <T-009 />
+          <T-014 />
+          <T-015 />
+          <T-018 />
+          <T-020 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>S2 acceptance runs from a clean host through package installation, broker discovery, native IPC, headful local navigation, event observation, semantic query, action, capture, renderer crash, provider hard-kill, state restore and clean shutdown without orphan processes.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider-process --test s2_acceptance</Command>
+        </Verification>
+      </T-022>
+      <T-023>
+        <Title>Integrate BrowserProvider CI suite and GitHub Actions workflow</Title>
+        <DependsOn>
+          <T-022 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Invoke-WorldlineCi exposes -Suite BrowserProvider, and PR/master workflows run one named Browser-Provider Windows job.</Criterion>
+          <Criterion>The gate fails closed if required components or tests are missing, and is included in Suite All.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-023>
+      <T-024>
+        <Title>Reconcile GRACE graph and verification projections and ROADMAP for M1.2</Title>
+        <DependsOn>
+          <T-023 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>M-BROWSER-ENGINE-PROVIDER and V-M-BROWSER-ENGINE-PROVIDER are added to graph and verification projections.</Criterion>
+          <Criterion>ROADMAP marks M1.2 Done and activates M1.3.</Criterion>
+          <Criterion>All verification commands pass and grace lint reports zero errors.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-024>
+    </ImplementationPlan>
+  </C-BROWSER-ENGINE-PROVIDER-PROCESS-20260901>
+</GraceChangePlan>

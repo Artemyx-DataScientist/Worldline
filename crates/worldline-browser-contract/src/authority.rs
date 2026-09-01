@@ -37,6 +37,17 @@ pub const OP_DOWNLOAD_STATUS: &str = "status";
 pub const OP_PERMISSION_QUERY: &str = "query";
 pub const OP_PERMISSION_SET: &str = "set";
 
+pub const OP_CAPTURE: &str = "capture";
+pub const OP_READ_CAPTURE: &str = "read_capture";
+
+pub const OP_COOKIE_GET: &str = "cookie_get";
+pub const OP_COOKIE_SET: &str = "cookie_set";
+pub const OP_COOKIE_DELETE: &str = "cookie_delete";
+
+pub const OP_STORAGE_CLEAR: &str = "storage_clear";
+
+pub const OP_DOWNLOAD_HOOK: &str = "download_hook";
+
 /// Logical authority classifications representing security rights.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum BrowserAuthority {
@@ -46,6 +57,10 @@ pub enum BrowserAuthority {
     ActOnPage,
     ControlDownload,
     ManagePermission,
+    CapturePage,
+    ManageCookies,
+    ManageStorage,
+    ControlDownloadHook,
 }
 
 impl BrowserAuthority {
@@ -78,6 +93,13 @@ impl BrowserAuthority {
                 "browser.permission",
                 &[OP_PERMISSION_QUERY, OP_PERMISSION_SET],
             ),
+            Self::CapturePage => ("browser.capture", &[OP_CAPTURE, OP_READ_CAPTURE]),
+            Self::ManageCookies => (
+                "browser.engine.cookies",
+                &[OP_COOKIE_GET, OP_COOKIE_SET, OP_COOKIE_DELETE],
+            ),
+            Self::ManageStorage => ("browser.engine.storage", &[OP_STORAGE_CLEAR]),
+            Self::ControlDownloadHook => ("browser.engine.download_hook", &[OP_DOWNLOAD_HOOK]),
         }
     }
 

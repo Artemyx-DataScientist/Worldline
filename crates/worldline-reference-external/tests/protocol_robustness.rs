@@ -35,6 +35,7 @@ fn native_violator_writing_garbage_fails_call_without_panicking_host() {
         args: Vec::new(),
         max_frame_bytes: 4 * 1024 * 1024,
         stderr_max_bytes: 64 * 1024,
+        enable_process_tree_containment: false,
     };
     let identity = ExpectedIdentity {
         package_id: "reference.echo.pkg".to_owned(),
@@ -80,6 +81,7 @@ fn native_hung_child_times_out_on_shutdown() {
         ],
         max_frame_bytes: 4 * 1024 * 1024,
         stderr_max_bytes: 64 * 1024,
+        enable_process_tree_containment: false,
     };
     let identity = ExpectedIdentity {
         package_id: "reference.echo.pkg".to_owned(),

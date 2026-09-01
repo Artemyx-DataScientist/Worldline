@@ -1,0 +1,166 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-BROWSER-ENGINE-PROVIDER-PROCESS-20260901>
+    <Summary>
+      Deliver M1.2 as one governed change: a production CEF-backed browser engine
+      provider running through the ordinary supervised native-plugin boundary,
+      with engine-neutral contracts, bounded generic host prerequisites,
+      crash-safe logical identity, headful S2 evidence, and no browser policy in
+      the kernel. The implementation plan may decompose delivery into dependency-
+      ordered packages, but all packages remain governed by this one spec and by
+      one separately approved plan.
+    </Summary>
+
+    <Problem>
+      M1.1 proved the engine-neutral Browser Contract v1 and a real external
+      Chromium/CDP spike, but it did not deliver a packaged CEF provider, native
+      plugin-process integration, CEF child-process containment, host-backed
+      browser artifacts, durable page-generation recovery, or the real headful S2
+      path. The current native supervisor terminates one direct child rather than
+      an owned CEF process tree, and the native protocol has no bounded blob host
+      call. A production provider therefore requires explicit generic extensions
+      without creating a browser-specific kernel path or weakening stable v1
+      compatibility.
+    </Problem>
+
+    <Goals>
+      <Goal>Run the first production CEF browser engine provider as an ordinary supervised Worldline native plugin process.</Goal>
+      <Goal>Keep CEF bindings, handles, callbacks, subprocess identities and policy out of the kernel and public browser contracts.</Goal>
+      <Goal>Preserve the eight stable Browser Contract v1.0 request and response wire forms while adding only explicitly versioned additive or experimental surfaces.</Goal>
+      <Goal>Add generic native-process-tree containment and bounded host blob access required by a multi-process provider, without browser-specific kernel mechanisms.</Goal>
+      <Goal>Make ContextId, PageId and DocumentRevision survive renderer, provider and host recovery without reviving stale ElementRefs or runtime authority.</Goal>
+      <Goal>Provide contexts/profiles, pages, navigation, observation, bounded semantic query, authorized action, capture, permission, cookie/storage primitives and download hooks needed by future M1.3 service plugins.</Goal>
+      <Goal>Prove a deterministic native-windowed/headful S2 through installation, capability discovery, native IPC, CEF, recovery and clean shutdown.</Goal>
+      <Goal>Integrate the provider with existing health, quarantine, staged upgrade, persistence, event and CI models.</Goal>
+    </Goals>
+
+    <Constraints>
+      <Constraint>BROWSER PROVIDER IS A NORMAL NATIVE PLUGIN PROVIDER; NO BROWSER-SPECIFIC KERNEL OR IPC BYPASS IS ALLOWED.</Constraint>
+      <Constraint>SPEC APPROVAL AND EXACT PLAN APPROVAL REMAIN SEPARATE; AN APPROVED PLAN IS IMMUTABLE.</Constraint>
+      <Constraint>CEF TYPES, POINTERS, ENUMS, CALLBACK OBJECTS, PROCESS IDS AND WINDOW HANDLES NEVER CROSS A PUBLIC WORLDLINE CONTRACT OR BECOME AUTHORITY.</Constraint>
+      <Constraint>CEF RENDERER, GPU, NETWORK, UTILITY, CRASHPAD AND OTHER CHILD ROLES ARE NOT WORLDLINE RUNTIMES AND RECEIVE NO WORLDLINE PRINCIPAL, TOKEN, PLUGIN IPC CHANNEL OR REUSABLE HOST AUTHORITY.</Constraint>
+      <Constraint>COMMANDS USE CAPABILITY RPC; EVENTS ARE POST-OUTCOME OBSERVATIONS AND NEVER DETERMINE AN RPC OR CEF CALLBACK RESULT.</Constraint>
+      <Constraint>OBSERVE, QUERY, NAVIGATE, ACT, CAPTURE, COOKIE/STORAGE MUTATION, DOWNLOAD CONTROL AND PERMISSION MUTATION REMAIN SEPARATELY AUTHORIZABLE OPERATIONS.</Constraint>
+      <Constraint>THE ENGINE PROVIDER OWNS PRIMITIVES, NOT TABS, USER HISTORY, WORKSPACES, DOWNLOAD POLICY, COOKIE UI, SEARCH, ADBLOCK OR DEVTOOLS PRODUCT POLICY.</Constraint>
+      <Constraint>THE EXISTING M1.1 CDP SPIKE REMAINS A REGRESSION FIXTURE AND IS NOT RENAMED OR WRAPPED AS THE PRODUCTION CEF PROVIDER.</Constraint>
+      <Constraint>PRODUCTION CEF SANDBOXING IS ENABLED; AMBIENT CEF INSTALLATIONS, UNSAFE DEBUG PORTS, PRIVILEGED URL SCHEMES AND UNPINNED PACKAGE ASSETS FAIL CLOSED.</Constraint>
+      <Constraint>NON-IDEMPOTENT OR EXTERNALLY VISIBLE BROWSER OPERATIONS ARE NEVER AUTOMATICALLY RETRIED AFTER AN UNKNOWN OUTCOME.</Constraint>
+      <Constraint>PROTECTED M0, S0, S1 AND M1.1 TESTS ARE NOT WEAKENED, SKIPPED OR REWRITTEN TO MAKE M1.2 GREEN.</Constraint>
+      <Constraint>REAL CEF EVIDENCE USES DETERMINISTIC LOCAL FIXTURES AND ONE REQUIRED WINDOWS GATE; LOCAL EVIDENCE IS NOT REPORTED AS HOSTED CI EVIDENCE.</Constraint>
+      <Constraint>EXACT PRODUCTION BUDGETS ARE FINITE, STARTUP-VALIDATED AND TESTABLE THROUGH INJECTED SMALL LIMITS; LIMIT EXHAUSTION RETURNS AN EXPLICIT BOUNDED FAILURE.</Constraint>
+    </Constraints>
+
+    <NonGoals>
+      <NonGoal>Worldline Shell or final page-surface composition.</NonGoal>
+      <NonGoal>Tabs, bookmarks, user-facing durable history, workspace, download-manager, cookies-policy, search, adblock or DevTools service plugins.</NonGoal>
+      <NonGoal>Production OSR, wgpu composition, frame queues, glass or GPU effects.</NonGoal>
+      <NonGoal>A second production browser engine.</NonGoal>
+      <NonGoal>Agent/browser automation UX.</NonGoal>
+      <NonGoal>Public-Internet-dependent acceptance tests.</NonGoal>
+      <NonGoal>Claiming a complete native OS sandbox on platforms where the generic native host does not provide one.</NonGoal>
+      <NonGoal>Guaranteeing rollback of an already migrated persistent Chromium profile when the pinned CEF profile format does not support it.</NonGoal>
+    </NonGoals>
+
+    <AcceptanceCriteria>
+      <Criterion>A repository-owned ADR documents process topology, CEF FFI/thread boundary, contract evolution, profile ownership, revision reservation, recovery, packaging, security defaults, licensing, upgrade limits, headful policy and OSR deferral before dependent implementation tasks execute.</Criterion>
+      <Criterion>The provider package is installed, activated, supervised, discovered, invoked, deactivated, restarted, quarantined and upgraded through existing generic Worldline plugin/runtime contracts.</Criterion>
+      <Criterion>The provider executable dispatches every CEF child role before Worldline bootstrap, and no CEF child can publish capabilities, issue State/Blob/Event host calls, or reuse inherited Worldline IPC material.</Criterion>
+      <Criterion>Generic process containment is established before the provider can spawn CEF children; normal shutdown, provider hard-kill and startup failure leave no owned CEF descendants in the required Windows gate.</Criterion>
+      <Criterion>CEF is pinned by version, platform, architecture and checksums; package assets, locale/resources, subprocess binary, notices and runtime DLL search roots are manifest-controlled and validated fail-closed.</Criterion>
+      <Criterion>Production starts CEF with sandboxing enabled, no ambient remote-debugging endpoint, and no production no-sandbox escape; privileged/local schemes such as file, javascript, chrome, devtools and undeclared custom schemes are denied absent a separately versioned authorized contract.</Criterion>
+      <Criterion>The stable Browser Contract v1.0 request/response wire fixtures remain compatible; existing browser.engine.crashed remains supported; new events are additive; capture and engine cookie/storage/download-hook contracts are declared experimental version 0.1 and do not masquerade as v1.0.</Criterion>
+      <Criterion>Unknown external outcomes use the existing M0.7 correlated side-effect semantics without silently converting Incomplete into Failed or Success and without automatic retry of non-idempotent operations.</Criterion>
+      <Criterion>Every ContextId and PageId is a Worldline logical identity with exact resource ownership checks against trusted InvocationContext; raw CEF identifiers and payload strings never create authority.</Criterion>
+      <Criterion>Before any DocumentRevision or ElementRef is returned or published, the provider durably reserves a strictly greater page generation; renderer/provider/host recovery reserves another generation before readiness, so no crash window can reuse a previously visible revision.</Criterion>
+      <Criterion>Failpoint evidence covers CEF commit, durable generation reservation, RPC completion and event publication boundaries and proves that every pre-crash ElementRef is rejected after recovery.</Criterion>
+      <Criterion>Persistent profiles use installation-owned confined roots and remain isolated; logical profile IDs never become paths; incognito state is never restored and abandoned ephemeral roots are cleaned during recovery.</Criterion>
+      <Criterion>Navigation, reload, stop and engine back/forward operate through browser.navigate/v1; engine navigation recovery remains bounded and never becomes the M1.3 user-history source of truth.</Criterion>
+      <Criterion>Observe returns real URL, title, loading and revision state; query returns a real bounded semantic DOM/accessibility projection; click, input, focus and submit target exact live engine nodes and reject stale, detached or cross-page references before mutation.</Criterion>
+      <Criterion>Untrusted action text, node keys, URLs, origins, filenames and callback values remain data and are never interpolated into executable JavaScript, CEF source, command-line switches or filesystem authority.</Criterion>
+      <Criterion>The experimental browser.capture v0.1 path publishes bounded bytes through generic host blob storage and returns a provider-scoped artifact reference; possession of BlobId or artifact identity alone grants no read authority.</Criterion>
+      <Criterion>The generic native blob protocol bounds request and response sizes, correlates calls to the current runtime/invocation, rejects stale or foreign handles, and preserves BlobStore corruption and path-confinement semantics.</Criterion>
+      <Criterion>Permission decisions are set/queryable only through capability RPC; a synchronous CEF callback consults the provider decision projection and fails closed when no decision exists, without waiting for an event subscriber.</Criterion>
+      <Criterion>Cookie and storage observation versus mutation operations are separately grantable, validate canonical context/origin ownership, and cannot cross profile boundaries.</Criterion>
+      <Criterion>Downloads write only to a confined staging/artifact root; absolute, traversal, UNC/device, alternate-stream, symlink/reparse and race-based escapes are rejected; final destination policy remains outside M1.2.</Criterion>
+      <Criterion>Renderer failure leaves the provider RuntimeId and unaffected pages alive where CEF isolation permits; provider failure revokes the old RuntimeId and handles, restarts with fresh authority, restores logical state and emits only facts the new runtime can authoritatively observe.</Criterion>
+      <Criterion>Provider-process failure and restart are observed through generic host lifecycle/trajectory state; browser-specific page-restored or ready events are emitted only after durable restore, and no dead provider is treated as the authoritative emitter of its own crash.</Criterion>
+      <Criterion>Provider and host restart restore persistent ContextId, PageId, selected-page projection, current URL and bounded engine navigation checkpoint while persistent cookies survive and incognito data does not.</Criterion>
+      <Criterion>Finite limits cover contexts, pages, pending RPC, CEF dispatch queue, query nodes/depth/bytes, capture pixels/bytes, event/download mailboxes, startup and shutdown; saturation tests prove explicit QueueFull/limit failures without unbounded allocation or backlog.</Criterion>
+      <Criterion>Provider health exposes payload-free startup duration, active context/page counts, crash/restart counts, pending RPC, engine version and last transition; metrics contain no URL body, DOM text, form input or cookies.</Criterion>
+      <Criterion>Staged upgrade validates a fresh ephemeral profile before switch, never mutates the active profile during stage, mints fresh RuntimeId on switch/rollback and reports persistent-profile rollback limitations truthfully.</Criterion>
+      <Criterion>S2 runs from a clean host through real package install/activation, broker discovery, native IPC, CEF headful local navigation, event observation, semantic query/action, capture, renderer crash, provider hard-kill, state restore and orphan-free shutdown with no direct provider-library calls.</Criterion>
+      <Criterion>A required repository-owned BrowserProvider Windows CI suite fails when CEF is missing or broken, never succeeds by environment detection or continue-on-error, and preserves Source, Correctness, ArchitectureSecurity, ProvingSlice, RealChromium and All suites.</Criterion>
+      <Criterion>Windows x86_64 is the only real CEF platform claimed verified by M1.2 unless separately named evidence exists; Linux continues to prove engine-neutral contracts and architecture without a false real-provider claim.</Criterion>
+      <Criterion>ROADMAP marks M1.2 Done and GRACE adds M-BROWSER-ENGINE-PROVIDER with V-M-BROWSER-ENGINE-PROVIDER only after named fresh local and hosted evidence passes and the user explicitly confirms apply.</Criterion>
+    </AcceptanceCriteria>
+
+    <AffectedAreas>
+      <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-PERSISTENCE-RECOVERY />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+
+    <VerificationIntent>
+      <ExpectedCommand>cargo fmt --all -- --check</ExpectedCommand>
+      <ExpectedCommand>cargo test --workspace</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-plugin-protocol</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-native-host</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-contract</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-provider</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-provider-process</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+      <ExpectedEvidence>Fresh evidence names exact contract compatibility fixtures, generic process-tree and blob protocol tests, crash-window revision failpoints, CEF package/security checks, real headful S2, renderer/provider/host recovery, profile isolation, bounded backpressure, orphan-free shutdown and the required hosted Windows BrowserProvider run; local commands are reported only as local evidence.</ExpectedEvidence>
+    </VerificationIntent>
+
+    <Assumptions>
+      <Assumption>C-BROWSER-M1-1-AUDIT-REMEDIATION-20260831 is verified, explicitly confirmed applied and archived before this plan is approved or executed.</Assumption>
+      <Assumption>ADR-BROWSER-ENGINE-V1 remains the accepted engine-selection decision, while its external Chrome/CDP measurements are not treated as proof of CEF packaging, native embedding or windowed operation.</Assumption>
+      <Assumption>The generic installation StateRequest path remains the authoritative checkpoint path; exposing BlobStore to native providers requires the explicitly scoped protocol work authorized by this spec.</Assumption>
+      <Assumption>Windows x86_64 is the first real provider target; other platforms remain unverified until named real-provider evidence exists.</Assumption>
+      <Assumption>Exact crate names may follow repository conventions, but the logical separation between public contracts, provider state machine, private CEF adapter and executable entrypoint is mandatory.</Assumption>
+      <Assumption>The implementation plan will be a separately approved immutable document and may schedule multiple bounded worker packages under this single change.</Assumption>
+    </Assumptions>
+
+    <ContractEvolution>
+      <StableSurface>browser.context/page/navigate/observe/query/act/download/permission v1.0 request and response wire forms remain supported.</StableSurface>
+      <AdditiveEventRule>Existing v1 events remain accepted; new renderer, revision, action and restore facts are additive and have explicit payload versions.</AdditiveEventRule>
+      <ExperimentalSurface>browser.capture, browser.engine.cookies, browser.engine.storage and browser.engine.download-hook use version 0.1 with experimental stability and explicit operation-level authority.</ExperimentalSurface>
+      <CompatibilityRule>No existing public Rust enum receives a required new variant unless a compatibility test proves the negotiated wire/API change; otherwise use an additive versioned DTO or generic M0.7 outcome surface.</CompatibilityRule>
+    </ContractEvolution>
+
+    <RevisionSafetyProtocol>
+      <Step>Read the last durable generation for the logical PageId.</Step>
+      <Step>Reserve a strictly greater generation through installation-state CAS before exposing the document.</Step>
+      <Step>Bind the new engine document only to the reserved generation.</Step>
+      <Step>Return RPC results, publish commit/restore events and issue ElementRefs only after reservation succeeds.</Step>
+      <Step>If the engine effect occurred but durable reservation or correlated completion is unknowable, mark the side effect Incomplete, keep the page unready and do not retry automatically.</Step>
+      <Step>Every renderer, provider and host recovery reserves again before restored readiness.</Step>
+    </RevisionSafetyProtocol>
+
+    <OwnershipRules>
+      <Rule>The provider owns page, navigation, action, renderer and restore facts it directly observes.</Rule>
+      <Rule>The host owns generic runtime failure, restart, quarantine and authority revocation facts.</Rule>
+      <Rule>The provider never self-certifies the failure of a runtime that is already dead.</Rule>
+      <Rule>Permission callbacks consume a locally available decision projection populated by RPC and default to deny.</Rule>
+      <Rule>Browser service policy introduced in M1.3 may consume primitives but does not move policy into the CEF adapter.</Rule>
+    </OwnershipRules>
+
+    <ImplementationDecompositionRule>
+      The separately approved plan must split work into dependency-ordered packages
+      for architecture and compatibility, generic host prerequisites, provider
+      core, CEF bootstrap/headful rendering, semantic actions and capture,
+      profiles/persistence, recovery/operability, and CI/S2 closure. Each package
+      must declare exact observed write scope, verification and stop conditions;
+      no package may claim the whole milestone complete before final S2 evidence.
+    </ImplementationDecompositionRule>
+  </C-BROWSER-ENGINE-PROVIDER-PROCESS-20260901>
+</GraceChangeSpec>

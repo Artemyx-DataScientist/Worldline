@@ -230,6 +230,7 @@ fn provider_spec() -> NativeChildSpec {
         ],
         max_frame_bytes: 4 * 1024 * 1024,
         stderr_max_bytes: 64 * 1024,
+        enable_process_tree_containment: false,
     }
 }
 
@@ -333,6 +334,7 @@ fn protocol_violation_is_contained_without_harming_the_host() {
         args: Vec::new(),
         max_frame_bytes: 4 * 1024 * 1024,
         stderr_max_bytes: 64 * 1024,
+        enable_process_tree_containment: false,
     };
     let (connection, _ack) = NativeProviderConnection::connect(
         violator,

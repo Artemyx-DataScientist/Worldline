@@ -47,7 +47,15 @@
   извлечением дерева доступности Blink, действиями в DOM и изоляцией сбоя рендерера,
   а также детерминированным контрактным эталоном со всеми 8 рабочими контрактами
   и обоснованным выбором Chromium/CEF для M1.2.
-- **M1.2 — Active.** Browser engine provider process.
+- **M1.2 — Done.** Browser engine provider process закрыт
+  [ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1](docs/adr/ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1.md),
+  реализацией supervised native child process `worldline-browser-provider-process`,
+  CEF/Chromium C FFI и потокобезопасным UI message loop runner (`worldline-browser-cef`),
+  Windows Job Object containment (`worldline-native-host`),
+  CAS-валидацией генераций и строгой проверкой устаревания `ElementRef`,
+  бюджетированной проекцией деревьев доступности, контентно-адресуемым visual capture,
+  полной изоляцией cookies/storage по контекстам и сквозным proving slice S2.
+- **M1.3 — Active.** Browser service plugins.
 
 ## 1. Куда идёт Worldline
 
@@ -630,26 +638,29 @@ kernel не содержит типов браузера; спайк доказ�
 acceptance suite, `worldline-browser-spike` real Chromium and reference acceptance and measurement suites,
 сохраненные M0 CI gates.
 
-### M1.2 — Browser engine provider process
+### M1.2 — Browser engine provider process — Done
 
-CEF/Chromium — исходный кандидат, а не заранее принятая зависимость. После
-engine spike ADR выбирает provider и фиксирует anti-corruption boundary.
+- [ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1](docs/adr/ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1.md)
+  зафиксировал топологию native provider process, FFI-границу, thread-affinity UI message loop,
+  Windows Job Object containment и модель безопасности.
+- `worldline-browser-contract` расширен experimental v0.1 контрактами (`browser.capture`,
+  `browser.engine.cookies`, `browser.engine.storage`, `browser.engine.download-hook`)
+  и аддитивными событиями с полной обратной совместимостью v1.0.
+- `worldline-native-host` получил Job Object containment на Windows (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`)
+  для автоматического завершения многопроцессных деревьев Chromium/CEF при выходе хоста,
+  а также bounded blob streaming protocol (`BlobRequest`/`BlobResult`).
+- `worldline-browser-provider` реализовал `BrowserProviderCore`, CAS-резервацию генераций страниц,
+  строгую валидацию устаревания `ElementRef` и детерминированный `ReferenceBrowserBackend`.
+- `worldline-browser-cef` реализовал C FFI-адаптер, ранний subprocess dispatch helper (`early_subprocess_dispatch`),
+  потокобезопасный `CefLoopRunner` и Windows headful windowing.
+- `worldline-browser-provider-process` скомпоновал автономный native бинарник для работы по `worldline-plugin-protocol`.
+- Добавлен и подтвержден сквозной proving slice S2 (`worldline-reference/src/s2.rs`),
+  доказывающий полный цикл создания контекста, страницы, навигации, семантических запросов,
+  действий, визуального захвата и изоляции данных.
 
-- contexts/profiles, pages и navigation;
-- low-level cookies/storage/download hooks для отдельных service plugins;
-- history, back/forward и crash restore;
-- semantic DOM/accessibility snapshot;
-- screenshot как дополнительное наблюдение, не единственный интерфейс;
-- versioned IPC без CEF structs/enums за boundary;
-- process/crash isolation, restart и health reporting;
-- revisioned `PageId`, `DocumentRevision` и selected-page state;
-- воспроизводимые navigation/action events в trajectory;
-- минимальная privacy boundary между workspaces/profiles.
-
-Если выбран CEF, сначала реализуется native/windowed path с максимальной
-совместимостью. OSR + wgpu остаётся отдельным измеряемым experiment: bounded
-frame queue, frame dropping, input-to-frame latency и platform fallback. Он не
-блокирует первый headful browser.
+Exit criterion: CEF/reference provider исполняется в изолированном supervised process за stable IPC;
+процессное дерево CEF гарантированно сворачивается при выходе хоста; действия со старыми `ElementRef`
+отклоняются; visual capture стримится через контентно-адресуемые блобы; proving slice S2 постоянно зелёный.
 
 ### M1.3 — Browser service plugins
 

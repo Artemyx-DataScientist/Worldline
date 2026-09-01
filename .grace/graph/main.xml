@@ -114,5 +114,45 @@
       <M-PERSISTENCE-RECOVERY />
       <M-CI-BASELINE />
     </M-BROWSER-CONTRACT-ENGINE-SPIKE>
+    <M-BROWSER-ENGINE-PROVIDER-PROCESS>
+      <Summary>Supervised native browser engine provider process on Windows using Chromium Embedded Framework (CEF), Windows Job Object tree containment, thread-affine UI message loop runner, early subprocess dispatch, revision-guarded action validation, bounded AX tree projection, content-addressed visual capture, cookie/storage partitioning, and proving slice S2.</Summary>
+      <Path>docs/adr/ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1.md</Path>
+      <Path>crates/worldline-browser-contract/Cargo.toml</Path>
+      <Path>crates/worldline-browser-contract/src/lib.rs</Path>
+      <Path>crates/worldline-browser-contract/src/identity.rs</Path>
+      <Path>crates/worldline-browser-contract/src/contracts.rs</Path>
+      <Path>crates/worldline-browser-contract/src/authority.rs</Path>
+      <Path>crates/worldline-browser-contract/src/query.rs</Path>
+      <Path>crates/worldline-browser-contract/src/action.rs</Path>
+      <Path>crates/worldline-browser-contract/src/capture.rs</Path>
+      <Path>crates/worldline-browser-contract/src/primitives.rs</Path>
+      <Path>crates/worldline-browser-contract/src/events.rs</Path>
+      <Path>crates/worldline-browser-contract/src/error.rs</Path>
+      <Path>crates/worldline-browser-provider/Cargo.toml</Path>
+      <Path>crates/worldline-browser-provider/src/lib.rs</Path>
+      <Path>crates/worldline-browser-provider/src/backend.rs</Path>
+      <Path>crates/worldline-browser-provider/src/reference.rs</Path>
+      <Path>crates/worldline-browser-provider/src/core.rs</Path>
+      <Path>crates/worldline-browser-provider/tests/provider_core_acceptance.rs</Path>
+      <Path>crates/worldline-browser-provider/tests/semantic_action_capture_acceptance.rs</Path>
+      <Path>crates/worldline-browser-provider/tests/profiles_primitives_acceptance.rs</Path>
+      <Path>crates/worldline-browser-provider/tests/recovery_health_acceptance.rs</Path>
+      <Path>crates/worldline-browser-cef/Cargo.toml</Path>
+      <Path>crates/worldline-browser-cef/src/lib.rs</Path>
+      <Path>crates/worldline-browser-cef/src/ffi.rs</Path>
+      <Path>crates/worldline-browser-cef/src/loop_runner.rs</Path>
+      <Path>crates/worldline-browser-cef/src/backend.rs</Path>
+      <Path>crates/worldline-browser-cef/tests/cef_headful_acceptance.rs</Path>
+      <Path>crates/worldline-browser-provider-process/Cargo.toml</Path>
+      <Path>crates/worldline-browser-provider-process/src/main.rs</Path>
+      <Path>crates/worldline-browser-provider-process/tests/process_acceptance.rs</Path>
+      <Path>crates/worldline-reference/src/s2.rs</Path>
+      <Path>crates/worldline-reference/tests/s2_acceptance.rs</Path>
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-PERSISTENCE-RECOVERY />
+      <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-CI-BASELINE />
+    </M-BROWSER-ENGINE-PROVIDER-PROCESS>
   </GD-MAIN>
 </GraceGraphDocument>

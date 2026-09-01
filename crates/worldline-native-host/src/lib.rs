@@ -21,16 +21,16 @@
 //!   allocation, and malformed bytes classify as protocol violations that
 //!   break only this connection.
 
-#![forbid(unsafe_code)]
-
 mod codec;
 mod connection;
+pub mod containment;
 mod error;
 mod handshake;
 mod supervisor;
 
 pub use codec::{read_frame, read_json_frame, write_frame, write_json_frame};
 pub use connection::{HostRequestSink, NativeProviderConnection};
+pub use containment::{ProcessTreeContainment, ProcessTreeJob};
 pub use error::NativeHostError;
 pub use handshake::{
     ChildAck, ExpectedIdentity, HostHello, NATIVE_ABI_BASELINE, perform_host_handshake,

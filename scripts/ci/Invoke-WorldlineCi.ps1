@@ -88,6 +88,9 @@ function Invoke-CorrectnessSuite {
     Invoke-WorldlineCommand -Label 'upgrade and rollback acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-kernel', '--test', 'upgrade_acceptance')
     Invoke-WorldlineCommand -Label 'cross-mode logical conformance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'cross_mode_conformance')
     Invoke-WorldlineCommand -Label 'browser contract acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-contract', '--test', 'contract_acceptance')
+    Invoke-WorldlineCommand -Label 'browser provider acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-provider')
+    Invoke-WorldlineCommand -Label 'browser provider process acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-provider-process')
+    Invoke-WorldlineCommand -Label 'browser cef acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-cef')
     Invoke-WorldlineCommand -Label 'browser engine spike acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'spike_acceptance')
     Invoke-WorldlineCommand -Label 'browser engine spike measurements' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'measurement_suite')
 }
@@ -116,6 +119,7 @@ function Invoke-ProvingSliceSuite {
     Build-ExternalNativeFixtures
     Invoke-WorldlineCommand -Label 'reference boundary acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 'boundary_acceptance')
     Invoke-WorldlineCommand -Label 'production persistence S1 acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 'persistence_acceptance')
+    Invoke-WorldlineCommand -Label 'browser engine S2 proving slice' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's2_acceptance')
     Invoke-WorldlineCommand -Label 'worldline-demo S0/S1 proving slice' -FilePath 'cargo' -Arguments @('run', '-p', 'worldline-demo')
     Invoke-WorldlineCommand -Label 'external-provider S1 proving path' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'external_s1_proving')
     Invoke-WorldlineCommand -Label 'browser engine spike proving path' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'spike_acceptance')

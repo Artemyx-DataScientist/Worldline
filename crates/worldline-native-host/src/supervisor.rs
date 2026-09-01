@@ -12,6 +12,7 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::containment::ProcessTreeContainment;
 use crate::error::NativeHostError;
 
 /// Spawn specification for one native provider child.
@@ -23,6 +24,25 @@ pub struct NativeChildSpec {
     pub max_frame_bytes: usize,
     /// Maximum retained stderr bytes; excess is counted and dropped.
     pub stderr_max_bytes: usize,
+    /// Enable OS process-tree containment (e.g. Windows Job Object with kill-on-close).
+    pub enable_process_tree_containment: bool,
+}
+
+impl NativeChildSpec {
+    pub fn new(
+        program: impl Into<PathBuf>,
+        args: Vec<String>,
+        max_frame_bytes: usize,
+        stderr_max_bytes: usize,
+    ) -> Self {
+        Self {
+            program: program.into(),
+            args,
+            max_frame_bytes,
+            stderr_max_bytes,
+            enable_process_tree_containment: true,
+        }
+    }
 }
 
 /// Bounded stderr retention: keeps the tail of the child's stderr plus an
@@ -56,6 +76,7 @@ pub struct NativeChild {
     stdout: Option<ChildStdout>,
     stderr_tail: Arc<Mutex<LimitedStderr>>,
     stderr_capacity: usize,
+    containment: Option<ProcessTreeContainment>,
 }
 
 impl NativeChild {
@@ -73,6 +94,21 @@ impl NativeChild {
             .map_err(|error| NativeHostError::SpawnFailed {
                 reason: format!("{}: {error}", spec.program.display()),
             })?;
+
+        let containment = if spec.enable_process_tree_containment {
+            let cont =
+                ProcessTreeContainment::new().map_err(|err| NativeHostError::SpawnFailed {
+                    reason: format!("containment init failed: {err}"),
+                })?;
+            cont.assign_child(&child)
+                .map_err(|err| NativeHostError::SpawnFailed {
+                    reason: format!("assign child to containment failed: {err}"),
+                })?;
+            Some(cont)
+        } else {
+            None
+        };
+
         let stdin = child.stdin.take();
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
@@ -102,6 +138,7 @@ impl NativeChild {
             stdout,
             stderr_tail,
             stderr_capacity,
+            containment,
         })
     }
 
@@ -122,6 +159,11 @@ impl NativeChild {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .try_wait()
             .unwrap_or(None)
+    }
+
+    /// Access the process tree containment handle if active.
+    pub fn containment(&self) -> Option<&ProcessTreeContainment> {
+        self.containment.as_ref()
     }
 
     /// Stderr diagnostics tail.

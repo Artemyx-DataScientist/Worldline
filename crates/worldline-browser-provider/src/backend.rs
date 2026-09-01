@@ -1,0 +1,98 @@
+//! Pluggable browser engine backend trait definition.
+
+use worldline_browser_contract::{
+    action::ActionResult,
+    capture::{
+        CapturePageRequest, CapturePageResponse, ReadCaptureArtifactRequest,
+        ReadCaptureArtifactResponse,
+    },
+    contracts::{
+        ActRequest, CloseContextRequest, CloseContextResponse, ClosePageRequest, ClosePageResponse,
+        ControlDownloadRequest, CreateContextRequest, CreateContextResponse, CreatePageRequest,
+        CreatePageResponse, DownloadStatusResponse, HistoryNavRequest, HistoryNavResponse,
+        ListContextsResponse, ListPagesRequest, ListPagesResponse, NavigateRequest,
+        NavigateResponse, ObservePageRequest, PageObservation, PermissionResponse,
+        QueryDocumentRequest, QueryPermissionRequest, ReloadRequest, ReloadResponse,
+        SetPermissionRequest, StartDownloadRequest, StopRequest, StopResponse,
+    },
+    error::BrowserError,
+    primitives::{
+        ClearStorageRequest, ClearStorageResponse, DeleteCookiesRequest, DeleteCookiesResponse,
+        GetCookiesRequest, GetCookiesResponse, SetCookieRequest, SetCookieResponse,
+    },
+    query::DocumentSnapshot,
+};
+
+/// Engine-neutral interface implemented by concrete browser providers (e.g. Reference, CEF).
+pub trait BrowserBackend: Send + Sync {
+    fn initialize(&mut self) -> Result<(), BrowserError>;
+    fn shutdown(&mut self) -> Result<(), BrowserError>;
+
+    // Context management
+    fn create_context(
+        &mut self,
+        req: &CreateContextRequest,
+    ) -> Result<CreateContextResponse, BrowserError>;
+    fn close_context(
+        &mut self,
+        req: &CloseContextRequest,
+    ) -> Result<CloseContextResponse, BrowserError>;
+    fn list_contexts(&self) -> Result<ListContextsResponse, BrowserError>;
+
+    // Page management
+    fn create_page(&mut self, req: &CreatePageRequest) -> Result<CreatePageResponse, BrowserError>;
+    fn close_page(&mut self, req: &ClosePageRequest) -> Result<ClosePageResponse, BrowserError>;
+    fn list_pages(&self, req: &ListPagesRequest) -> Result<ListPagesResponse, BrowserError>;
+
+    // Navigation
+    fn navigate(&mut self, req: &NavigateRequest) -> Result<NavigateResponse, BrowserError>;
+    fn reload(&mut self, req: &ReloadRequest) -> Result<ReloadResponse, BrowserError>;
+    fn stop(&mut self, req: &StopRequest) -> Result<StopResponse, BrowserError>;
+    fn history_nav(&mut self, req: &HistoryNavRequest) -> Result<HistoryNavResponse, BrowserError>;
+
+    // Observation and query
+    fn observe(&self, req: &ObservePageRequest) -> Result<PageObservation, BrowserError>;
+    fn query(&self, req: &QueryDocumentRequest) -> Result<DocumentSnapshot, BrowserError>;
+
+    // Action
+    fn act(&mut self, req: &ActRequest) -> Result<ActionResult, BrowserError>;
+
+    // Download
+    fn start_download(
+        &mut self,
+        req: &StartDownloadRequest,
+    ) -> Result<DownloadStatusResponse, BrowserError>;
+    fn control_download(
+        &mut self,
+        req: &ControlDownloadRequest,
+    ) -> Result<DownloadStatusResponse, BrowserError>;
+
+    // Permission
+    fn query_permission(
+        &self,
+        req: &QueryPermissionRequest,
+    ) -> Result<PermissionResponse, BrowserError>;
+    fn set_permission(
+        &mut self,
+        req: &SetPermissionRequest,
+    ) -> Result<PermissionResponse, BrowserError>;
+
+    // Experimental: capture
+    fn capture(&mut self, req: &CapturePageRequest) -> Result<CapturePageResponse, BrowserError>;
+    fn read_capture(
+        &self,
+        req: &ReadCaptureArtifactRequest,
+    ) -> Result<ReadCaptureArtifactResponse, BrowserError>;
+
+    // Experimental: primitives
+    fn get_cookies(&self, req: &GetCookiesRequest) -> Result<GetCookiesResponse, BrowserError>;
+    fn set_cookie(&mut self, req: &SetCookieRequest) -> Result<SetCookieResponse, BrowserError>;
+    fn delete_cookies(
+        &mut self,
+        req: &DeleteCookiesRequest,
+    ) -> Result<DeleteCookiesResponse, BrowserError>;
+    fn clear_storage(
+        &mut self,
+        req: &ClearStorageRequest,
+    ) -> Result<ClearStorageResponse, BrowserError>;
+}

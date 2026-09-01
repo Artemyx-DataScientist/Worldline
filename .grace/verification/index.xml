@@ -11,6 +11,7 @@
         <V-M-EXTERNAL-PLUGIN-BOUNDARY />
         <V-M-OPERABILITY-COMPATIBILITY-UPGRADE />
         <V-M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <V-M-BROWSER-ENGINE-PROVIDER-PROCESS />
       </Owns>
     </VD-MAIN>
   </VerificationDocuments>

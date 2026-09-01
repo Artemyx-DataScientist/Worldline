@@ -223,6 +223,7 @@ impl NativeEchoService {
             args: self.options.args.clone(),
             max_frame_bytes: self.options.max_frame_bytes,
             stderr_max_bytes: self.options.stderr_max_bytes,
+            enable_process_tree_containment: false,
         };
         let sink = Arc::new(NativeEchoSink {
             state: Arc::clone(&self.state),

@@ -176,6 +176,11 @@ impl NativeProviderConnection {
             serde_json::json!({"action": "deactivate"}),
             Some(shutdown_deadline),
         );
+        self.shared
+            .writer
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take();
         let mut child = self
             .child
             .lock()
@@ -312,6 +317,25 @@ fn spawn_reader(
                     let reply = match outcome {
                         Ok(value) => Envelope::new(
                             MessageKind::StateResult,
+                            envelope.correlation_id,
+                            value.unwrap_or(Value::Null),
+                        ),
+                        Err(error) => protocol_error_envelope(&envelope, &error),
+                    };
+                    if let Err(broken) = shared.send(&reply) {
+                        shared.break_with(broken);
+                        break;
+                    }
+                }
+                MessageKind::BlobRequest => {
+                    let outcome = sink.on_child_request(
+                        MessageKind::BlobRequest,
+                        envelope.correlation_id,
+                        envelope.payload.clone(),
+                    );
+                    let reply = match outcome {
+                        Ok(value) => Envelope::new(
+                            MessageKind::BlobResult,
                             envelope.correlation_id,
                             value.unwrap_or(Value::Null),
                         ),

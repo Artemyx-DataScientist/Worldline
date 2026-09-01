@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-BROWSER-M1-1-AUDIT-REMEDIATION-20260831>
     <IntentSummary>
       Remediate the three confirmed M1.1 audit findings without changing the

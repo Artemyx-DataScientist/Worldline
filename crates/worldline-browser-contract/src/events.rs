@@ -9,6 +9,8 @@ pub const EVENT_PAGE_CREATED: &str = "browser.page.created";
 pub const EVENT_PAGE_READY: &str = "browser.page.ready";
 pub const EVENT_PAGE_CLOSED: &str = "browser.page.closed";
 pub const EVENT_ENGINE_CRASHED: &str = "browser.engine.crashed";
+pub const EVENT_PAGE_RESTORED: &str = "browser.page.restored";
+pub const EVENT_RENDERER_CRASHED: &str = "browser.renderer.crashed";
 pub const EVENT_DOWNLOAD_STARTED: &str = "browser.download.started";
 pub const EVENT_DOWNLOAD_COMPLETED: &str = "browser.download.completed";
 
@@ -92,4 +94,22 @@ pub struct DownloadCompletedEvent {
     pub total_bytes: u64,
     pub success: bool,
     pub error: Option<String>,
+}
+
+/// Published when a page finishes restoring after an engine or host restart.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PageRestoredEvent {
+    pub context_id: BrowserContextId,
+    pub page_id: PageId,
+    pub url: String,
+    pub document_revision: DocumentRevision,
+}
+
+/// Published when a specific page renderer process crashes or exits abnormally.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RendererCrashedEvent {
+    pub context_id: BrowserContextId,
+    pub page_id: PageId,
+    pub exit_code: Option<i32>,
+    pub reason: String,
 }

@@ -22,12 +22,14 @@
 
 #![forbid(unsafe_code)]
 
+mod blob;
 mod compatibility;
 mod envelope;
 mod error;
 mod identity;
 mod manifest;
 
+pub use blob::{BlobAction, BlobRequest, BlobResult, MAX_BLOB_CHUNK_BYTES};
 pub use compatibility::{
     ContractCompatibilityOutcome, ContractSpec, ContractStability, SUPPORTED_SDK_VERSIONS,
     evaluate_abi_compatibility, is_supported_sdk_version,
