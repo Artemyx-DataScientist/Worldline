@@ -250,6 +250,64 @@ impl CdpSession {
         Ok(val.to_string())
     }
 
+    /// Resolves a renderer-owned DOM node into a temporary Runtime remote object.
+    pub fn resolve_backend_node(&mut self, backend_node_id: i64) -> Result<String, String> {
+        let res = self.call_method(
+            "DOM.resolveNode",
+            serde_json::json!({ "backendNodeId": backend_node_id }),
+        )?;
+        res.pointer("/object/objectId")
+            .and_then(|value| value.as_str())
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                format!(
+                    "CDP DOM.resolveNode returned no objectId for backend node {backend_node_id}"
+                )
+            })
+    }
+
+    /// Calls a static JavaScript function against a resolved remote object.
+    ///
+    /// Caller-controlled values are supplied as CDP `CallArgument` values rather
+    /// than interpolated into the function declaration or another source string.
+    pub fn call_function_on(
+        &mut self,
+        object_id: &str,
+        function_declaration: &str,
+        arguments: Vec<serde_json::Value>,
+    ) -> Result<serde_json::Value, String> {
+        let res = self.call_method(
+            "Runtime.callFunctionOn",
+            serde_json::json!({
+                "objectId": object_id,
+                "functionDeclaration": function_declaration,
+                "arguments": arguments,
+                "returnByValue": true,
+                "awaitPromise": true,
+                "userGesture": true,
+            }),
+        )?;
+
+        if let Some(exception) = res.get("exceptionDetails") {
+            return Err(format!(
+                "CDP Runtime.callFunctionOn raised an exception: {exception}"
+            ));
+        }
+
+        res.pointer("/result/value")
+            .cloned()
+            .ok_or_else(|| "CDP Runtime.callFunctionOn returned no by-value result".to_string())
+    }
+
+    /// Releases a temporary Runtime remote object returned by DOM.resolveNode.
+    pub fn release_object(&mut self, object_id: &str) -> Result<(), String> {
+        self.call_method(
+            "Runtime.releaseObject",
+            serde_json::json!({ "objectId": object_id }),
+        )?;
+        Ok(())
+    }
+
     /// Retrieves the complete Accessibility Tree from Blink via CDP.
     pub fn get_full_ax_tree(&mut self) -> Result<serde_json::Value, String> {
         self.call_method("Accessibility.getFullAXTree", serde_json::json!({}))

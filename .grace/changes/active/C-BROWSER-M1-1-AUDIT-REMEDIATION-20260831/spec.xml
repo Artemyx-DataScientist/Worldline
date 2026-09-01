@@ -1,0 +1,64 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-BROWSER-M1-1-AUDIT-REMEDIATION-20260831>
+    <Summary>
+      Browser M1.1 Audit Remediation:
+      Dedicated Real-Engine Gate, Safe CDP Arguments and Blink AX-to-DOM Resolution
+    </Summary>
+    <Problem>
+      The applied M1.1 spike still runs the real Chromium integration test inside
+      the ordinary correctness workspace test command, uses a fragile short CDP
+      startup probe, interpolates untrusted ElementRef keys and input text into
+      JavaScript source, and reconstructs a synthetic DOM-tag tree instead of
+      returning the real Blink accessibility tree. These defects make the hosted
+      correctness gate unreliable, violate browser capability semantics, and leave
+      the documented AX-tree evidence unproven.
+    </Problem>
+    <Goals>
+      <Goal>Move real Chromium acceptance into one explicit, required, feature-gated CI suite without running it from ordinary workspace correctness tests.</Goal>
+      <Goal>Make Chromium readiness bounded and robust with a 30-second deadline, complete bounded HTTP response parsing, early child-exit detection, and cleanup on failed startup.</Goal>
+      <Goal>Execute browser actions with Runtime.callFunctionOn and CDP arguments passed by value so node keys and input text can never alter JavaScript source.</Goal>
+      <Goal>Restore Accessibility.getFullAXTree semantics and bind actionable AX nodes to exact DOM targets through backendDOMNodeId and DOM.resolveNode.</Goal>
+      <Goal>Preserve document-revision staleness, capability authority, engine-neutral contracts, and truthful GRACE/ADR verification evidence.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Browser behavior remains in the browser plugin/provider; the kernel and logical browser contract remain engine-neutral.</Constraint>
+      <Constraint>Untrusted node keys and action payloads must not be concatenated into executable JavaScript source or selector source.</Constraint>
+      <Constraint>The real-engine test remains fail-closed when the dedicated CI gate cannot discover or start a supported browser.</Constraint>
+      <Constraint>Existing protected acceptance tests and M0/S0/S1 invariants must not be weakened, skipped, deleted, or rewritten to hide failures.</Constraint>
+      <Constraint>ElementRef actions must continue to reject page or document-revision mismatches before provider-side execution.</Constraint>
+      <Constraint>Only the new active change scope may be edited; shared GRACE projections are reconciled after fresh evidence.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Full production CEF embedding or the M1.2 browser provider process.</NonGoal>
+      <NonGoal>Changing the public logical browser capability contract or introducing browser-specific policy into the kernel.</NonGoal>
+      <NonGoal>Adding public-internet dependencies, live services, retries that hide flaky failures, or a second browser engine.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>cargo test --workspace and the Correctness suite do not execute real_chromium_acceptance; the test is enabled only through an explicit real-engine feature and command.</Criterion>
+      <Criterion>A dedicated RealChromium CI suite runs exactly once as a named required Windows gate for pull requests and master, with the repository-owned script as its entrypoint.</Criterion>
+      <Criterion>Chromium startup uses a 30-second overall deadline, bounded complete readiness-response parsing, child-exit diagnostics, and kills/reaps the child plus removes temporary state on startup failure.</Criterion>
+      <Criterion>Input, click, submit, and focus actions resolve the exact backend DOM node and pass node/action values through CDP Runtime.callFunctionOn arguments by value; hostile quote and JavaScript payloads remain literal data.</Criterion>
+      <Criterion>query_document calls Accessibility.getFullAXTree, preserves Blink role/name/value and parent-child semantics within QueryBounds, and emits ElementRef keys that are resolved through DOM.resolveNode for exact action targeting.</Criterion>
+      <Criterion>Real Chromium acceptance proves safe hostile input handling, targeted input and click behavior, AX-to-DOM resolution, stale/nonexistent reference rejection, and renderer-crash containment.</Criterion>
+      <Criterion>Browser contract, browser spike, architecture/security, proving-slice, and GRACE verification evidence remain green with no unsupported or synthetic real-engine claim.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>cargo test -p worldline-browser-contract</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-spike</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-spike --features real-chromium --test real_chromium_acceptance</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+      <ExpectedEvidence>Fresh deterministic evidence shows the default workspace/correctness path excludes real Chromium, the dedicated Windows gate executes it once, malformed/hostile values cannot become script source, Blink AX nodes are tied to exact DOM nodes, and all existing invariants remain verified.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The current applied M1.1 bundle is the baseline and there is no active overlapping browser change; this remediation supersedes neither the logical contract nor the M1.2 provider work.</Assumption>
+      <Assumption>The dedicated hosted Windows environment either provides a supported Chromium-compatible binary at the documented discovery path or provisions one before the fail-closed test runs.</Assumption>
+      <Assumption>GRACE graph and verification projections may receive a central delta only after implementation evidence passes and the user explicitly authorizes apply/archive.</Assumption>
+    </Assumptions>
+  </C-BROWSER-M1-1-AUDIT-REMEDIATION-20260831>
+</GraceChangeSpec>

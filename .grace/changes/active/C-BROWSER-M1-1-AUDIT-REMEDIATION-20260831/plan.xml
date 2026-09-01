@@ -1,0 +1,152 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-BROWSER-M1-1-AUDIT-REMEDIATION-20260831>
+    <IntentSummary>
+      Remediate the three confirmed M1.1 audit findings without changing the
+      logical browser contract: isolate real Chromium behind an explicit required
+      gate, harden startup readiness, pass all action values through CDP by-value
+      arguments, and rebuild the real Blink AX tree with backend DOM resolution for
+      exact ElementRef actions.
+    </IntentSummary>
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-BROWSER-CONTRACT-ENGINE-SPIKE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>V-M-BROWSER-CONTRACT-ENGINE-SPIKE</Value>
+        <Value>V-M-CI-BASELINE</Value>
+        <Value>crates/worldline-browser-spike/Cargo.toml</Value>
+        <Value>crates/worldline-browser-spike/src/cdp.rs</Value>
+        <Value>crates/worldline-browser-spike/src/chromium.rs</Value>
+        <Value>crates/worldline-browser-spike/tests/real_chromium_acceptance.rs</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>.github/workflows/pr.yml</Value>
+        <Value>.github/workflows/master.yml</Value>
+        <Value>docs/adr/ADR-BROWSER-ENGINE-V1.md</Value>
+        <Value>docs/CI-CD.md</Value>
+      </MustExist>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustVerify>
+        <Module>M-BROWSER-CONTRACT-ENGINE-SPIKE</Module>
+        <Module>M-CI-BASELINE</Module>
+      </MustVerify>
+      <MustPassCommand>
+        <Command>cargo fmt --all -- --check</Command>
+        <Command>cargo check -p worldline-browser-spike --all-targets</Command>
+        <Command>cargo test -p worldline-browser-contract</Command>
+        <Command>cargo test -p worldline-browser-spike</Command>
+        <Command>cargo test -p worldline-browser-spike --features real-chromium --test real_chromium_acceptance</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+    <ObservedWriteScope>
+      <File>crates/worldline-browser-spike/Cargo.toml</File>
+      <File>crates/worldline-browser-spike/src/cdp.rs</File>
+      <File>crates/worldline-browser-spike/src/chromium.rs</File>
+      <File>crates/worldline-browser-spike/tests/real_chromium_acceptance.rs</File>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>.github/workflows/pr.yml</File>
+      <File>.github/workflows/master.yml</File>
+      <File>docs/CI-CD.md</File>
+      <File>docs/adr/ADR-BROWSER-ENGINE-V1.md</File>
+      <File>.grace/verification/main.xml</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>Add safe CDP Runtime.callFunctionOn and DOM.resolveNode primitives</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>CdpSession can resolve a backend DOM node and invoke a static function with JSON by-value arguments, returning the by-value result and releasing the temporary remote object.</Criterion>
+          <Criterion>The new CDP path does not interpolate caller-controlled strings into function, expression, selector, or protocol source.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-spike --all-targets</Command>
+          <Command>cargo test -p worldline-browser-spike</Command>
+        </Verification>
+      </T-001>
+      <T-002>
+        <Title>Restore Blink AX tree and exact AX-to-DOM ElementRef mapping</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>query_document calls Accessibility.getFullAXTree and preserves Blink role, name, value, description, and parent-child relationships while applying QueryBounds.</Criterion>
+          <Criterion>AX nodes with backendDOMNodeId receive an opaque backend-node ElementRef key; non-DOM accessibility nodes do not receive a fabricated actionable DOM reference.</Criterion>
+          <Criterion>Input, click, submit, and focus resolve the ElementRef backend node through DOM.resolveNode and execute against that exact remote element.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-spike --test spike_acceptance</Command>
+          <Command>cargo check -p worldline-browser-spike --all-targets</Command>
+        </Verification>
+      </T-002>
+      <T-003>
+        <Title>Harden Chromium startup readiness and failed-spawn cleanup</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>spawn uses a 30-second overall readiness deadline, detects early child exit, and probes a bounded complete /json/version response instead of relying on one 256-byte read.</Criterion>
+          <Criterion>Failed startup kills and reaps the child and removes its temporary user-data directory before returning an error.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-spike --all-targets</Command>
+          <Command>cargo test -p worldline-browser-spike --features real-chromium --test real_chromium_acceptance</Command>
+        </Verification>
+      </T-003>
+      <T-004>
+        <Title>Feature-gate real Chromium acceptance and add hostile-input coverage</Title>
+        <DependsOn>
+          <T-002 />
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>real_chromium_acceptance is enabled only by the real-chromium feature, so cargo test --workspace and the ordinary Correctness suite do not execute it.</Criterion>
+          <Criterion>The real-engine test verifies backend-node ElementRefs, targeted input/click, stale and nonexistent references, renderer crash containment, and a quote/JavaScript payload that remains literal data.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test --workspace</Command>
+          <Command>cargo test -p worldline-browser-spike --features real-chromium --test real_chromium_acceptance</Command>
+        </Verification>
+      </T-004>
+      <T-005>
+        <Title>Create the dedicated required RealChromium CI gate and document the contract</Title>
+        <DependsOn>
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Invoke-WorldlineCi exposes RealChromium, excludes the real test from Correctness, and includes the dedicated gate once in All.</Criterion>
+          <Criterion>PR and master workflows run one named Real-Chromium job on a Windows hosted runner through the repository-owned RealChromium suite.</Criterion>
+          <Criterion>CI/CD and ADR documentation describe the separate gate, 30-second readiness, safe by-value action dispatch, and Blink AX-to-DOM resolution.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-005>
+      <T-006>
+        <Title>Run target evidence and reconcile browser verification projection</Title>
+        <DependsOn>
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Fresh leaf evidence passes for the contract, deterministic spike, dedicated real-engine test, architecture/security checks, Correctness, ProvingSlice, and All suites where the environment supports the gate.</Criterion>
+          <Criterion>After evidence passes, V-M-BROWSER-CONTRACT-ENGINE-SPIKE records the explicit feature-gated real-engine command and RealChromium repository gate without changing unrelated verification entries.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-006>
+    </ImplementationPlan>
+  </C-BROWSER-M1-1-AUDIT-REMEDIATION-20260831>
+</GraceChangePlan>

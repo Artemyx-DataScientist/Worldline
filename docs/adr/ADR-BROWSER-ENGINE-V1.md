@@ -60,7 +60,7 @@ Milestone M1 начинает разработку первой прикладн
 3. `NavigationId`: идентификатор попытки/акта навигации.
 4. `DocumentRevision`: монотонный счетчик ревизий DOM/страницы.
 5. `DownloadId`: идентификатор операции загрузки.
-6. `ElementRef`: ссылка на семантический узел, жестко привязанная к кортежу `(PageId, DocumentRevision, NodeKey)`. Ссылка становится недействительной (`StaleElementReference`) при изменении ревизии документа после навигации или сброса DOM. В реальном исполнителе `NodeKey` напрямую адресует конкретный DOM/AX элемент.
+6. `ElementRef`: ссылка на семантический узел, жестко привязанная к кортежу `(PageId, DocumentRevision, NodeKey)`. Ссылка становится недействительной (`StaleElementReference`) при изменении ревизии документа после навигации или сброса DOM. В реальном исполнителе `NodeKey` содержит opaque `backendDOMNodeId`, полученный из Blink AX node; действие разрешает его через CDP `DOM.resolveNode`, а не через selector или JavaScript source interpolation.
 7. `QueryBounds`: жесткие бюджетные ограничения на глубину обхода (`max_depth`), количество узлов (`max_nodes`), длину строк (`max_text_len`) и суммарный объем текста (`max_total_text_bytes`), предотвращающие переполнение памяти и DoS в IPC.
 
 ### 2.2 Разделение прав (Authority Separation) и защита от Confused-Deputy
@@ -99,8 +99,8 @@ Milestone M1 начинает разработку первой прикладн
    - Запуск реального внешнего процесса Chromium/Edge (`--headless=new`) с политикой fail-closed в CI.
    - Управление по протоколу CDP (Chrome DevTools Protocol) через безопасный легковесный WebSocket-клиент на чистом Rust.
    - Навигация по локальному HTML-файлу (`file:///...`).
-   - Извлечение настоящего дерева доступности Blink (`Accessibility.getFullAXTree`), адресация семантических элементов в `ElementRef.node_key` и наложение `QueryBounds`.
-   - Выполнение реальных действий, адресованных конкретным элементам (ввод текста в поле формы, клик по кнопке с изменением DOM), с проверкой `ElementNotFound` для некорректных ссылок.
+   - Извлечение настоящего дерева доступности Blink (`Accessibility.getFullAXTree`) с сохранением AX parent/child semantics, адресация DOM-backed AX nodes через `backendDOMNodeId` в `ElementRef.node_key` и наложение `QueryBounds`.
+   - Выполнение реальных действий, адресованных конкретным элементам через `DOM.resolveNode` и `Runtime.callFunctionOn` с CDP arguments by value (ввод текста в поле формы, клик по кнопке с изменением DOM), с проверкой `ElementNotFound` для некорректных ссылок.
    - Принудительное уничтожение процесса рендерера (`Page.crash`) с проверкой выживания управляющего процесса и хоста Worldline.
    - Измерение реального времени холодного старта и потребления RAM (Working Set).
 2. **Deterministic In-Memory Reference Provider** (`worldline-browser-spike/src/engine.rs`, `spike_acceptance.rs`, `measurement_suite.rs`):
@@ -112,7 +112,7 @@ Milestone M1 начинает разработку первой прикладн
 
 ## 5. Measured Empirical Spike Results
 
-Все числовые показатели в этом разделе получены в результате прямых автоматических измерений в тестовых наборах `real_chromium_acceptance` и `measurement_suite` на Windows:
+Все числовые показатели в этом разделе получены в результате прямых автоматических измерений в тестовых наборах `real_chromium_acceptance` и `measurement_suite` на Windows. `real_chromium_acceptance` запускается отдельным required `RealChromium` gate и не входит в обычный `cargo test --workspace`:
 
 ### 5.1 Реальный Out-of-Process Chromium Engine Spike (Google Chrome 151)
 - **Холодный запуск процесса Chromium:** `575 – 625 ms` (включая инициализацию песочницы, создание временного `user-data-dir` и запуск CDP DevTools сервера).

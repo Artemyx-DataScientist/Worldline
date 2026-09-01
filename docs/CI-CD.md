@@ -242,6 +242,19 @@ cargo test --workspace
 Тест считается полезным только если failure сообщает конкретно нарушенный
 contract.
 
+Реальный Chromium/Edge engine spike не входит в `cargo test --workspace` и не
+исполняется внутри обычного G1 Correctness suite. Он является отдельным
+required platform gate, потому что требует Windows-hosted runner и запускает
+внешний браузерный процесс:
+
+```text
+pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium
+```
+
+Этот gate выполняется один раз на pull request и на `master`. Он остаётся
+fail-closed при отсутствии или невозможности запуска браузера; feature-gating
+теста не превращает пропущенный real-engine evidence в success.
+
 ---
 
 ### G2 — Architecture
@@ -523,6 +536,10 @@ Matrix должна отражать реальную поддержку про�
 Нельзя заявлять platform support только потому, что `cargo check` там прошёл.
 
 ### Platform-specific tests
+
+После появления browser provider real Chromium acceptance запускается отдельным
+Windows required gate (`Real-Chromium`), а Linux workspace/correctness gates
+остаются детерминированными и не зависят от внешнего браузерного процесса.
 
 Если поведение зависит от ОС, test должен явно исполняться на соответствующей
 ОС.

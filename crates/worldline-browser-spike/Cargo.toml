@@ -6,6 +6,15 @@ rust-version.workspace = true
 license.workspace = true
 description = "Browser engine spike, multi-process supervisor, and capability provider for Worldline M1.1"
 
+[features]
+default = []
+real-chromium = []
+
+[[test]]
+name = "real_chromium_acceptance"
+path = "tests/real_chromium_acceptance.rs"
+required-features = ["real-chromium"]
+
 [dependencies]
 worldline-browser-contract = { path = "../worldline-browser-contract" }
 worldline-kernel = { path = "../worldline-kernel" }

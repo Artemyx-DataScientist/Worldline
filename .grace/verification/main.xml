@@ -130,6 +130,8 @@
       </TestFiles>
       <Command>cargo test -p worldline-browser-contract</Command>
       <Command>cargo test -p worldline-browser-spike</Command>
+      <Command>cargo test -p worldline-browser-spike --features real-chromium --test real_chromium_acceptance</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium</Command>
       <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
       <Scenario>Browser Contract v1 compiles without engine types, enforces strict separation between observation and mutation, validates revision-scoped element references, and prevents browser events from dispatching commands. Executable engine spike navigates deterministic local pages, extracts accessibility trees, executes form interactions, proves context profile isolation, and verifies host survival under child process crash.</Scenario>
       <TraceAssertion>Observation and query authority cannot navigate or act, stale element references are rejected, browser events report facts rather than commands, profile storage remains strictly partitioned across contexts, and child crash containment preserves host and installation state.</TraceAssertion>

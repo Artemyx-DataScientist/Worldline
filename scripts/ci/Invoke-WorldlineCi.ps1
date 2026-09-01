@@ -1,8 +1,8 @@
 # FILE: scripts/ci/Invoke-WorldlineCi.ps1
-# VERSION: 1.0.0
+# VERSION: 1.1.0
 # START_MODULE_CONTRACT
 #   PURPOSE: Run the repository-owned Worldline CI suites with local and hosted parity.
-#   SCOPE: Source, Correctness, ArchitectureSecurity, ProvingSlice, and All suite orchestration.
+#   SCOPE: Source, Correctness, RealChromium, ArchitectureSecurity, ProvingSlice, and All suite orchestration.
 #   DEPENDS: M-CI-BASELINE
 #   LINKS: M-CI-BASELINE
 #   ROLE: SCRIPT
@@ -12,7 +12,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Source', 'Correctness', 'ArchitectureSecurity', 'ProvingSlice', 'All')]
+    [ValidateSet('Source', 'Correctness', 'RealChromium', 'ArchitectureSecurity', 'ProvingSlice', 'All')]
     [string]$Suite
 )
 
@@ -89,8 +89,12 @@ function Invoke-CorrectnessSuite {
     Invoke-WorldlineCommand -Label 'cross-mode logical conformance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'cross_mode_conformance')
     Invoke-WorldlineCommand -Label 'browser contract acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-contract', '--test', 'contract_acceptance')
     Invoke-WorldlineCommand -Label 'browser engine spike acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'spike_acceptance')
-    Invoke-WorldlineCommand -Label 'real chromium engine spike acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'real_chromium_acceptance')
     Invoke-WorldlineCommand -Label 'browser engine spike measurements' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'measurement_suite')
+}
+
+function Invoke-RealChromiumSuite {
+    Write-Host '--- Real Chromium suite ---'
+    Invoke-WorldlineCommand -Label 'real chromium engine spike acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--features', 'real-chromium', '--test', 'real_chromium_acceptance', '--', '--test-threads=1')
 }
 
 function Invoke-ArchitectureSecuritySuite {
@@ -126,6 +130,10 @@ switch ($Suite) {
         Invoke-CorrectnessSuite
         break
     }
+    'RealChromium' {
+        Invoke-RealChromiumSuite
+        break
+    }
     'ArchitectureSecurity' {
         Invoke-ArchitectureSecuritySuite
         break
@@ -137,6 +145,7 @@ switch ($Suite) {
     'All' {
         Invoke-SourceSuite
         Invoke-CorrectnessSuite
+        Invoke-RealChromiumSuite
         Invoke-ArchitectureSecuritySuite
         Invoke-ProvingSliceSuite
         break

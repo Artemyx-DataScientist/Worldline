@@ -4,9 +4,21 @@ use worldline_browser_contract::{
     action::InteractionKind,
     error::BrowserError,
     identity::{ElementRef, PageId},
-    query::{AccessibilityRole, QueryBounds},
+    query::{AccessibilityNode, AccessibilityRole, QueryBounds},
 };
 use worldline_browser_spike::ChromiumEngineSupervisor;
+
+fn find_node_by_role(
+    node: &AccessibilityNode,
+    role: AccessibilityRole,
+) -> Option<&AccessibilityNode> {
+    if node.role == role {
+        return Some(node);
+    }
+    node.children
+        .iter()
+        .find_map(|child| find_node_by_role(child, role))
+}
 
 #[test]
 fn real_out_of_process_chromium_spike_navigation_and_dom_interaction() {
@@ -93,37 +105,42 @@ fn real_out_of_process_chromium_spike_navigation_and_dom_interaction() {
     );
 
     // 7. Discover specific interactive elements from the tree
-    let input_node = doc_snapshot
-        .accessibility_tree
-        .root
-        .children
-        .iter()
-        .find(|n| n.role == AccessibilityRole::TextInput)
-        .expect("must find input node in tree");
+    let input_node = find_node_by_role(
+        &doc_snapshot.accessibility_tree.root,
+        AccessibilityRole::TextInput,
+    )
+    .expect("must find input node in tree");
     let input_ref = input_node
         .element_ref
         .as_ref()
         .expect("input must have ElementRef");
-    assert_eq!(input_ref.node_key(), "search-input");
+    assert!(input_ref.node_key().starts_with("backend-dom-node-"));
 
-    let btn_node = doc_snapshot
-        .accessibility_tree
-        .root
-        .children
-        .iter()
-        .find(|n| n.role == AccessibilityRole::Button)
-        .expect("must find button node in tree");
+    let btn_node = find_node_by_role(
+        &doc_snapshot.accessibility_tree.root,
+        AccessibilityRole::Button,
+    )
+    .expect("must find button node in tree");
     let btn_ref = btn_node
         .element_ref
         .as_ref()
         .expect("button must have ElementRef");
-    assert_eq!(btn_ref.node_key(), "submit-btn");
+    assert!(btn_ref.node_key().starts_with("backend-dom-node-"));
 
     // 8. Dispatch real text input action targeted specifically to search-input
+    let hostile_text = r#""; document.title = "INJECTED"; //"#;
     let input_res = supervisor
-        .execute_action(input_ref, InteractionKind::Input, Some("Rust microkernel"))
+        .execute_action(input_ref, InteractionKind::Input, Some(hostile_text))
         .expect("input action must succeed");
     assert!(input_res.success);
+
+    let before_click = supervisor
+        .query_document(&page_id, None)
+        .expect("must query after hostile input");
+    assert_eq!(
+        before_click.metadata.title, "Worldline Real Chromium Fixture",
+        "input data must not execute as JavaScript"
+    );
 
     // 9. Dispatch real click action targeted specifically to submit-btn
     let click_res = supervisor
@@ -135,7 +152,11 @@ fn real_out_of_process_chromium_spike_navigation_and_dom_interaction() {
     let post_query = supervisor
         .query_document(&page_id, None)
         .expect("must query post-action");
-    assert_eq!(post_query.metadata.title, "Submitted: Rust microkernel");
+    assert_eq!(
+        post_query.metadata.title,
+        format!("Submitted: {hostile_text}"),
+        "hostile input must remain literal DOM data"
+    );
 
     // 10. Verify that targeting a nonexistent ElementRef fails with ElementNotFound
     let invalid_ref = ElementRef::new(
