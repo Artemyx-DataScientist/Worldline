@@ -674,7 +674,29 @@ CEF provider предоставляет engine primitives, а не моноли�
 - `devtools` — диагностическая surface;
 - `adblock` — request/content policy;
 - `search` — выбранные search providers;
+- `crypto/trust compatibility` — опциональные trust anchors, client certificates,
+  signing/verification и legacy-web bridges для enterprise/state web applications;
 - позднее любые дополнительные browser capabilities без изменения CEF plugin.
+
+Криптографическая compatibility family должна позволять подключать НУЦ,
+корпоративные CA, client certificates через Windows CNG/CSP, PKCS#11 или
+КриптоПро, а также CMS/CAdES/XML-signing и аналогичные операции как отдельные
+plugins/capabilities, а не как policy в kernel. Private key material не должен
+экспортироваться в renderer или передаваться как обычный payload: browser/web
+surface получает только типизированный результат разрешённой операции.
+
+Если совместимость требует ГОСТ непосредственно в TLS/network stack, это не
+обычный service plugin, а отдельный browser-engine provider/profile за тем же
+`BrowserEngine` contract (например, `cef.gost`). Стандартный CEF provider остаётся
+обычным default; установка криптографического профиля не должна загрязнять или
+ослаблять его security model.
+
+WebApp/origin compatibility profile может выбирать trust/client-cert/crypto и
+engine providers для конкретного приложения или origin, но такая UX/config
+группировка не объединяет origins, cookie jars, BrowserContexts, permissions или
+capability authority. Legacy Native Messaging/CryptoPro-style bridges допустимы
+только как явно установленные high-risk native plugins с минимальными grants и
+без специального пути в kernel.
 
 Failure history или adblock plugin не должен мешать navigation. Удаление tabs
 plugin не удаляет underlying workspace/page facts без отдельной операции.
