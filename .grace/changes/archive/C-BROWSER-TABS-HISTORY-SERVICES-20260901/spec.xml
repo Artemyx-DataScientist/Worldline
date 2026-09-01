@@ -1,0 +1,403 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-BROWSER-TABS-HISTORY-SERVICES-20260901>
+    <Summary>
+      Deliver the first bounded M1.3 browser-service slice: establish the common
+      browser-service plugin architecture and implement independent tabs and
+      durable-history services above the existing M1.2 browser engine provider.
+
+      The change introduces only experimental 0.1 service contracts, preserves
+      Browser Contract v1 and the CEF provider boundary unchanged, and proves that
+      user-level tab state and durable history can crash, restart and evolve
+      independently from page navigation and engine state.
+    </Summary>
+
+    <Problem>
+      M1.2 provides production browser-engine primitives, logical ContextId/PageId,
+      navigation, typed browser events, persistence and recovery, but Worldline
+      still has no product-level tab model or durable user-history service.
+
+      Chromium back/forward state is an engine recovery primitive rather than a
+      durable history source of truth. Likewise, a PageId is an engine resource
+      identity rather than a tab identity.
+
+      Implementing all M1.3 services in one change would mix unrelated authority,
+      persistence and failure domains. The first service slice must therefore
+      establish the reusable service-plugin boundary with the two lowest-coupling
+      services: tabs and history.
+    </Problem>
+
+    <Goals>
+      <Goal>
+        Record the common M1.3 browser-service architecture, contract-stability
+        policy, source-of-truth rules and failure-isolation model in
+        docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md.
+      </Goal>
+
+      <Goal>
+        Add an engine-neutral experimental service-contract surface for tabs and
+        history without adding CEF, CDP, HWND or browser-provider implementation
+        types.
+      </Goal>
+
+      <Goal>
+        Implement an ordinary tabs plugin that owns TabId, ordering, grouping,
+        pinning and user-level selection while referencing existing PageId values.
+      </Goal>
+
+      <Goal>
+        Implement an ordinary durable history plugin that consumes committed
+        navigation facts and owns persistent user-history records.
+      </Goal>
+
+      <Goal>
+        Prove tabs and history can restart independently without terminating,
+        recreating or corrupting underlying browser pages.
+      </Goal>
+
+      <Goal>
+        Establish the BrowserServices CI foundation and one bounded real-provider
+        S3A integration path for later M1.3 service bundles.
+      </Goal>
+    </Goals>
+
+    <Constraints>
+      <Constraint>
+        SPEC APPROVAL AND EXACT PLAN APPROVAL REMAIN SEPARATE; THIS DRAFT DOES
+        NOT AUTHORIZE IMPLEMENTATION AND NO PLAN IS APPROVED BY THIS SPEC.
+      </Constraint>
+
+      <Constraint>
+        C-BROWSER-ENGINE-PROVIDER-PROCESS-20260901 MUST BE EXPLICITLY APPLIED
+        AND ARCHIVED BEFORE THE PLAN FOR THIS CHANGE IS APPROVED OR EXECUTED.
+      </Constraint>
+
+      <Constraint>
+        BROWSER SERVICES ARE ORDINARY PLUGINS; NO TAB OR HISTORY PRODUCT POLICY
+        MAY ENTER THE KERNEL OR RECEIVE A BROWSER-SPECIFIC PRIVILEGED PATH.
+      </Constraint>
+
+      <Constraint>
+        THIS CHANGE DOES NOT MODIFY CEF BEHAVIOR, NATIVE PROVIDER PROCESS
+        SEMANTICS OR THE STABLE BROWSER CONTRACT V1.0 REQUEST/RESPONSE WIRE FORMS.
+      </Constraint>
+
+      <Constraint>
+        NEW BROWSER SERVICE CONTRACTS START AS EXPERIMENTAL VERSION 0.1.
+        THIS CHANGE MUST NOT CLAIM V1 STABILITY.
+      </Constraint>
+
+      <Constraint>
+        SERVICE CONTRACT TYPES MAY REUSE ENGINE-NEUTRAL IDs FROM
+        worldline-browser-contract BUT MUST NOT DEPEND ON worldline-browser-cef
+        OR PROVIDER-PRIVATE TYPES.
+      </Constraint>
+
+      <Constraint>
+        TabId, TabGroupId AND TAB MEMBERSHIP ARE SERVICE IDENTITIES/STATE;
+        NONE OF THEM CONFER PageId AUTHORITY.
+      </Constraint>
+
+      <Constraint>
+        CLOSING OR REMOVING A TAB DOES NOT CLOSE THE UNDERLYING PageId.
+        PAGE CLOSURE REQUIRES A SEPARATE AUTHORIZED browser.page OPERATION.
+      </Constraint>
+
+      <Constraint>
+        THE TABS SERVICE MUST NOT REQUIRE NavigatePage, ActOnPage OR
+        QueryDocument AUTHORITY TO STORE OR REORDER TAB REFERENCES.
+      </Constraint>
+
+      <Constraint>
+        HISTORY OBSERVES BROWSER FACTS THROUGH EVENT TRANSPORT; IT DOES NOT
+        DISPATCH NAVIGATION AND EVENT BUS IS NOT RPC.
+      </Constraint>
+
+      <Constraint>
+        THE EVENT JOURNAL AND CHROMIUM BACK/FORWARD STACK ARE NOT THE
+        AUTHORITATIVE USER-HISTORY DATABASE.
+      </Constraint>
+
+      <Constraint>
+        NavigationCommittedEvent REMAINS WIRE-COMPATIBLE. HISTORY MUST NOT
+        CHANGE THAT STABLE EVENT MERELY TO ADD A TITLE; OPTIONAL TITLE ENRICHMENT
+        MAY USE browser.page.ready OR A SEPARATELY AUTHORIZED OBSERVATION.
+      </Constraint>
+
+      <Constraint>
+        AT-LEAST-ONCE EVENT REDELIVERY MUST NOT CREATE DUPLICATE LOGICAL HISTORY
+        ENTRIES.
+      </Constraint>
+
+      <Constraint>
+        HISTORY CAUSALITY IS BASED ON TRUSTED EVENT/INVOCATION IDENTITIES SUCH
+        AS NavigationId AND EVENT METADATA, NOT TIMESTAMP PROXIMITY.
+      </Constraint>
+
+      <Constraint>
+        PROTECTED M0, M1.1 AND M1.2 ACCEPTANCE TESTS MUST NOT BE WEAKENED,
+        SKIPPED OR REWRITTEN TO MAKE THIS CHANGE GREEN.
+      </Constraint>
+
+      <Constraint>
+        TEST AND PROVING NETWORK CONTENT IS LOCAL/LOOPBACK; NO PUBLIC INTERNET
+        IS REQUIRED.
+      </Constraint>
+    </Constraints>
+
+    <NonGoals>
+      <NonGoal>Downloads service implementation.</NonGoal>
+      <NonGoal>Cookies service implementation or cookie-value policy.</NonGoal>
+      <NonGoal>Request-policy or adblock integration.</NonGoal>
+      <NonGoal>DevTools diagnostics service.</NonGoal>
+      <NonGoal>Search provider service.</NonGoal>
+      <NonGoal>Worldline Shell or final tab-bar UI.</NonGoal>
+      <NonGoal>Workspace membership or workspace persistence.</NonGoal>
+      <NonGoal>Bookmarks, sessions, passwords, autofill or reading list.</NonGoal>
+      <NonGoal>Changing Chromium engine back/forward semantics.</NonGoal>
+      <NonGoal>Automatically closing a PageId when a TabId is closed.</NonGoal>
+      <NonGoal>Promoting any new M1.3 service contract to stable v1.</NonGoal>
+      <NonGoal>Final full M1.3 S3 composition.</NonGoal>
+    </NonGoals>
+
+    <AcceptanceCriteria>
+      <Criterion>
+        docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md documents the service/plugin
+        boundary, experimental-contract policy, independent sources of truth,
+        degraded composition rules, TabId versus PageId semantics, engine
+        navigation versus durable history, and the planned M1.3 bundle sequence.
+      </Criterion>
+
+      <Criterion>
+        A new engine-neutral contract crate or equivalent isolated contract
+        surface exposes browser.tabs experimental 0.1 and browser.history
+        experimental 0.1 without dependencies on CEF, CDP or provider-private
+        crates.
+      </Criterion>
+
+      <Criterion>
+        Existing stable Browser Contract v1.0 wire fixtures remain unchanged;
+        this change adds no mandatory variant or field to an existing stable
+        request, response or browser event payload.
+      </Criterion>
+
+      <Criterion>
+        Tabs authority distinguishes at minimum read/list authority from
+        mutation authority; possession of a PageId value or TabId mapping does
+        not satisfy browser.page, browser.navigate, browser.query or browser.act
+        authority.
+      </Criterion>
+
+      <Criterion>
+        Tabs service defines opaque TabId and TabGroupId identities and persists
+        TabId-to-PageId membership, ordering, grouping, pinned state and selected
+        TabId as its own transactional source of truth.
+      </Criterion>
+
+      <Criterion>
+        Tabs operations cover create/attach, list/get, select, move, pin/unpin,
+        group/ungroup and close/detach semantics through versioned capability RPC.
+      </Criterion>
+
+      <Criterion>
+        Closing/detaching a TabId removes only tabs-service state; an acceptance
+        test proves the referenced PageId remains alive and usable until a
+        separately authorized browser.page close occurs.
+      </Criterion>
+
+      <Criterion>
+        Tabs-service restart restores its persisted projection and reconciles
+        references against currently available PageIds without manufacturing
+        missing pages or browser authority.
+      </Criterion>
+
+      <Criterion>
+        External browser.page.closed facts may cause deterministic tab
+        reconciliation, but a tabs event subscriber cannot issue an implicit
+        page-close or navigation command.
+      </Criterion>
+
+      <Criterion>
+        History service owns a transactional durable source of truth containing
+        at minimum HistoryEntryId, PageId, NavigationId, DocumentRevision, URL,
+        trusted commit metadata and optional title enrichment.
+      </Criterion>
+
+      <Criterion>
+        browser.navigation.committed creates one logical durable history entry
+        keyed by the committed navigation identity; repeated delivery of the same
+        event or NavigationId is idempotent.
+      </Criterion>
+
+      <Criterion>
+        A duplicate logical navigation carrying conflicting immutable commit
+        fields is reported as an explicit consistency error rather than silently
+        overwriting the authoritative history entry.
+      </Criterion>
+
+      <Criterion>
+        browser.page.ready may enrich the title of the matching
+        PageId + DocumentRevision record without changing the original committed
+        navigation identity or requiring a stable browser-event wire change.
+      </Criterion>
+
+      <Criterion>
+        History service exposes separately authorized read/query and destructive
+        delete/clear operations; observing history never grants NavigatePage.
+      </Criterion>
+
+      <Criterion>
+        Deleting or clearing history affects only the history service source of
+        truth and does not clear cookies, storage, browser profiles, PageIds or
+        the engine back/forward stack.
+      </Criterion>
+
+      <Criterion>
+        History-service restart restores durable records and its delivery
+        checkpoint/deduplication state so a redelivered committed navigation
+        remains one logical history entry.
+      </Criterion>
+
+      <Criterion>
+        Killing the history plugin leaves direct browser navigation operational;
+        killing the tabs plugin leaves existing PageIds operational.
+      </Criterion>
+
+      <Criterion>
+        Generic operational metrics for tabs/history contain no page body,
+        form input, cookie values or other private browser payloads.
+      </Criterion>
+
+      <Criterion>
+        Static architecture checks prove worldline-kernel and
+        worldline-browser-cef do not depend on TabId, HistoryEntryId or the tabs
+        and history plugin implementations.
+      </Criterion>
+
+      <Criterion>
+        Unit and integration acceptance suites cover authority separation,
+        persistence, duplicate delivery, restart, page-detach semantics and
+        optional-service failure isolation.
+      </Criterion>
+
+      <Criterion>
+        A repository-owned BrowserServices CI suite runs the service-contract,
+        tabs and history acceptance tests cross-platform without public network
+        access.
+      </Criterion>
+
+      <Criterion>
+        One bounded Windows S3A path uses the real M1.2 provider through normal
+        capabilities: create a PageId, attach it to a TabId, navigate a loopback
+        page, durably record the committed navigation, restart the history
+        service, verify the record survives, remove the tabs service and verify
+        the PageId still works.
+      </Criterion>
+
+      <Criterion>
+        Source, Correctness, ArchitectureSecurity, ProvingSlice, RealChromium,
+        BrowserProvider and All remain green, and fresh hosted evidence names
+        the BrowserServices/S3A run rather than promoting local evidence.
+      </Criterion>
+
+      <Criterion>
+        After fresh evidence and explicit apply confirmation, GRACE may add
+        M-BROWSER-TABS-SERVICE and M-BROWSER-HISTORY-SERVICE with corresponding
+        verification entries; M1.3 remains Active rather than being marked Done.
+      </Criterion>
+    </AcceptanceCriteria>
+
+    <AffectedAreas>
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-PERSISTENCE-RECOVERY />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+
+    <VerificationIntent>
+      <ExpectedCommand>
+        cargo fmt --all -- --check
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test --workspace
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-services-contract
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-tabs
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-history
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All
+      </ExpectedCommand>
+
+      <ExpectedEvidence>
+        Fresh evidence names experimental 0.1 contract fixtures, tabs authority
+        negative tests, tab-detach/page-survival evidence, history transactional
+        persistence, at-least-once deduplication, restart recovery, optional
+        service failure isolation, the real-provider S3A path and a required
+        hosted BrowserServices run. Local results remain labelled local.
+      </ExpectedEvidence>
+    </VerificationIntent>
+
+    <Assumptions>
+      <Assumption>
+        C-BROWSER-ENGINE-PROVIDER-PROCESS-20260901 is explicitly confirmed
+        applied and archived before this change's plan is approved or executed.
+      </Assumption>
+
+      <Assumption>
+        The accepted M1.2 provider boundary and Browser Contract v1 remain valid;
+        this slice consumes them rather than reopening CEF/provider architecture.
+      </Assumption>
+
+      <Assumption>
+        Existing browser.navigation.committed and browser.page.ready facts are
+        sufficient for initial durable history without adding title to the
+        committed-event wire form.
+      </Assumption>
+
+      <Assumption>
+        New service contracts remain experimental 0.1 until later M1 consumers
+        provide evidence for compatibility stabilization.
+      </Assumption>
+
+      <Assumption>
+        The exact physical persistence schema is selected in the separately
+        approved plan, but tabs and history retain independent transactional
+        sources of truth and may not use the event journal as authoritative state.
+      </Assumption>
+
+      <Assumption>
+        Downloads/cookies, request-policy/adblock, diagnostics/search and final
+        S3 closure are separately governed follow-on changes.
+      </Assumption>
+    </Assumptions>
+  </C-BROWSER-TABS-HISTORY-SERVICES-20260901>
+</GraceChangeSpec>

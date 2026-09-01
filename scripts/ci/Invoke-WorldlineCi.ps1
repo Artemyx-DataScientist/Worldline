@@ -1,8 +1,8 @@
 # FILE: scripts/ci/Invoke-WorldlineCi.ps1
-# VERSION: 1.1.0
+# VERSION: 1.2.0
 # START_MODULE_CONTRACT
 #   PURPOSE: Run the repository-owned Worldline CI suites with local and hosted parity.
-#   SCOPE: Source, Correctness, RealChromium, ArchitectureSecurity, ProvingSlice, and All suite orchestration.
+#   SCOPE: Source, Correctness, RealChromium, BrowserProvider, BrowserServices, ArchitectureSecurity, ProvingSlice, and All suite orchestration.
 #   DEPENDS: M-CI-BASELINE
 #   LINKS: M-CI-BASELINE
 #   ROLE: SCRIPT
@@ -12,7 +12,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Source', 'Correctness', 'RealChromium', 'ArchitectureSecurity', 'ProvingSlice', 'All')]
+    [ValidateSet('Source', 'Correctness', 'RealChromium', 'BrowserProvider', 'BrowserServices', 'ArchitectureSecurity', 'ProvingSlice', 'All')]
     [string]$Suite
 )
 
@@ -100,6 +100,21 @@ function Invoke-RealChromiumSuite {
     Invoke-WorldlineCommand -Label 'real chromium engine spike acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--features', 'real-chromium', '--test', 'real_chromium_acceptance', '--', '--test-threads=1')
 }
 
+function Invoke-BrowserProviderSuite {
+    Write-Host '--- BrowserProvider suite ---'
+    Invoke-WorldlineCommand -Label 'browser provider core tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-provider')
+    Invoke-WorldlineCommand -Label 'browser provider process tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-provider-process')
+    Invoke-WorldlineCommand -Label 'browser cef adapter tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-cef')
+}
+
+function Invoke-BrowserServicesSuite {
+    Write-Host '--- BrowserServices suite ---'
+    Invoke-WorldlineCommand -Label 'browser services contract acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-services-contract')
+    Invoke-WorldlineCommand -Label 'browser tabs acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-tabs')
+    Invoke-WorldlineCommand -Label 'browser history acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-history')
+    Invoke-WorldlineCommand -Label 'browser services S3A proving slice' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3a_acceptance')
+}
+
 function Invoke-ArchitectureSecuritySuite {
     Write-Host '--- Architecture and security suite ---'
     Build-ExternalNativeFixtures
@@ -120,6 +135,7 @@ function Invoke-ProvingSliceSuite {
     Invoke-WorldlineCommand -Label 'reference boundary acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 'boundary_acceptance')
     Invoke-WorldlineCommand -Label 'production persistence S1 acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 'persistence_acceptance')
     Invoke-WorldlineCommand -Label 'browser engine S2 proving slice' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's2_acceptance')
+    Invoke-WorldlineCommand -Label 'browser services S3A proving slice' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3a_acceptance')
     Invoke-WorldlineCommand -Label 'worldline-demo S0/S1 proving slice' -FilePath 'cargo' -Arguments @('run', '-p', 'worldline-demo')
     Invoke-WorldlineCommand -Label 'external-provider S1 proving path' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'external_s1_proving')
     Invoke-WorldlineCommand -Label 'browser engine spike proving path' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'spike_acceptance')
@@ -138,6 +154,14 @@ switch ($Suite) {
         Invoke-RealChromiumSuite
         break
     }
+    'BrowserProvider' {
+        Invoke-BrowserProviderSuite
+        break
+    }
+    'BrowserServices' {
+        Invoke-BrowserServicesSuite
+        break
+    }
     'ArchitectureSecurity' {
         Invoke-ArchitectureSecuritySuite
         break
@@ -150,6 +174,8 @@ switch ($Suite) {
         Invoke-SourceSuite
         Invoke-CorrectnessSuite
         Invoke-RealChromiumSuite
+        Invoke-BrowserProviderSuite
+        Invoke-BrowserServicesSuite
         Invoke-ArchitectureSecuritySuite
         Invoke-ProvingSliceSuite
         break

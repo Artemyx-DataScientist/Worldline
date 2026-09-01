@@ -16,6 +16,7 @@ pub mod observation;
 pub mod s0;
 pub mod s1;
 pub mod s2;
+pub mod s3a;
 pub mod ui_like;
 
 pub use observation::{

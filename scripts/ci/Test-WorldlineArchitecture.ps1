@@ -312,4 +312,31 @@ $browserSpikeManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePa
 Assert-Condition ($browserSpikeManifest.Contains('worldline-browser-contract')) 'worldline-browser-spike must depend on worldline-browser-contract.'
 Assert-Condition ($browserSpikeManifest.Contains('worldline-kernel')) 'worldline-browser-spike must depend on worldline-kernel.'
 
-Write-Host 'Architecture guard passed: GRACE layout, kernel dependency direction, and browser contracts are valid.'
+Write-Host 'Checking browser services anti-corruption and dependency isolation boundaries.'
+[void](Require-RepositoryPath -RelativePath 'docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-services-contract/Cargo.toml' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-tabs/Cargo.toml' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-history/Cargo.toml' -Kind File)
+
+foreach ($forbiddenToken in @('worldline-browser-services-contract', 'worldline-browser-tabs', 'worldline-browser-history', 'TabId', 'HistoryEntryId')) {
+    Assert-Condition (-not $kernelManifest.Contains($forbiddenToken)) "worldline-kernel manifest must not mention service token '${forbiddenToken}'."
+}
+
+$servicesContractManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-services-contract/Cargo.toml') -Raw
+foreach ($forbiddenToken in @('worldline-browser-cef', 'cef', 'chromium', 'cdp', 'wgpu')) {
+    Assert-Condition (-not $servicesContractManifest.Contains($forbiddenToken)) "worldline-browser-services-contract must not depend on '${forbiddenToken}'."
+}
+
+$tabsManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-tabs/Cargo.toml') -Raw
+Assert-Condition (-not $tabsManifest.Contains('worldline-browser-cef')) 'worldline-browser-tabs must not depend on worldline-browser-cef.'
+
+$historyManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-history/Cargo.toml') -Raw
+Assert-Condition (-not $historyManifest.Contains('worldline-browser-cef')) 'worldline-browser-history must not depend on worldline-browser-cef.'
+
+$cefManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-cef/Cargo.toml') -Raw
+foreach ($forbiddenToken in @('worldline-browser-tabs', 'worldline-browser-history', 'TabId', 'HistoryEntryId')) {
+    Assert-Condition (-not $cefManifest.Contains($forbiddenToken)) "worldline-browser-cef manifest must not depend on service token '${forbiddenToken}'."
+}
+
+Write-Host 'Architecture guard passed: GRACE layout, kernel dependency direction, browser contracts, and browser services are valid.'
+

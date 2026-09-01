@@ -1844,6 +1844,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "worldline-browser-history"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "worldline-browser-contract",
+ "worldline-browser-services-contract",
+ "worldline-kernel",
+]
+
+[[package]]
 name = "worldline-browser-provider"
 version = "0.1.0"
 dependencies = [
@@ -1867,6 +1878,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "worldline-browser-services-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "worldline-browser-contract",
+]
+
+[[package]]
 name = "worldline-browser-spike"
 version = "0.1.0"
 dependencies = [
@@ -1876,6 +1896,17 @@ dependencies = [
  "worldline-kernel",
  "worldline-plugin-protocol",
  "worldline-storage",
+]
+
+[[package]]
+name = "worldline-browser-tabs"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "worldline-browser-contract",
+ "worldline-browser-services-contract",
+ "worldline-kernel",
 ]
 
 [[package]]
@@ -1916,7 +1947,10 @@ dependencies = [
  "serde_json",
  "worldline-browser-cef",
  "worldline-browser-contract",
+ "worldline-browser-history",
  "worldline-browser-provider",
+ "worldline-browser-services-contract",
+ "worldline-browser-tabs",
  "worldline-kernel",
  "worldline-storage",
 ]

@@ -1,0 +1,289 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-BROWSER-TABS-HISTORY-SERVICES-20260901>
+    <IntentSummary>
+      Deliver the first bounded M1.3 browser-service slice: establish the common
+      browser-service plugin architecture and implement independent tabs and
+      durable-history services above the existing M1.2 browser engine provider,
+      decomposed into dependency-ordered packages P1 through P4.
+    </IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-BROWSER-ENGINE-PROVIDER-PROCESS</Value>
+        <Value>M-BROWSER-CONTRACT-ENGINE-SPIKE</Value>
+        <Value>M-PERSISTENCE-RECOVERY</Value>
+        <Value>M-EXTERNAL-PLUGIN-BOUNDARY</Value>
+        <Value>M-OPERABILITY-COMPATIBILITY-UPGRADE</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>V-M-BROWSER-ENGINE-PROVIDER-PROCESS</Value>
+        <Value>V-M-CI-BASELINE</Value>
+        <Value>crates/worldline-browser-contract/Cargo.toml</Value>
+        <Value>crates/worldline-browser-contract/src/contracts.rs</Value>
+        <Value>crates/worldline-browser-contract/src/events.rs</Value>
+        <Value>crates/worldline-browser-provider/Cargo.toml</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>.grace/graph/index.xml</Value>
+        <Value>.grace/verification/index.xml</Value>
+      </MustExist>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md</Value>
+        <Value>crates/worldline-browser-services-contract/Cargo.toml</Value>
+        <Value>crates/worldline-browser-services-contract/src/lib.rs</Value>
+        <Value>crates/worldline-browser-services-contract/src/tabs.rs</Value>
+        <Value>crates/worldline-browser-services-contract/src/history.rs</Value>
+        <Value>crates/worldline-browser-tabs/Cargo.toml</Value>
+        <Value>crates/worldline-browser-tabs/src/lib.rs</Value>
+        <Value>crates/worldline-browser-history/Cargo.toml</Value>
+        <Value>crates/worldline-browser-history/src/lib.rs</Value>
+        <Value>crates/worldline-reference/src/s3a.rs</Value>
+      </MustExist>
+      <MustPassCommand>
+        <Command>cargo fmt --all -- --check</Command>
+        <Command>cargo check --workspace --all-targets</Command>
+        <Command>cargo test -p worldline-browser-services-contract</Command>
+        <Command>cargo test -p worldline-browser-tabs</Command>
+        <Command>cargo test -p worldline-browser-history</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+        <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <M-PERSISTENCE-RECOVERY />
+        <M-EXTERNAL-PLUGIN-BOUNDARY />
+        <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+        <M-REFERENCE-PROVING-SLICE />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-BROWSER-ENGINE-PROVIDER-PROCESS />
+        <V-M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <V-M-PERSISTENCE-RECOVERY />
+        <V-M-EXTERNAL-PLUGIN-BOUNDARY />
+        <V-M-OPERABILITY-COMPATIBILITY-UPGRADE />
+        <V-M-REFERENCE-PROVING-SLICE />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md</File>
+      <File>Cargo.toml</File>
+      <File>Cargo.lock</File>
+      <File>crates/worldline-browser-services-contract/Cargo.toml</File>
+      <File>crates/worldline-browser-services-contract/src/lib.rs</File>
+      <File>crates/worldline-browser-services-contract/src/tabs.rs</File>
+      <File>crates/worldline-browser-services-contract/src/history.rs</File>
+      <File>crates/worldline-browser-services-contract/tests/contract_acceptance.rs</File>
+      <File>crates/worldline-browser-tabs/Cargo.toml</File>
+      <File>crates/worldline-browser-tabs/src/lib.rs</File>
+      <File>crates/worldline-browser-tabs/src/state.rs</File>
+      <File>crates/worldline-browser-tabs/src/service.rs</File>
+      <File>crates/worldline-browser-tabs/tests/tabs_acceptance.rs</File>
+      <File>crates/worldline-browser-history/Cargo.toml</File>
+      <File>crates/worldline-browser-history/src/lib.rs</File>
+      <File>crates/worldline-browser-history/src/store.rs</File>
+      <File>crates/worldline-browser-history/src/service.rs</File>
+      <File>crates/worldline-browser-history/tests/history_acceptance.rs</File>
+      <File>crates/worldline-reference/Cargo.toml</File>
+      <File>crates/worldline-reference/src/lib.rs</File>
+      <File>crates/worldline-reference/src/s3a.rs</File>
+      <File>crates/worldline-reference/tests/s3a_acceptance.rs</File>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      <File>.github/workflows/pr.yml</File>
+      <File>.github/workflows/master.yml</File>
+      <File>README.md</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.grace/verification/main.xml</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <!-- Package P1: Architecture and service contracts -->
+      <T-001>
+        <Title>Author ADR-BROWSER-SERVICE-PLUGINS-V1 documenting browser-service plugin architecture and contracts</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>ADR documents service/plugin boundary, experimental-contract policy, independent sources of truth, degraded composition rules, TabId vs PageId semantics, engine navigation vs durable history, and the planned M1.3 bundle sequence.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-001>
+      <T-002>
+        <Title>Create worldline-browser-services-contract defining experimental v0.1 tabs and history contracts</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-browser-services-contract exposes browser.tabs/v0.1 and browser.history/v0.1 without dependencies on CEF, CDP or provider-private crates.</Criterion>
+          <Criterion>Tabs contracts define TabId, TabGroupId, ordering, grouping, pinning, selection and tab-detach wire models.</Criterion>
+          <Criterion>History contracts define HistoryEntryId, query filters, entry retrieval, and destructive clear/delete wire models.</Criterion>
+          <Criterion>Authority identifiers for tabs and history distinguish read/list authority from mutation authority.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-services-contract --all-targets</Command>
+          <Command>cargo test -p worldline-browser-services-contract</Command>
+        </Verification>
+      </T-002>
+      <T-003>
+        <Title>Add contract wire and authority separation acceptance tests for browser services</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Compatibility tests prove JSON wire stability for experimental 0.1 tabs and history requests and responses.</Criterion>
+          <Criterion>Authority separation tests verify tabs authority does not satisfy browser.page/navigate/query/act operations.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-services-contract --test contract_acceptance</Command>
+        </Verification>
+      </T-003>
+
+      <!-- Package P2: Tabs service plugin -->
+      <T-004>
+        <Title>Implement worldline-browser-tabs plugin state machine, persistence and capability RPC</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-browser-tabs manages TabId and TabGroupId state, ordering, pinning, grouping and selection.</Criterion>
+          <Criterion>Tab state is persisted transactionally to installation state as its own independent source of truth.</Criterion>
+          <Criterion>Closing or detaching a TabId removes tabs-service state and does not dispatch page-close commands.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-tabs --all-targets</Command>
+          <Command>cargo test -p worldline-browser-tabs</Command>
+        </Verification>
+      </T-004>
+      <T-005>
+        <Title>Implement page reconciliation, event subscription and restart recovery in worldline-browser-tabs</Title>
+        <DependsOn>
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Tabs service subscribes to browser.page.closed and deterministically reconciles stale references without issuing commands.</Criterion>
+          <Criterion>Tabs restart restores persisted projection and reconciles against available PageIds without manufacturing missing pages.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-tabs</Command>
+        </Verification>
+      </T-005>
+      <T-006>
+        <Title>Add tabs service acceptance suite covering authority, persistence, restart and page survival</Title>
+        <DependsOn>
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Acceptance tests prove tab creation, movement, pinning, grouping, selection, detaching, and restart recovery.</Criterion>
+          <Criterion>Tests prove that detaching a tab leaves the referenced PageId alive and operational.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-tabs --test tabs_acceptance</Command>
+        </Verification>
+      </T-006>
+
+      <!-- Package P3: Durable history service plugin -->
+      <T-007>
+        <Title>Implement worldline-browser-history plugin transactional storage and capability RPC</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-browser-history manages durable HistoryEntry records with HistoryEntryId, PageId, NavigationId, DocumentRevision, URL, and metadata.</Criterion>
+          <Criterion>Capability RPC exposes authorized query, get, delete, and clear operations.</Criterion>
+          <Criterion>Deleting or clearing history modifies only the history store and leaves cookies, storage, and engine back/forward state intact.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-history --all-targets</Command>
+          <Command>cargo test -p worldline-browser-history</Command>
+        </Verification>
+      </T-007>
+      <T-008>
+        <Title>Implement event-driven history recording, deduplication, title enrichment and restart recovery</Title>
+        <DependsOn>
+          <T-007 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>History service records committed navigations from browser.navigation.committed facts idempotently keyed by NavigationId.</Criterion>
+          <Criterion>Conflicting duplicate navigation events return an explicit consistency error without overwriting authoritative state.</Criterion>
+          <Criterion>browser.page.ready facts enrich title for matching (PageId, DocumentRevision) records.</Criterion>
+          <Criterion>Restart restores durable records and delivery deduplication checkpoints.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-history</Command>
+        </Verification>
+      </T-008>
+      <T-009>
+        <Title>Add history service acceptance suite covering deduplication, title enrichment, restart and isolation</Title>
+        <DependsOn>
+          <T-008 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Acceptance tests prove idempotent deduplication under at-least-once event redelivery, conflicting commit rejection, title enrichment, restart continuity, and failure isolation.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-history --test history_acceptance</Command>
+        </Verification>
+      </T-009>
+
+      <!-- Package P4: Proving slice S3A, CI integration and closure -->
+      <T-010>
+        <Title>Implement bounded proving slice S3A in worldline-reference</Title>
+        <DependsOn>
+          <T-006 />
+          <T-009 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Proving slice S3A executes end-to-end: create PageId -> attach TabId -> navigate loopback page -> durably record committed navigation in history -> restart history service -> verify record survives -> remove tabs service -> verify PageId remains alive and operational.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-reference --test s3a_acceptance</Command>
+        </Verification>
+      </T-010>
+      <T-011>
+        <Title>Integrate BrowserServices CI suite, architecture guard and workflow jobs</Title>
+        <DependsOn>
+          <T-010 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Invoke-WorldlineCi exposes -Suite BrowserServices and includes it in Suite All.</Criterion>
+          <Criterion>Test-WorldlineArchitecture.ps1 verifies tabs and history anti-corruption boundaries (kernel and CEF do not depend on tabs/history).</Criterion>
+          <Criterion>PR and master workflows run BrowserServices suite cross-platform without public internet access.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+        </Verification>
+      </T-011>
+      <T-012>
+        <Title>Run full target verification and reconcile documentation</Title>
+        <DependsOn>
+          <T-011 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>README is updated with M1.3 browser services documentation.</Criterion>
+          <Criterion>Full repository verification passes for all suites (BrowserServices, Source, Correctness, ArchitectureSecurity, ProvingSlice, RealChromium, BrowserProvider, All).</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-012>
+    </ImplementationPlan>
+  </C-BROWSER-TABS-HISTORY-SERVICES-20260901>
+</GraceChangePlan>

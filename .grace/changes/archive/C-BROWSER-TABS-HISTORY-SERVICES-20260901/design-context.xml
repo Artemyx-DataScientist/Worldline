@@ -1,0 +1,108 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-BROWSER-TABS-HISTORY-SERVICES-20260901</Change>
+  <NormativeStatus>non-normative; spec.xml wins on every conflict</NormativeStatus>
+
+  <Rationale>
+    M1.3 is intentionally decomposed rather than implemented as one milestone-sized
+    change. Tabs, history, downloads, cookies, request policy/adblock,
+    diagnostics and search have different authority models, failure modes and
+    persistence owners, so one approved bundle would make scope review and
+    rollback unnecessarily broad.
+
+    This first slice chooses tabs and history because both can be implemented
+    entirely above the existing M1.2 provider boundary and therefore prove the
+    browser-service composition model without reopening CEF or network callbacks.
+
+    New service APIs start as experimental 0.1. M1.1/M1.2 stable browser
+    contracts are already proven; M1.3 should not manufacture stable v1 service
+    APIs before shell and real service consumers have exercised them.
+
+    Current NavigationCommittedEvent already carries PageId, NavigationId, URL
+    and DocumentRevision, while PageReadyEvent carries title for the same page
+    revision. Initial history can therefore record the committed fact and enrich
+    title later without changing the stable navigation event.
+  </Rationale>
+
+  <Alternatives>
+    <Alternative>
+      Implement every M1.3 browser service in one bundle.
+      Rejected because the services are independently replaceable and do not form
+      one indivisible implementation claim.
+    </Alternative>
+
+    <Alternative>
+      Declare browser.tabs and browser.history stable v1 immediately.
+      Rejected because no shell or long-lived external consumer has yet provided
+      compatibility evidence.
+    </Alternative>
+
+    <Alternative>
+      Let the tabs service own PageId lifecycle and close pages automatically.
+      Rejected because tab membership is presentation/product state, whereas
+      PageId is an engine resource with separate authority.
+    </Alternative>
+
+    <Alternative>
+      Treat Chromium back/forward state or the event journal as durable history.
+      Rejected because engine recovery state, event transport and product history
+      have different ownership and deletion semantics.
+    </Alternative>
+  </Alternatives>
+
+  <DeferredDecisions>
+    <Decision>
+      C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901 will define product download
+      metadata/artifact policy and cookie inspection/policy above M1.2 engine
+      primitives.
+    </Decision>
+
+    <Decision>
+      C-BROWSER-REQUEST-POLICY-ADBLOCK-20260901 will separately govern the
+      provider-to-policy callback seam, bounded asynchronous decision path,
+      recursion protection and degraded fail-open behavior.
+    </Decision>
+
+    <Decision>
+      C-BROWSER-DIAGNOSTICS-SEARCH-SERVICES-20260901 will govern bounded
+      diagnostics without raw CDP escape and replaceable query-to-search-target
+      providers.
+    </Decision>
+
+    <Decision>
+      C-BROWSER-SERVICES-S3-CLOSURE-20260901 will compose all completed M1.3
+      services against the real provider, finish the permanent S3 proving slice
+      and only then permit M1.3 to become Done.
+    </Decision>
+
+    <Decision>
+      Workspace ownership, final tab presentation and synchronization with
+      Worldline Shell remain M1.4/M1.5 concerns.
+    </Decision>
+  </DeferredDecisions>
+
+  <Scenarios>
+    <Scenario>
+      A consumer creates a real PageId through browser.page, asks the tabs service
+      to reference it as a new TabId, navigates through browser.navigate, and the
+      history service durably records the committed NavigationId. Restarting
+      history restores the record; removing the tab leaves the PageId alive.
+    </Scenario>
+
+    <Scenario>
+      The same committed event is delivered twice after subscriber restart.
+      History recognizes one logical NavigationId and stores one entry.
+    </Scenario>
+
+    <Scenario>
+      Tabs service crashes while the browser provider remains healthy.
+      Direct PageId navigation continues; after restart tabs reconstruct only
+      their own persisted projection.
+    </Scenario>
+
+    <Scenario>
+      A page is closed independently through browser.page.
+      Tabs reconcile the stale reference without treating their prior membership
+      as authority to recreate the page.
+    </Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

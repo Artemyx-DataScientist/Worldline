@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-BROWSER-ENGINE-PROVIDER-PROCESS-20260901>
     <Summary>
       Deliver M1.2 as one governed change: a production CEF-backed browser engine

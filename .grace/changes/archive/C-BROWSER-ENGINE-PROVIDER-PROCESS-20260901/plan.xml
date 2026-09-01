@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-BROWSER-ENGINE-PROVIDER-PROCESS-20260901>
     <IntentSummary>
       Deliver Milestone M1.2 as one governed change: a production CEF-backed browser
