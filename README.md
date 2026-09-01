@@ -1,122 +1,165 @@
-# Worldline kernel bootstrap
+# Worldline — модульное ядро
 
-Worldline строится как модульный информационный браузер: разбор web-страниц,
-браузерная автоматизация и AI-провайдеры подключаются отдельными plugins, а
-пользователь сам выбирает провайдера и условия его использования.
+Worldline — модульная среда, управляемая пользователем, для работы в интернете.
+На текущем этапе этот репозиторий содержит общее ядро Rust, границы внешних
+плагинов, постоянное хранилище и первый браузерный стек. Браузерное, агентное,
+интерфейсное, поисковое и интеграционное поведение поставляется сменными
+плагинами, поэтому пользователь может выбирать провайдеров ИИ и условия их
+использования.
 
-Worldline is a modular, user-controlled AI browser kernel for web parsing and
-browser automation. Users bring their own AI provider; providers integrate as
-isolated plugins behind capability-based authorization.
+Цель проекта — сохранять не только страницы и адреса, но и контекст работы:
+над чем человек работал, зачем открывал источники, какие действия выполнял,
+к каким выводам пришёл и что осталось сделать. Полноценная пользовательская
+оболочка, сервисные плагины браузера и агентная среда находятся на следующих
+рубежах разработки.
 
-Текущее продуктовое направление, архитектурные гипотезы, milestones и
-проверяемые критерии выхода описаны в [Worldline Roadmap](ROADMAP.md).
+## Текущее состояние
 
-Это Rust workspace для Grace Changes `C-KERNEL-PLUGIN-RUNTIME-BOOTSTRAP-20260827`,
-`C-KERNEL-CAPABILITY-SECURITY-20260828`,
-`C-KERNEL-CAPABILITY-RPC-EVENT-TRANSPORT-20260828`,
-`C-KERNEL-PERSISTENCE-RECOVERY-MODEL-20260828` и
-`C-KERNEL-STABLE-IPC-WASM-COMPONENT-BOUNDARY-20260831`. Ядро намеренно не знает о
-browser engine, LLM, UI, истории, вкладках или конкретном agent runtime.
+По состоянию текущей ветки `master`:
 
-В workspace входят:
+- **M0 (`M0.1`–`M0.7`) — завершён.** Построены и проверены базовые механизмы
+  ядра: жизненный цикл плагинов, обнаружение и авторизация возможностей,
+  RPC, типизированные события, постоянное состояние, восстановление,
+  границы нативных и WASM-плагинов, совместимость и обновление.
+- **M1.1 — завершён.** Созданы восемь движко-независимых контрактов браузера
+  v1.0, разделены полномочия наблюдения и изменения, добавлены проверка
+  устаревших `ElementRef`, ограничение объёма запросов, типизированные события
+  и отдельный процессный прототип Chromium с управлением через CDP. Этот прототип
+  остаётся регрессионной фикстурой, а не основным CEF-провайдером.
+- **M1.2 — отмечен как завершённый в дорожной карте.** Добавлены контракты экспериментального
+  уровня v0.1, потоковая передача блобов, ограничение дерева дочерних процессов
+  Windows через `Job Object`, ядро браузерного провайдера, нативный процессный
+  адаптер, CEF-адаптер и срез S2.
+- **M1.3 — в работе.** Следующий слой — отдельные сервисные плагины для вкладок,
+  истории, загрузок, куки, инструментов разработчика, блокировки рекламы и поиска.
 
-- `worldline-kernel` — plugin contract, структурированные capability identities,
-  dependency resolution, installation-scoped runtime lifecycle, opaque
-  `RuntimeId`, split-phase activation/deactivation, lifecycle recovery,
-  capability discovery/selection, lifecycle scopes, owned effects, principals,
-  in-memory grants, resource attenuation, revocation, bounded capability RPC,
-  typed event transport, logical event journal, invocation broker, opaque
-  external handle table и append-only trajectory;
-- `worldline-plugin-protocol` — transport-neutral vocabulary: package/plugin
-  identities, manifest schema, WIT component definitions и versioned native
-  IPC envelopes;
-- `worldline-native-host` — supervised native process execution adapter over
-  stdio IPC: handshake, framed envelopes, bounded in-flight requests/stderr и
-  graceful shutdown timeouts;
-- `worldline-wasm-host` — sandboxed WASM Component Model execution adapter
-  (wasmtime, zero-ambient WASI authority, explicit quotas и trap isolation);
-- `worldline-reference-external` — cross-mode reference plugin (`reference.echo/v1`),
-  conformance suites (`EchoFixture`), malicious WASM containment, protocol
-  robustness и external S1 proving paths;
-- `worldline-demo` — host-level S0/S1 proving slices, показывающие разницу
-  между capability availability и authorization, independent observation,
-  restart continuity и compatible provider replacement;
-- `worldline-reference` — browser-like, agent-like и UI-like reference
-  families, host-local observation fixture и постоянный S0 proving slice;
-- `worldline-storage` — production SQLite StateBackend, transactional outbox,
-  durable EventJournal, metadata-only audit, content-addressed blobs,
-  persistent jobs, backup/restore и hard-kill recovery fixtures.
+Важно различать заявленный рубеж и фактическую реализацию текущего дерева
+исходников. `worldline-browser-provider-process` сейчас создаёт
+`ReferenceBrowserBackend`, а `worldline-reference/src/s2.rs` выполняет S2 через
+тот же детерминированный эталонный механизм. `worldline-browser-cef` содержит
+типы FFI, адаптер и поток UI, но вызов реальной библиотеки CEF в
+`early_subprocess_dispatch` пока представлен заглушкой. Поэтому реальный CEF
+путь ещё нельзя считать полностью подключённым к процессу провайдера; этот документ
+отдельно описывает готовые контракты, каркас CEF и фактически работающий
+эталонный путь.
 
-Boundary decisions M0.2 зафиксированы в
-[ADR-KERNEL-BOUNDARY-V1](docs/adr/ADR-KERNEL-BOUNDARY-V1.md). Reference
-families используют только generic plugin/capability/state contracts; в
-`worldline-kernel` нет family discriminator или product-specific domain types.
-`worldline-demo` запускает S0 через два `Kernel` над общим backend: RPC result
-и observation идут разными путями, installation state продолжается через
-restart, а runtime identity и authority — нет.
+Сервисные плагины M1.3 и композиция пользовательского интерфейса M1.4 пока не
+входят в рабочее пространство.
 
-`CapabilityHandle` является broker proxy. Наличие resolved dependency или
-активного provider не создаёт grant: вызов проходит только при наличии
-подходящего active grant. RPC имеет отдельные logical `RpcRequestId` и
-per-attempt `InvocationId`, bounded provider flow control, monotonic deadline,
-cooperative cancellation и provider-owned retry/idempotency contract. Provider
-получает `InvocationContext` и может явно выбрать delegated authority либо
-собственную authority; delegated invocation не имеет automatic self-authority
-fallback.
+## Состав рабочего пространства
 
-Typed Event Transport — отдельный publish/subscribe plane. `EventContract` и
-`EventEnvelope` ABI-neutral, producer metadata kernel-stamped, Publish/Subscribe
-default-deny, а каждая live subscription получает finite pull mailbox с явным
-`RejectForSubscriber`/`DropNewest`/`DropOldest` QoS. События могут быть
-`Ephemeral` либо логически `Durable` через абстрактный `EventJournal`; текущий
-`InMemoryEventJournal` предназначен для acceptance tests и не является
-production crash-safe persistence. Event observation не является RPC reply,
-не участвует в provider resolution и не передаёт subscriber producer
-authority. S1 proving slice показывает независимые RPC result, observation,
-follow-up RPC под authority observer-а и state continuity после restart.
+### Платформа
 
-Persistent state принадлежит `InstallationId`, а не `PluginId` и не
-эфемерному runtime principal. Runtime получает только kernel-bound
-`StateHandle` своего installation; записи меняются через atomic
-`StateTransaction`. `unregister` сохраняет installation и его state, тогда как
-`uninstall` является отдельной явной операцией удаления. При смене
-`StateSchemaVersion` kernel строит directed migration plan и не активирует
-новый runtime до успешного migration commit; migration context не имеет
-capability-доступа.
+- `worldline-kernel` — общие механизмы среды выполнения плагинов, жизненного
+  цикла, обнаружения возможностей, авторизации, RPC, типизированных событий,
+  состояния, эффектов и траектории.
+- `worldline-plugin-protocol` — словарь протокола, не зависящий от транспорта:
+  идентификаторы пакетов и плагинов, схема манифеста, определения компонентов
+  WIT, версионируемые конверты нативного IPC и ограниченный протокол работы с
+  блобами.
+- `worldline-native-host` — контролируемый супервизором адаптер нативных
+  процессов через IPC по `stdio`, включая рукопожатие, сообщения с указанием
+  длины, ограничение незавершённых запросов и `stderr`, ограничение дерева
+  процессов Windows и передачу блобов.
+- `worldline-wasm-host` — адаптер выполнения компонентов WASM с изоляцией,
+  явными квотами и отсутствием неявных полномочий WASI.
+- `worldline-storage` — адаптеры постоянного хранения на SQLite,
+  транзакционный исходящий буфер, журнал событий, аудит метаданных, данные с
+  адресацией по содержимому, сохраняемые задания, резервное копирование,
+  восстановление и фикстуры аварийного завершения.
 
-Каждая запись также имеет монотонную `StateRevision`. Transaction фиксирует
-свою исходную revision, а backend принимает commit только через optimistic
-CAS; конфликтующие или stale transactions получают явную ошибку и не могут
-затереть чужие изменения или откатить schema. Обычная transaction допускается
-только в `Ready` и никогда не меняет schema metadata. Runtime получает
-lease-bound `RuntimeStateHandle`: после deactivation/unregister сохранённый
-clone handle и уже открытая transaction теряют право на state access.
+### Эталонные реализации и демонстрации
 
-Ошибки state preparation, migration и backend recovery возвращаются вызывающему
-коду; migration path errors (`NoMigrationPath`/`AmbiguousMigrationPath`) не
-маскируются generic activation failure. Запуск через custom `StateBackend`
-также fallible: ошибки загрузки installation records не трактуются как пустое
-хранилище.
+- `worldline-reference` — эталонные браузероподобные, агентоподобные и
+  интерфейсоподобные плагины, а также постоянные сквозные тестовые срезы S0, S1 и S2.
+- `worldline-reference-external` — эталонный плагин для встроенного режима,
+  нативного процесса и WASM, наборы тестов соответствия, проверка изоляции
+  вредоносного WASM и устойчивости протокола.
+- `worldline-demo` — демонстрация сквозных срезов S0 и S1 на уровне хоста,
+  показывающая различие между доступностью возможности и авторизацией,
+  независимость наблюдения, сохранение состояния после перезапуска и замену
+  совместимого провайдера.
 
-Авторизация выполняется в момент допуска invocation: broker проверяет grant до
-передачи вызова provider. Поэтому отзыв grant не отменяет уже допущенный
-in-flight вызов; он блокирует последующие admissions. Вложенные вызовы также
-ограничены максимальной глубиной, а `ProviderSelf` доступен только текущему
-provider runtime и использует только его собственные grants.
+### Браузерный стек
 
-Observation bus из reference crate остаётся минимальным host-local fixture для
-старого S0; kernel Event Transport не смешивается с trajectory или
-persistence. M0.3 runtime lifecycle primitives не притворяются production
-scheduler: для native in-process plugin cancellation остаётся cooperative, а
-`Hung` изолирует authority и publication логически, не убивая произвольный
-thread. M0.5 теперь закрывает production SQLite state, transactional outbox,
-durable journal, persistent jobs, CAS blobs, backup/restore и crash/restart
-evidence; CEF/wgpu composition остаётся следующим отдельным рубежом.
+- `worldline-browser-contract` — движко-независимые контракты возможностей
+  `browser.context`, `browser.page`, `browser.navigate`, `browser.observe`,
+  `browser.query`, `browser.act`, `browser.download` и `browser.permission`, а
+  также экспериментальные поверхности захвата, куки и хранилища уровня
+  v0.1.
+- `worldline-browser-spike` — отдельный процесс Chromium с управлением через
+  CDP, локальными HTML-фикстурами, навигацией, деревом доступности, действиями
+  в DOM и измерениями для M1.1.
+- `worldline-browser-provider` — ядро браузерного провайдера, конечные автоматы
+  состояния, резервирование генераций страниц через CAS, проверка
+  `DocumentRevision` и `ElementRef`, а также детерминированный эталонный
+  механизм.
+- `worldline-browser-provider-process` — автономный нативный бинарный файл,
+  обменивающийся сообщениями через `worldline-plugin-protocol` и применяющий
+  ядро браузерного провайдера.
+- `worldline-browser-cef` — CEF-адаптер, типы интерфейса FFI языка C, ранняя диспетчеризация
+  дочерних процессов и потокобезопасный цикл сообщений UI; текущие операции
+  адаптера делегируются эталонной реализации.
+
+## Архитектурные границы
+
+- Над ядром нет особых компонентов: браузер, агент, пользовательский
+  интерфейс, память, поиск и интеграции являются плагинами. Ядро не содержит
+  политики вкладок, истории, рабочих пространств, куки, поиска, блокировки
+  рекламы или инструментов разработчика.
+- Авторизация возможностей действует по принципу запрета по умолчанию и
+  проверяется на каждой привилегированной границе. Наличие разрешённой
+  зависимости или активного провайдера само по себе не создаёт разрешение;
+  вызов проходит только при наличии подходящего активного разрешения.
+- `CapabilityHandle` является прокси брокера. RPC имеет отдельные логические
+  `RpcRequestId` и `InvocationId` для каждой попытки, ограничение потока
+  запросов к провайдеру, монотонный срок, кооперативную отмену и явный контракт
+  повторов и идемпотентности.
+- Типизированный транспорт событий — отдельный канал публикации и подписки.
+  `EventContract` и `EventEnvelope` не зависят от ABI, метаданные производителя
+  проставляются ядром, а каждая действующая подписка получает конечный почтовый
+  ящик с явной политикой `RejectForSubscriber`/`DropNewest`/`DropOldest`.
+  Событие не является ответом RPC, не выбирает провайдера и не превращается
+  автоматически в постоянное хранилище.
+- Постоянное состояние принадлежит `InstallationId`, а не `PluginId` и не
+  эфемерному субъекту среды выполнения. Среда выполнения получает только
+  привязанный к ядру `StateHandle`, записи меняются через атомарную
+  `StateTransaction`, а `unregister` сохраняет установку и её состояние.
+  Удаление выполняется отдельной явной операцией `uninstall`.
+- Каждая запись имеет монотонную `StateRevision`. Бэкенд принимает фиксацию
+  транзакции только через оптимистичную проверку CAS; конфликтующие или
+  устаревшие транзакции получают явную ошибку и не могут затереть чужие
+  изменения. После деактивации или отмены регистрации `RuntimeStateHandle`
+  теряет право на доступ к состоянию.
+- Браузерный провайдер проходит через обычную границу нативного плагина. Типы,
+  указатели, идентификаторы процессов и дескрипторы CEF не выходят в публичные
+  контракты Worldline и не становятся полномочиями. Устаревшие ссылки
+  `ElementRef` отклоняются после навигации или восстановления страницы.
+- Состояние `InMemoryEventJournal` и эталонных браузерных реализаций предназначено
+  для приёмочных тестов. Рабочее хранение на SQLite находится в
+  `worldline-storage`; шина событий не используется как база данных.
+
+## Источники актуального состояния
+
+- [Дорожная карта Worldline](ROADMAP.md) — направление продукта и статус
+  рубежей.
+- [Граница ядра](docs/adr/ADR-KERNEL-BOUNDARY-V1.md) — решение о составе ядра
+  и плагинов.
+- [Контракт браузера и выбор движка](docs/adr/ADR-BROWSER-ENGINE-V1.md) —
+  контракты M1.1, измерения и выбор Chromium/CEF.
+- [Процесс браузерного провайдера](docs/adr/ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1.md) —
+  граница CEF, процессная изоляция и ограничения M1.2.
+- [Политика CI/CD](docs/CI-CD.md) — правила локальных и серверных проверок.
+- [Рабочий процесс GRACE](docs/grace/README.md) — управление изменениями,
+  областями записи и проверочными свидетельствами.
 
 ## Проверка
 
+Основные локальные команды:
+
 ```text
 cargo fmt --all -- --check
+cargo check --workspace --all-targets
 cargo test --workspace
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo doc --workspace --no-deps
@@ -124,37 +167,46 @@ cargo tree -p worldline-kernel
 cargo run -p worldline-demo
 ```
 
-Toolchain проекта закреплён на последнем доступном стабильном Rust `1.98.0`,
-edition — `2024`.
+Требуемая версия Rust закреплена в `rust-toolchain.toml`: стабильная версия
+`1.98.0`, редакция `2024`, компоненты `rustfmt` и `clippy`, цель
+`wasm32-unknown-unknown`.
 
-## Repository-owned CI
+## CI репозитория
 
-Все обязательные suites запускаются одинаково локально и в GitHub Actions через
-repository-owned entrypoint:
+Все обязательные наборы проверок запускаются одинаково локально и в GitHub
+Actions через единую точку входа:
 
 ```powershell
 pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All
 ```
 
-Стабильные required check names для pull request и `master`:
+Точка входа поддерживает наборы `Source`, `Correctness`, `RealChromium`,
+`ArchitectureSecurity`, `ProvingSlice` и `All`.
+
+Обязательные имена проверок в GitHub Actions:
 
 - `Source`
 - `Correctness`
+- `Real-Chromium`
 - `Architecture-Security`
 - `Proving-Slice`
 
-`Architecture-Security` проверяет GRACE layout, направление зависимостей kernel,
-storage boundary и persistence acceptance evidence. `Proving-Slice` сохраняет
-постоянные S0/S1 gates и production-backed persistence acceptance.
-Workflow-файлы `.github/workflows/pr.yml` и `.github/workflows/master.yml`
-остаются тонкой GitHub Actions orchestration; verification logic принадлежит
-локальному PowerShell runner.
+Набор `Source` проверяет форматирование, сборку рабочего пространства,
+статический анализ, документацию и протокол плагинов. `Correctness` запускает
+тесты рабочего пространства, тесты восстановления, совместимости, браузерных
+контрактов, провайдера, нативного процесса и CEF-адаптера. `RealChromium`
+проверяет отдельный процессный прототип с настоящим Chromium в Windows.
+`ArchitectureSecurity` проверяет архитектурные границы, GRACE-структуру,
+направление зависимостей и негативные проверки безопасности. `ProvingSlice`
+запускает сквозные срезы S0, S1, внешний S1, текущий эталонный S2 и
+браузерный спайк.
 
-Успешный локальный запуск — только local evidence. Hosted CI считается
-подтверждённым только по именованному GitHub Actions run; branch-protection
-settings этим change не изменяются. Политика описана в
-[docs/CI-CD.md](docs/CI-CD.md), а GRACE workflow — в
-[docs/grace/README.md](docs/grace/README.md).
+Файлы `.github/workflows/pr.yml` и `.github/workflows/master.yml` содержат
+только оркестрацию GitHub Actions; логика проверок принадлежит локальному
+скрипту PowerShell. Успешный локальный запуск является только локальным
+свидетельством. Серверная проверка считается подтверждённой только по
+именованному запуску GitHub Actions; настройки защиты ветки `master` этими
+материалами не изменяются.
 
 ## Лицензия
 
