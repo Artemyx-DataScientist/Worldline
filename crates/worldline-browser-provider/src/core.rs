@@ -131,6 +131,12 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
         operation: &str,
         payload: Value,
     ) -> Result<Value, BrowserError> {
+        let qualified_contract = if contract.starts_with("browser.") {
+            std::borrow::Cow::Borrowed(contract)
+        } else {
+            std::borrow::Cow::Owned(format!("browser.{contract}"))
+        };
+        let contract = qualified_contract.as_ref();
         match (contract, operation) {
             // Context
             ("browser.context", OP_CREATE_CONTEXT) | ("browser.context", "create_context") => {
@@ -138,6 +144,13 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
                     BrowserError::InvalidRequest(format!("create_context payload invalid: {e}"))
                 })?;
                 let mut backend = self.backend.lock().unwrap();
+                let current_contexts = backend.list_contexts()?.contexts.len();
+                if current_contexts >= self.limits.max_contexts {
+                    return Err(BrowserError::InvalidRequest(format!(
+                        "context limit of {} exceeded: current count is {}",
+                        self.limits.max_contexts, current_contexts
+                    )));
+                }
                 let res = backend.create_context(&req)?;
                 Ok(serde_json::to_value(res).unwrap())
             }
@@ -163,6 +176,18 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
                     BrowserError::InvalidRequest(format!("create_page payload invalid: {e}"))
                 })?;
                 let mut backend = self.backend.lock().unwrap();
+                let current_pages = backend
+                    .list_pages(&ListPagesRequest {
+                        context_id: req.context_id.clone(),
+                    })?
+                    .pages
+                    .len();
+                if current_pages >= self.limits.max_pages_per_context {
+                    return Err(BrowserError::InvalidRequest(format!(
+                        "page limit of {} in context '{}' exceeded: current count is {}",
+                        self.limits.max_pages_per_context, req.context_id, current_pages
+                    )));
+                }
                 let res = backend.create_page(&req)?;
                 self.page_generations
                     .lock()
@@ -596,26 +621,10 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
                 ("browser.engine.storage", OP_STORAGE_GET_V0_2)
             }
 
-            "create" => {
-                if payload.get("context_id").is_some() {
-                    ("browser.page", OP_CREATE_PAGE)
-                } else {
-                    ("browser.context", OP_CREATE_CONTEXT)
-                }
-            }
-            "close" => {
-                if payload.get("page_id").is_some() {
-                    ("browser.page", OP_CLOSE_PAGE)
-                } else {
-                    ("browser.context", OP_CLOSE_CONTEXT)
-                }
-            }
-            "list" => {
-                if payload.get("context_id").is_some() {
-                    ("browser.page", OP_LIST_PAGES)
-                } else {
-                    ("browser.context", OP_LIST_CONTEXTS)
-                }
+            "create" | "close" | "list" => {
+                return Err(BrowserError::InvalidRequest(format!(
+                    "ambiguous bare operation '{operation}': contract identity must be specified via dispatch_contract"
+                )));
             }
             "query" => ("browser.permission", OP_PERMISSION_QUERY),
             "set" => ("browser.permission", OP_PERMISSION_SET),

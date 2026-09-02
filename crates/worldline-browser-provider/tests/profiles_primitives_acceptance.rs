@@ -21,7 +21,8 @@ fn context_profile_isolation_and_lifecycle() {
 
     // 1. Create persistent profile context
     let ctx1_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.context",
             OP_CREATE_CONTEXT,
             serde_json::to_value(CreateContextRequest {
                 profile_id: Some("user-profile-alpha".to_string()),
@@ -37,7 +38,8 @@ fn context_profile_isolation_and_lifecycle() {
 
     // 2. Create incognito ephemeral context
     let ctx2_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.context",
             OP_CREATE_CONTEXT,
             serde_json::to_value(CreateContextRequest {
                 profile_id: None,
@@ -52,7 +54,11 @@ fn context_profile_isolation_and_lifecycle() {
 
     // 3. List contexts contains both
     let list_val = core
-        .dispatch(OP_LIST_CONTEXTS, serde_json::json!({}))
+        .dispatch_contract(
+            "browser.context",
+            OP_LIST_CONTEXTS,
+            serde_json::json!({}),
+        )
         .unwrap();
     let list_resp: ListContextsResponse = serde_json::from_value(list_val).unwrap();
     assert_eq!(list_resp.contexts.len(), 2);
@@ -60,7 +66,8 @@ fn context_profile_isolation_and_lifecycle() {
     assert!(list_resp.contexts.contains(&ctx2.context_id));
 
     // 4. Close persistent context
-    core.dispatch(
+    core.dispatch_contract(
+        "browser.context",
         OP_CLOSE_CONTEXT,
         serde_json::to_value(CloseContextRequest {
             context_id: ctx1.context_id.clone(),
@@ -70,7 +77,11 @@ fn context_profile_isolation_and_lifecycle() {
     .unwrap();
 
     let list_val2 = core
-        .dispatch(OP_LIST_CONTEXTS, serde_json::json!({}))
+        .dispatch_contract(
+            "browser.context",
+            OP_LIST_CONTEXTS,
+            serde_json::json!({}),
+        )
         .unwrap();
     let list_resp2: ListContextsResponse = serde_json::from_value(list_val2).unwrap();
     assert_eq!(list_resp2.contexts.len(), 1);
@@ -84,7 +95,8 @@ fn cookie_store_and_storage_partitioning() {
     let core = BrowserProviderCore::new(backend);
 
     let ctx1: CreateContextResponse = serde_json::from_value(
-        core.dispatch(
+        core.dispatch_contract(
+            "browser.context",
             OP_CREATE_CONTEXT,
             serde_json::to_value(CreateContextRequest {
                 profile_id: Some("p1".to_string()),
@@ -98,7 +110,8 @@ fn cookie_store_and_storage_partitioning() {
     .unwrap();
 
     let ctx2: CreateContextResponse = serde_json::from_value(
-        core.dispatch(
+        core.dispatch_contract(
+            "browser.context",
             OP_CREATE_CONTEXT,
             serde_json::to_value(CreateContextRequest {
                 profile_id: None,
@@ -207,7 +220,8 @@ fn permissions_and_download_lifecycle() {
     let core = BrowserProviderCore::new(backend);
 
     let ctx: CreateContextResponse = serde_json::from_value(
-        core.dispatch(
+        core.dispatch_contract(
+            "browser.context",
             OP_CREATE_CONTEXT,
             serde_json::to_value(CreateContextRequest {
                 profile_id: None,
@@ -221,7 +235,8 @@ fn permissions_and_download_lifecycle() {
     .unwrap();
 
     let page: CreatePageResponse = serde_json::from_value(
-        core.dispatch(
+        core.dispatch_contract(
+            "browser.page",
             OP_CREATE_PAGE,
             serde_json::to_value(CreatePageRequest {
                 context_id: ctx.context_id.clone(),

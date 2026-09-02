@@ -39,7 +39,9 @@ use worldline_browser_cef::CefBrowserBackend;
 use worldline_browser_cef::early_subprocess_dispatch;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct CapabilityPayload {
+pub struct CapabilityPayload {
+    #[serde(default)]
+    pub contract: Option<String>,
     pub operation: String,
     pub payload: Value,
 }
@@ -348,10 +350,18 @@ fn run_provider<B: BrowserBackend + DownloadEventSource>(
                 let call_req: Result<CapabilityPayload, _> =
                     serde_json::from_value(envelope.payload);
                 let response_payload = match call_req {
-                    Ok(req) => match core.dispatch(&req.operation, req.payload) {
-                        Ok(res) => serde_json::json!({ "result": res }),
-                        Err(err) => serde_json::json!({ "error": err.to_string() }),
-                    },
+                    Ok(req) => {
+                        let res = match req.contract {
+                            Some(ref contract) => {
+                                core.dispatch_contract(contract, &req.operation, req.payload)
+                            }
+                            None => core.dispatch(&req.operation, req.payload),
+                        };
+                        match res {
+                            Ok(res) => serde_json::json!({ "result": res }),
+                            Err(err) => serde_json::json!({ "error": err.to_string() }),
+                        }
+                    }
                     Err(err) => serde_json::json!({ "error": format!("Invalid payload: {err}") }),
                 };
 
@@ -472,10 +482,18 @@ fn run_provider_without_policy_demux<B: BrowserBackend + DownloadEventSource>(
                 let call_req: Result<CapabilityPayload, _> =
                     serde_json::from_value(envelope.payload);
                 let response_payload = match call_req {
-                    Ok(req) => match core.dispatch(&req.operation, req.payload) {
-                        Ok(res) => serde_json::json!({ "result": res }),
-                        Err(err) => serde_json::json!({ "error": err.to_string() }),
-                    },
+                    Ok(req) => {
+                        let res = match req.contract {
+                            Some(ref contract) => {
+                                core.dispatch_contract(contract, &req.operation, req.payload)
+                            }
+                            None => core.dispatch(&req.operation, req.payload),
+                        };
+                        match res {
+                            Ok(res) => serde_json::json!({ "result": res }),
+                            Err(err) => serde_json::json!({ "error": err.to_string() }),
+                        }
+                    }
                     Err(err) => serde_json::json!({ "error": format!("Invalid payload: {err}") }),
                 };
 

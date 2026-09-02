@@ -1,0 +1,210 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-BROWSER-PROVIDER-ROUTING-BUDGET-REMEDIATION-20260902</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+
+  <Rationale>
+    This bundle exists because the audit found two failures of architectural
+    truth at the same browser-provider boundary.
+
+    The first is an evidence failure with direct runtime consequences. M1.2
+    explicitly required finite, testable production budgets, yet
+    ProviderBudgetLimits contains max_contexts and max_pages_per_context without
+    corresponding enforcement in BrowserProviderCore. The broadly named
+    provider_budget_limits_enforcement test injects values for all three current
+    provider limits but asserts only the input-text bound. The failure is
+    therefore not merely missing test coverage: an applied GRACE claim can remain
+    green while named resource-policy fields are inert.
+
+    The second is a protocol-identity failure. Browser contracts intentionally
+    reuse operation vocabulary such as create, close and list. The native
+    provider process currently transmits operation and payload but not the browser
+    contract that owns the operation. BrowserProviderCore therefore recovers the
+    missing identity by looking at payload fields even though the generic native
+    Envelope does not require this loss of information because its payload is opaque; the
+    ambiguity is local to the browser-provider call representation.
+
+    The findings belong together because both concern whether the provider
+    boundary truthfully enforces what its contracts say: resource policy must be
+    executable rather than decorative, and capability identity must be explicit
+    rather than reconstructed from request data. A narrow remediation can fix
+    both without redesigning the browser family or the generic kernel.
+  </Rationale>
+
+  <Alternatives>
+    <Alternative>
+      Add two assertions to provider_budget_limits_enforcement without changing
+      BrowserProviderCore. This is not viable because the limits are not merely
+      untested; they are currently not enforced.
+    </Alternative>
+
+    <Alternative>
+      Delete max_contexts and max_pages_per_context and weaken the historical
+      M1.2 boundedness claim. This is not selected because finite contexts/pages
+      are reasonable production bounds and the applied specification already
+      committed to bounded resource behavior. If evidence proves a specific
+      bound belongs at another layer, ownership may move explicitly, but the
+      guarantee may not disappear silently.
+    </Alternative>
+
+    <Alternative>
+      Keep operation-only native IPC and make the payload-shape heuristic more
+      rigorous. This is not selected because no heuristic is needed: the caller
+      already knows the capability contract and the provider already has an
+      explicit contract-plus-operation dispatch seam.
+    </Alternative>
+
+    <Alternative>
+      Make all operation names globally unique, for example create_context and
+      create_page, and retain no contract field. This reduces ambiguity but
+      collapses a contract-oriented capability model into a flat command
+      namespace and duplicates identity already present in the architecture.
+    </Alternative>
+
+    <Alternative>
+      Bump the generic worldline-plugin-protocol PROTOCOL_VERSION solely for the
+      browser routing repair. This is not selected by default because Envelope
+      payload is intentionally opaque and can carry a revised browser-provider
+      request representation without changing generic framing semantics.
+    </Alternative>
+
+    <Alternative>
+      Remove BrowserProviderCore::dispatch immediately and accept only
+      dispatch_contract. This is architecturally attractive but may create an
+      unnecessary migration blast radius. The preferred direction is to make the
+      native path explicit first, then either delete dispatch or retain it only
+      as a bounded compatibility adapter with no payload-shape inference.
+    </Alternative>
+
+    <Alternative>
+      Combine this work with the active request-policy/adblock bundle. This is
+      not selected because request interception has its own hot-path, lifecycle
+      and policy questions. It should consume the repaired provider boundary,
+      not obscure the audit remediation inside a larger feature change.
+    </Alternative>
+  </Alternatives>
+
+  <DeferredDecisions>
+    <Decision>
+      The plan will decide the exact typed shape of the native browser capability
+      request. The minimum required information is explicit contract identity,
+      operation and payload. A contract version field may be carried directly if
+      that better matches existing capability negotiation, but the remediation
+      does not require inventing a second version system.
+    </Decision>
+
+    <Decision>
+      The plan will decide whether operation-only unambiguous legacy aliases are
+      still needed by repository consumers. Any retained legacy form must map to
+      one contract without inspecting payload shape and must have a removal
+      condition. Ambiguous bare create/close/list forms are expected to disappear
+      from production routing.
+    </Decision>
+
+    <Decision>
+      The plan will define the exact limit-error representation. Reusing an
+      existing bounded/invalid-request error is acceptable if callers can
+      distinguish saturation deterministically; introducing a new public stable
+      BrowserError variant is not assumed and must respect compatibility rules.
+    </Decision>
+
+    <Decision>
+      The plan will establish lifecycle accounting for context/page capacity,
+      including close, failed create, backend failure and provider restart. The
+      simplest correct owner is preferred over a second shadow inventory.
+    </Decision>
+
+    <Decision>
+      The plan will build a finite-budget evidence matrix from the applied M1.2
+      criteria before changing code. Existing generic native-host max_in_flight,
+      max_frame_bytes and deadlines should be referenced as separately owned
+      evidence when correct rather than reimplemented in BrowserProviderCore.
+    </Decision>
+
+    <Decision>
+      Query, capture, mailbox and dispatch-queue claims discovered by the budget
+      matrix may reveal additional missing enforcement. Findings that are direct
+      instances of the same M1.2 boundedness contract may be repaired in this
+      bundle if they remain bounded and do not require a new architecture.
+      Materially separate defects require a follow-on change instead of silently
+      expanding scope.
+    </Decision>
+
+    <Decision>
+      The plan will choose a static architecture assertion that rejects
+      payload-shape contract inference without banning ordinary payload
+      validation. The check should target routing ownership, not grep for every
+      use of context_id or page_id.
+    </Decision>
+
+    <Decision>
+      The historical applied M1.2 bundle remains unchanged. The remediation may
+      update current graph/verification projections after successful evidence so
+      present truth points to the new closure without rewriting history.
+    </Decision>
+  </DeferredDecisions>
+
+  <Scenarios>
+    <Scenario>
+      A provider is constructed with max_contexts = 2. Two context creates reach
+      the backend and succeed. A third request is rejected deterministically
+      before creating a third backend context. After one context is closed, one
+      replacement context may be created.
+    </Scenario>
+
+    <Scenario>
+      A context has max_pages_per_context = 2. Its third page create is rejected,
+      while a second context can still create its own pages up to its independent
+      per-context limit. Closing a page releases one slot without disturbing the
+      other context.
+    </Scenario>
+
+    <Scenario>
+      A native caller sends contract = browser.context, operation = create and a
+      valid CreateContextRequest. The provider routes by explicit contract.
+      Adding an irrelevant context_id-like field cannot redirect the call to
+      browser.page.
+    </Scenario>
+
+    <Scenario>
+      A native caller sends contract = browser.page, operation = create and a
+      valid CreatePageRequest. The same operation string is legal because the
+      contract identity is explicit. No payload inspection is needed to select
+      the page contract.
+    </Scenario>
+
+    <Scenario>
+      A legacy caller sends only the bare operation create. The production
+      provider rejects the request as ambiguous, or the request is admitted only
+      through an explicitly named compatibility form that already identifies the
+      owning contract. The provider never examines payload shape to guess.
+    </Scenario>
+
+    <Scenario>
+      A caller supplies a valid payload for one contract while naming another
+      contract. The named contract remains authoritative; deserialization or
+      contract-operation validation fails rather than falling through to another
+      contract whose DTO happens to fit.
+    </Scenario>
+
+    <Scenario>
+      The budget evidence matrix shows max_in_flight is owned by
+      NativeProviderConnection and max_frame_bytes by native framing. The
+      remediation references their existing saturation tests if sufficient and
+      adds missing evidence only where the applied M1.2 claim is not actually
+      proven.
+    </Scenario>
+
+    <Scenario>
+      Real Windows S2/S3B executes through the native provider with explicit
+      contract identity and remains green. Reference tests stay available for
+      deterministic lower-level coverage but no production proving path depends
+      on the old ambiguous operation-only heuristic.
+    </Scenario>
+
+    <Scenario>
+      A future request-policy plugin adds new browser operations. It inherits one
+      explicit contract-plus-operation routing model instead of extending a
+      growing alias table or adding new payload-shape guesses.
+    </Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

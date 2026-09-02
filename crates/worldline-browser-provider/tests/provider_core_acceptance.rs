@@ -24,7 +24,11 @@ fn provider_core_full_page_lifecycle_and_actions() {
         user_agent: None,
     };
     let ctx_val = core
-        .dispatch(OP_CREATE_CONTEXT, serde_json::to_value(ctx_req).unwrap())
+        .dispatch_contract(
+            "browser.context",
+            OP_CREATE_CONTEXT,
+            serde_json::to_value(ctx_req).unwrap(),
+        )
         .expect("must create context");
     let ctx_resp: CreateContextResponse = serde_json::from_value(ctx_val).unwrap();
 
@@ -34,7 +38,11 @@ fn provider_core_full_page_lifecycle_and_actions() {
         initial_url: Some("https://worldline.test/start".to_string()),
     };
     let page_val = core
-        .dispatch(OP_CREATE_PAGE, serde_json::to_value(page_req).unwrap())
+        .dispatch_contract(
+            "browser.page",
+            OP_CREATE_PAGE,
+            serde_json::to_value(page_req).unwrap(),
+        )
         .expect("must create page");
     let page_resp: CreatePageResponse = serde_json::from_value(page_val).unwrap();
 
@@ -117,8 +125,12 @@ fn provider_core_capture_and_cookies_and_storage() {
         user_agent: None,
     };
     let ctx_resp: CreateContextResponse = serde_json::from_value(
-        core.dispatch(OP_CREATE_CONTEXT, serde_json::to_value(ctx_req).unwrap())
-            .unwrap(),
+        core.dispatch_contract(
+            "browser.context",
+            OP_CREATE_CONTEXT,
+            serde_json::to_value(ctx_req).unwrap(),
+        )
+        .unwrap(),
     )
     .unwrap();
 
@@ -127,8 +139,12 @@ fn provider_core_capture_and_cookies_and_storage() {
         initial_url: None,
     };
     let page_resp: CreatePageResponse = serde_json::from_value(
-        core.dispatch(OP_CREATE_PAGE, serde_json::to_value(page_req).unwrap())
-            .unwrap(),
+        core.dispatch_contract(
+            "browser.page",
+            OP_CREATE_PAGE,
+            serde_json::to_value(page_req).unwrap(),
+        )
+        .unwrap(),
     )
     .unwrap();
 

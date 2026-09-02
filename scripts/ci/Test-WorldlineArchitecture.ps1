@@ -428,4 +428,20 @@ foreach ($requiredToken in @('T004-real-20260902-local-01', 'FailOpen', 'EVENT B
     Assert-Condition ($policyAdr.Contains($requiredToken)) "Request-policy ADR must preserve '${requiredToken}' evidence or decision text."
 }
 
+# Browser provider routing and budget remediation checks
+$providerCoreSource = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-provider/src/core.rs') -Raw
+Assert-Condition ($providerCoreSource.Contains('max_contexts') -and $providerCoreSource.Contains('max_pages_per_context')) 'BrowserProviderCore must reference max_contexts and max_pages_per_context limits.'
+Assert-Condition (-not $providerCoreSource.Contains('payload.get("context_id").is_some()')) 'BrowserProviderCore::dispatch must not inspect payload field shape to route ambiguous operations.'
+Assert-Condition (-not $providerCoreSource.Contains('payload.get("page_id").is_some()')) 'BrowserProviderCore::dispatch must not inspect page_id field shape to route ambiguous operations.'
+Assert-Condition ($providerCoreSource.Contains('context limit of') -and $providerCoreSource.Contains('page limit of')) 'BrowserProviderCore must enforce context and page budget limits on creation.'
+
+Assert-Condition ($providerProcessSource.Contains('pub contract: Option<String>')) 'CapabilityPayload in provider-process must declare explicit optional contract identity.'
+
+$budgetMatrixPath = Get-RepositoryPath -RelativePath 'docs/browser-provider-budget-matrix.md'
+Assert-Condition (Test-Path -LiteralPath $budgetMatrixPath) 'docs/browser-provider-budget-matrix.md must exist in the repository.'
+$budgetMatrixContent = Get-Content -LiteralPath $budgetMatrixPath -Raw
+foreach ($requiredMatrixToken in @('Max Browser Contexts', 'Max Pages per Context', 'Max Action Text Length', 'Pending Native RPC', 'Native Frame Size', 'Provider Command Queue')) {
+    Assert-Condition ($budgetMatrixContent.Contains($requiredMatrixToken)) "Browser-provider budget matrix must contain '${requiredMatrixToken}' entry."
+}
+
 Write-Host 'Architecture guard passed: GRACE layout, dependency direction, browser contracts/services, and request-policy interception boundaries are valid.'

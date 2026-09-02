@@ -91,6 +91,7 @@ mod reference {
 
     fn call<Req, Res>(
         core: &BrowserProviderCore<ReferenceBrowserBackend>,
+        contract: &str,
         operation: &str,
         request: Req,
     ) -> Result<Res, String>
@@ -100,7 +101,7 @@ mod reference {
     {
         let payload = serde_json::to_value(request).map_err(|error| error.to_string())?;
         let value = core
-            .dispatch(operation, payload)
+            .dispatch_contract(contract, operation, payload)
             .map_err(|error| error.to_string())?;
         serde_json::from_value(value).map_err(|error| error.to_string())
     }
@@ -110,6 +111,7 @@ mod reference {
         let core = BrowserProviderCore::new(ReferenceBrowserBackend::new());
         let ctx_a: CreateContextResponse = call(
             &core,
+            "browser.context",
             OP_CREATE_CONTEXT,
             CreateContextRequest {
                 profile_id: Some("s3b-reference-a".to_string()),
@@ -119,6 +121,7 @@ mod reference {
         )?;
         let ctx_b: CreateContextResponse = call(
             &core,
+            "browser.context",
             OP_CREATE_CONTEXT,
             CreateContextRequest {
                 profile_id: Some("s3b-reference-b".to_string()),
@@ -128,6 +131,7 @@ mod reference {
         )?;
         let page: CreatePageResponse = call(
             &core,
+            "browser.page",
             OP_CREATE_PAGE,
             CreatePageRequest {
                 context_id: ctx_a.context_id.clone(),
@@ -321,6 +325,7 @@ mod reference {
         let target_url = "http://127.0.0.1:8080/docs.html".to_string();
         let navigation: NavigateResponse = call(
             &core,
+            "browser.navigate",
             OP_NAVIGATE,
             NavigateRequest {
                 page_id: page.page_id.clone(),
@@ -339,6 +344,7 @@ mod reference {
             .map_err(|error| error.to_string())?;
         let observation: PageObservation = call(
             &core,
+            "browser.observe",
             OP_OBSERVE,
             ObservePageRequest {
                 page_id: page.page_id,
@@ -756,6 +762,42 @@ mod real {
         serde_json::from_value(value).map_err(|error| error.to_string())
     }
 
+    fn call_contract_op(
+        connection: &NativeProviderConnection,
+        contract: &str,
+        operation: &str,
+        payload: Value,
+    ) -> Result<Value, String> {
+        let response = connection
+            .call_with_deadline(
+                serde_json::json!({"contract": contract, "operation": operation, "payload": payload}),
+                Duration::from_secs(5),
+            )
+            .map_err(|error| {
+                let stderr = connection.stderr_text();
+                let status = connection
+                    .try_status()
+                    .map(|status| format!("; provider exit status: {status}"))
+                    .unwrap_or_default();
+                if stderr.trim().is_empty() && status.is_empty() {
+                    format!("native S3B IPC call '{contract}/{operation}' failed: {error}")
+                } else {
+                    format!(
+                        "native S3B IPC call '{contract}/{operation}' failed: {error}{status}; provider stderr:\n{stderr}"
+                    )
+                }
+            })?;
+        if let Some(error) = response.get("error").and_then(Value::as_str) {
+            return Err(format!(
+                "native provider operation '{contract}/{operation}' failed: {error}"
+            ));
+        }
+        response
+            .get("result")
+            .cloned()
+            .ok_or_else(|| format!("native provider operation '{contract}/{operation}' omitted result"))
+    }
+
     fn call_op(
         connection: &NativeProviderConnection,
         operation: &str,
@@ -805,7 +847,7 @@ mod real {
             if Instant::now() >= deadline {
                 return Err(format!("timed out waiting for native event '{event_name}'"));
             }
-            let _ = call_op(connection, OP_LIST_CONTEXTS, serde_json::json!({}))?;
+            let _ = call_contract_op(connection, "browser.context", OP_LIST_CONTEXTS, serde_json::json!({}))?;
             thread::sleep(Duration::from_millis(25));
         }
     }
@@ -1013,8 +1055,9 @@ mod real {
                 .map_err(|error| error.to_string())?
                 .as_nanos()
         );
-        let ctx_a: CreateContextResponse = decode(call_op(
+        let ctx_a: CreateContextResponse = decode(call_contract_op(
             &connection,
+            "browser.context",
             OP_CREATE_CONTEXT,
             serde_json::to_value(CreateContextRequest {
                 profile_id: Some(format!("s3b-{run_token}-a")),
@@ -1023,8 +1066,9 @@ mod real {
             })
             .map_err(|error| error.to_string())?,
         )?)?;
-        let ctx_b: CreateContextResponse = decode(call_op(
+        let ctx_b: CreateContextResponse = decode(call_contract_op(
             &connection,
+            "browser.context",
             OP_CREATE_CONTEXT,
             serde_json::to_value(CreateContextRequest {
                 profile_id: Some(format!("s3b-{run_token}-b")),
@@ -1033,8 +1077,9 @@ mod real {
             })
             .map_err(|error| error.to_string())?,
         )?)?;
-        let page_a: CreatePageResponse = decode(call_op(
+        let page_a: CreatePageResponse = decode(call_contract_op(
             &connection,
+            "browser.page",
             OP_CREATE_PAGE,
             serde_json::to_value(CreatePageRequest {
                 context_id: ctx_a.context_id.clone(),
@@ -1042,8 +1087,9 @@ mod real {
             })
             .map_err(|error| error.to_string())?,
         )?)?;
-        let page_b: CreatePageResponse = decode(call_op(
+        let page_b: CreatePageResponse = decode(call_contract_op(
             &connection,
+            "browser.page",
             OP_CREATE_PAGE,
             serde_json::to_value(CreatePageRequest {
                 context_id: ctx_b.context_id.clone(),

@@ -1,0 +1,154 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-BROWSER-PROVIDER-ROUTING-BUDGET-REMEDIATION-20260902>
+    <Summary>
+      Remediate two audit findings at the M1.2 browser provider boundary without
+      reopening unrelated browser architecture: restore finite-budget guarantees
+      already claimed by the applied M1.2 GRACE contract, and preserve explicit
+      browser capability identity across the native provider IPC path so routing
+      never infers a contract from payload shape.
+
+      The change also closes the verification gap that allowed configured but
+      unenforced limits to appear covered by a broadly named acceptance test.
+      Historical applied bundles remain unchanged; this remediation produces fresh
+      evidence instead of rewriting prior claims.
+    </Summary>
+
+    <Problem>
+      The applied M1.2 specification requires exact production budgets to be
+      finite, startup-validated and testable through injected small limits, with
+      explicit bounded failure on exhaustion. BrowserProviderCore currently
+      exposes ProviderBudgetLimits.max_contexts and
+      ProviderBudgetLimits.max_pages_per_context, but does not enforce either
+      limit. The existing provider_budget_limits_enforcement test injects small
+      values for those fields but exercises only max_action_text_len. A green test
+      can therefore coexist with decorative resource-policy fields.
+
+      Separately, the native browser provider serializes capability requests as
+      operation plus opaque payload and drops browser contract identity before
+      BrowserProviderCore routing. Multiple contracts intentionally reuse
+      operation names such as create, close and list. BrowserProviderCore resolves
+      those bare operations by inspecting payload fields even though the
+      architecture already defines explicit contract boundaries and
+      dispatch_contract accepts contract and operation separately.
+
+      These findings do not establish a demonstrated authorization bypass. They do
+      establish a contract/evidence mismatch and an avoidable protocol ambiguity at
+      a security-sensitive native boundary.
+    </Problem>
+
+    <Goals>
+      <Goal>Enforce max_contexts and max_pages_per_context with deterministic explicit limit failures before creating excess engine resources.</Goal>
+      <Goal>Audit every finite-budget claim named by the applied M1.2 browser-provider contract and record its authoritative owner, enforcement point and executable evidence.</Goal>
+      <Goal>Carry explicit browser contract identity together with operation and payload across the native browser-provider capability request path.</Goal>
+      <Goal>Make dispatch_contract or an equivalent explicit contract-plus-operation router the single authoritative browser-provider routing truth.</Goal>
+      <Goal>Remove payload-shape inference for ambiguous bare operations such as create, close and list.</Goal>
+      <Goal>Retain only bounded, explicit and test-covered compatibility aliases; compatibility routing must not create a second semantic dispatch implementation.</Goal>
+      <Goal>Add acceptance tests whose assertions independently prove each repaired budget and ambiguous routing case rather than relying on test names or configuration presence.</Goal>
+      <Goal>Preserve the real CEF provider, reference fixture, browser service plugins, stable Browser Contract v1.0 semantics and existing experimental 0.1/0.2 surfaces.</Goal>
+      <Goal>Preserve historical applied M1.2/M1.3 bundles as historical evidence and close this audit through a new GRACE change.</Goal>
+    </Goals>
+
+    <Constraints>
+      <Constraint>SPEC APPROVAL AND EXACT PLAN APPROVAL REMAIN SEPARATE; THIS DRAFT DOES NOT AUTHORIZE IMPLEMENTATION.</Constraint>
+      <Constraint>DO NOT EDIT ARCHIVED M1.2 OR M1.3 BUNDLES TO PRETEND THE MISSING BUDGET ASSERTIONS OR ROUTING IDENTITY WERE PREVIOUSLY PROVEN.</Constraint>
+      <Constraint>THE ACTIVE REQUEST-POLICY/INTERCEPTION CHANGE IS OUT OF SCOPE EXCEPT THAT ITS FUTURE CALLERS MUST INHERIT THE REPAIRED GENERIC BROWSER-PROVIDER ROUTING BOUNDARY.</Constraint>
+      <Constraint>STABLE Browser Contract v1.0 REQUEST/RESPONSE WIRE FORMS MUST NOT BE INCOMPATIBLY REDEFINED.</Constraint>
+      <Constraint>EXISTING EXPERIMENTAL browser.capture, browser.engine.cookies AND browser.engine.storage CONTRACTS MUST NOT BE REINTERPRETED IN PLACE.</Constraint>
+      <Constraint>CAPABILITY CONTRACT IDENTITY MUST BE EXPLICIT AT THE PROVIDER ROUTING BOUNDARY; PAYLOAD KEYS, VALUES OR SHAPE MUST NOT SELECT THE CONTRACT.</Constraint>
+      <Constraint>AMBIGUOUS OPERATION-ONLY REQUESTS MUST FAIL CLOSED OR PASS THROUGH A SEPARATELY NAMED LEGACY ADAPTER THAT DOES NOT INSPECT PAYLOAD SHAPE.</Constraint>
+      <Constraint>ONE CANONICAL ROUTING TABLE OWNS CONTRACT-PLUS-OPERATION SEMANTICS. COMPATIBILITY ALIASES MAY NORMALIZE INTO THAT TABLE BUT MUST NOT DUPLICATE BACKEND DISPATCH LOGIC.</Constraint>
+      <Constraint>ANY TEMPORARY LEGACY ALIAS MUST HAVE A KNOWN CALLER, AN ACCEPTANCE TEST AND AN EXPLICIT REMOVAL CONDITION.</Constraint>
+      <Constraint>RESOURCE LIMITS MUST BE ENFORCED BEFORE THE CORRESPONDING RESOURCE-CREATING SIDE EFFECT WHEN PRACTICABLE; LIMIT FAILURE MUST NOT LEAK A PARTIALLY CREATED CONTEXT OR PAGE.</Constraint>
+      <Constraint>INJECTED SMALL LIMITS MUST EXERCISE THE SAME ENFORCEMENT PATH USED BY DEFAULT PRODUCTION LIMITS.</Constraint>
+      <Constraint>REFERENCE AND CEF BACKENDS MUST OBSERVE THE SAME PROVIDER-LEVEL CONTEXT/PAGE LIMIT SEMANTICS; A BACKEND MAY ENFORCE TIGHTER INTERNAL LIMITS BUT MAY NOT BYPASS PROVIDER POLICY.</Constraint>
+      <Constraint>BUDGET AUDIT EVIDENCE MUST DISTINGUISH PROVIDER-CORE LIMITS, NATIVE-HOST/IPC LIMITS, QUERY/CAPTURE BOUNDS AND ENGINE-INTERNAL BOUNDS RATHER THAN COLLAPSING THEM INTO ONE GREEN TEST.</Constraint>
+      <Constraint>NO BROWSER-SPECIFIC KERNEL PRIVILEGE OR IPC BYPASS MAY BE INTRODUCED.</Constraint>
+      <Constraint>EVENT BUS IS NOT RPC.</Constraint>
+      <Constraint>NO BROAD HELPER-CLEANUP, STYLE REWRITE OR UNRELATED CRATE REORGANIZATION IS AUTHORIZED BY THIS CHANGE.</Constraint>
+      <Constraint>EXISTING REAL CEF, S2, S3B, ARCHITECTURE-SECURITY AND COMPATIBILITY GATES MUST NOT BE WEAKENED OR SKIPPED TO MAKE THE REMEDIATION GREEN.</Constraint>
+      <Constraint>GRACE STATUS MAY NOT ADVANCE TO applied UNTIL FRESH REQUIRED LOCAL/HOSTED EVIDENCE IS GREEN AND THE OWNER EXPLICITLY CONFIRMS APPLY.</Constraint>
+    </Constraints>
+
+    <NonGoals>
+      <NonGoal>Changing the selected browser engine or CEF packaging strategy.</NonGoal>
+      <NonGoal>Implementing request-policy/adblock functionality.</NonGoal>
+      <NonGoal>Redesigning tabs, history, downloads, cookies, site-data or Shell UI.</NonGoal>
+      <NonGoal>Promoting experimental browser contracts to stable v1.</NonGoal>
+      <NonGoal>Removing every short helper or adapter in the browser workspace.</NonGoal>
+      <NonGoal>Changing generic native IPC envelope framing or PROTOCOL_VERSION unless the approved plan proves an additive browser-provider payload change cannot be expressed inside the existing opaque payload.</NonGoal>
+      <NonGoal>Claiming that the current routing ambiguity is an exploited authorization vulnerability without separate evidence.</NonGoal>
+      <NonGoal>Re-auditing every historical GRACE change in this bundle.</NonGoal>
+    </NonGoals>
+
+    <AcceptanceCriteria>
+      <Criterion>ProviderBudgetLimits.max_contexts is enforced on context creation; with an injected limit of 2, the first two contexts succeed, the third fails with an explicit bounded/limit error, and list_contexts reports exactly two created contexts.</Criterion>
+      <Criterion>ProviderBudgetLimits.max_pages_per_context is enforced per BrowserContextId; with an injected limit of 2, the first two pages in one context succeed, the third fails explicitly, and another context retains its own independent page budget.</Criterion>
+      <Criterion>Closing a context or page releases the corresponding provider-level budget occupancy according to documented lifecycle semantics, and tests prove a replacement resource can be created afterward when capacity is available.</Criterion>
+      <Criterion>A failed context/page limit check occurs before the backend resource-creating operation or otherwise proves rollback/no-leak semantics through backend-observable acceptance evidence.</Criterion>
+      <Criterion>ProviderBudgetLimits zero-value semantics are explicit and tested: either startup rejects nonsensical limits or zero is intentionally defined as deny-all.</Criterion>
+      <Criterion>The existing max_action_text_len behavior remains enforced and receives an assertion independent from the new context/page budget assertions.</Criterion>
+      <Criterion>A repository-owned browser-provider budget evidence matrix maps every finite-budget claim from the applied M1.2 specification to an owner, implementation location, configured/default limit and concrete acceptance test or explicitly identifies a separately owned bound.</Criterion>
+      <Criterion>The budget matrix specifically accounts for contexts, pages, pending native RPC/in-flight calls, native frame size, query bounds, capture bounds, event/download buffering or mailboxes, startup/shutdown deadlines and any provider dispatch queue claimed by M1.2.</Criterion>
+      <Criterion>No budget is reported as enforced solely because a configuration field, constant, constructor argument or test fixture value exists.</Criterion>
+      <Criterion>The native browser-provider CapabilityPayload or its approved replacement carries explicit browser contract identity in addition to operation and payload.</Criterion>
+      <Criterion>The normal native provider path routes explicit contract plus operation to dispatch_contract or an equivalent single canonical router without inferring contract identity from payload contents.</Criterion>
+      <Criterion>Requests for browser.context/create and browser.page/create remain distinguishable even when supplied payloads share, omit or maliciously add fields that previously influenced heuristic routing.</Criterion>
+      <Criterion>Bare ambiguous operation-only create, close and list requests no longer inspect payload shape. They either fail explicitly as ambiguous or are accepted only through a separately named legacy form whose contract identity is unambiguous.</Criterion>
+      <Criterion>Unknown contract names, unknown operations and invalid contract-operation pairs fail closed and never fall through to a different browser contract because the payload happens to deserialize there.</Criterion>
+      <Criterion>Authorization/resource-scope checks remain outside payload-controlled routing and existing authority-separation acceptance tests stay green.</Criterion>
+      <Criterion>Compatibility aliases, if retained, normalize at one boundary into canonical contract-plus-operation values; backend dispatch semantics are not duplicated across alias tables.</Criterion>
+      <Criterion>The out-of-process provider acceptance suite sends explicit contract identity and proves context create, page create, navigation, observe, query, action, capture and engine primitive calls through the repaired native path.</Criterion>
+      <Criterion>The real Windows S2/S3B proving paths use the repaired explicit contract identity and do not rely on payload-shape inference.</Criterion>
+      <Criterion>Reference fixtures may retain convenience helpers, but production evidence does not use an operation-only ambiguous route.</Criterion>
+      <Criterion>Stable Browser Contract v1.0 JSON compatibility fixtures and experimental 0.1/0.2 compatibility tests remain green without reinterpreting existing public DTO semantics.</Criterion>
+      <Criterion>scripts/ci/Test-WorldlineArchitecture.ps1 or an equivalent repository-owned static check rejects reintroduction of payload-shape contract inference in the browser-provider routing path.</Criterion>
+      <Criterion>Provider budget tests are structured so removal of max_contexts or max_pages_per_context enforcement makes a named test fail, independent of max_action_text_len.</Criterion>
+      <Criterion>GRACE verification projection for the remediated browser-provider boundary references the new evidence instead of treating historical M1.2 green status as proof of the repaired assertions.</Criterion>
+      <Criterion>Fresh local Source, Correctness, ArchitectureSecurity, BrowserProvider, ProvingSlice and All suites are green; required Windows real-provider gates are green where the changed native routing path participates.</Criterion>
+      <Criterion>This change remains draft/approved/executing according to the normal GRACE lifecycle and is not applied or archived as successful until required evidence and explicit owner apply confirmation exist.</Criterion>
+    </AcceptanceCriteria>
+
+    <AffectedAreas>
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+      <M-BROWSER-SERVICE-PLUGINS />
+    </AffectedAreas>
+
+    <VerificationIntent>
+      <ExpectedCommand>grace lint --path . --assertions current</ExpectedCommand>
+      <ExpectedCommand>cargo fmt --all -- --check</ExpectedCommand>
+      <ExpectedCommand>cargo check --workspace --all-targets</ExpectedCommand>
+      <ExpectedCommand>cargo clippy --workspace --all-targets --all-features -- -D warnings</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-contract</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-provider</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-provider-process</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-native-host</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-reference --test s2_acceptance</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-reference --test s3b_acceptance</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-reference --test s3b_real_acceptance</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealS3B</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+      <ExpectedEvidence>Fresh evidence names exact injected context/page saturation tests, lifecycle capacity-release tests, explicit contract-plus-operation native IPC tests, ambiguous-operation negative tests, an architecture check preventing payload-shape routing, the budget ownership/evidence matrix, and the hosted Windows real-provider run required by the final approved plan.</ExpectedEvidence>
+    </VerificationIntent>
+
+    <Assumptions>
+      <Assumption>The current master implementation remains materially as audited: BrowserProviderCore exposes max_contexts and max_pages_per_context without enforcing them, while max_action_text_len is enforced.</Assumption>
+      <Assumption>The current native browser provider capability payload carries operation and payload but not explicit browser contract identity, and the provider process dispatches through BrowserProviderCore::dispatch.</Assumption>
+      <Assumption>BrowserProviderCore::dispatch_contract is the existing explicit contract-plus-operation seam and can be retained or replaced by an equivalent single canonical router without changing stable browser contract semantics.</Assumption>
+      <Assumption>The worldline-plugin-protocol Envelope payload remains protocol-opaque, so an additive browser-provider payload shape can normally be introduced without changing generic envelope framing.</Assumption>
+      <Assumption>Native host max_in_flight and frame-size controls are separately implemented generic bounds; the plan must verify rather than duplicate them in BrowserProviderCore.</Assumption>
+      <Assumption>The active request-policy/interception bundle remains independently governed and may be rebased on the repaired provider boundary after this remediation if sequencing requires it.</Assumption>
+      <Assumption>The implementation plan may split budget remediation, routing migration, compatibility cleanup and verification hardening into dependency-ordered tasks under this one change.</Assumption>
+    </Assumptions>
+  </C-BROWSER-PROVIDER-ROUTING-BUDGET-REMEDIATION-20260902>
+</GraceChangeSpec>

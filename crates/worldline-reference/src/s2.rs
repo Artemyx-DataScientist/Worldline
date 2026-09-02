@@ -47,7 +47,8 @@ pub fn run() -> Result<S2Report, String> {
 
     // 1. Create context
     let ctx_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.context",
             OP_CREATE_CONTEXT,
             serde_json::to_value(CreateContextRequest {
                 profile_id: Some("s2-profile".to_string()),
@@ -61,7 +62,8 @@ pub fn run() -> Result<S2Report, String> {
 
     // 2. Create page
     let page_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.page",
             OP_CREATE_PAGE,
             serde_json::to_value(CreatePageRequest {
                 context_id: ctx.context_id.clone(),

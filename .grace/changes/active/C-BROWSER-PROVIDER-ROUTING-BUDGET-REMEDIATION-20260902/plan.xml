@@ -1,0 +1,216 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-BROWSER-PROVIDER-ROUTING-BUDGET-REMEDIATION-20260902>
+    <IntentSummary>
+      Remediate two audit findings at the M1.2 browser provider boundary without
+      reopening unrelated browser architecture: restore finite-budget guarantees
+      already claimed by the applied M1.2 GRACE contract by enforcing
+      ProviderBudgetLimits.max_contexts and ProviderBudgetLimits.max_pages_per_context
+      with deterministic limit failures and capacity release, and carry explicit
+      browser capability identity across native provider IPC so routing never infers
+      contract from payload shape.
+
+      The change also closes the verification gap that allowed configured but
+      unenforced limits to appear covered by a broadly named acceptance test.
+      Historical applied bundles remain unchanged; this remediation produces fresh
+      evidence instead of rewriting prior claims.
+    </IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-BROWSER-ENGINE-PROVIDER-PROCESS</Value>
+        <Value>M-BROWSER-CONTRACT-ENGINE-SPIKE</Value>
+        <Value>M-EXTERNAL-PLUGIN-BOUNDARY</Value>
+        <Value>M-OPERABILITY-COMPATIBILITY-UPGRADE</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>M-BROWSER-SERVICE-PLUGINS</Value>
+        <Value>crates/worldline-browser-contract/src/lib.rs</Value>
+        <Value>crates/worldline-browser-contract/src/authority.rs</Value>
+        <Value>crates/worldline-browser-contract/src/contracts.rs</Value>
+        <Value>crates/worldline-browser-provider/src/core.rs</Value>
+        <Value>crates/worldline-browser-provider/src/backend.rs</Value>
+        <Value>crates/worldline-browser-provider-process/src/lib.rs</Value>
+        <Value>crates/worldline-reference/src/s2.rs</Value>
+        <Value>crates/worldline-reference/src/s3b.rs</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+      </MustExist>
+      <MustOwn>
+        <Owner>GD-MAIN</Owner>
+        <Anchor>M-BROWSER-ENGINE-PROVIDER-PROCESS</Anchor>
+      </MustOwn>
+      <MustOwn>
+        <Owner>VD-MAIN</Owner>
+        <Anchor>V-M-BROWSER-ENGINE-PROVIDER-PROCESS</Anchor>
+      </MustOwn>
+      <MustContain>
+        <File>crates/worldline-browser-provider/src/core.rs</File>
+        <Text>pub struct ProviderBudgetLimits</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-browser-provider/src/core.rs</File>
+        <Text>pub struct BrowserProviderCore</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-browser-provider-process/src/lib.rs</File>
+        <Text>struct CapabilityPayload</Text>
+      </MustContain>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>docs/browser-provider-budget-matrix.md</Value>
+        <Value>crates/worldline-browser-provider/src/core.rs</Value>
+        <Value>crates/worldline-browser-provider-process/src/lib.rs</Value>
+        <Value>crates/worldline-reference/src/s2.rs</Value>
+        <Value>crates/worldline-reference/src/s3b.rs</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+      </MustExist>
+      <MustOwn>
+        <Owner>GD-MAIN</Owner>
+        <Anchor>M-BROWSER-ENGINE-PROVIDER-PROCESS</Anchor>
+      </MustOwn>
+      <MustOwn>
+        <Owner>VD-MAIN</Owner>
+        <Anchor>V-M-BROWSER-ENGINE-PROVIDER-PROCESS</Anchor>
+      </MustOwn>
+      <MustLink>
+        <From>M-BROWSER-ENGINE-PROVIDER-PROCESS</From>
+        <To>M-BROWSER-CONTRACT-ENGINE-SPIKE</To>
+      </MustLink>
+      <MustLink>
+        <From>M-BROWSER-ENGINE-PROVIDER-PROCESS</From>
+        <To>M-EXTERNAL-PLUGIN-BOUNDARY</To>
+      </MustLink>
+      <MustVerify>
+        <Module>M-BROWSER-ENGINE-PROVIDER-PROCESS</Module>
+      </MustVerify>
+      <MustPassCommand>
+        <Command>cargo test -p worldline-browser-contract</Command>
+      </MustPassCommand>
+      <MustPassCommand>
+        <Command>cargo test -p worldline-browser-provider</Command>
+      </MustPassCommand>
+      <MustPassCommand>
+        <Command>cargo test -p worldline-browser-provider-process</Command>
+      </MustPassCommand>
+      <MustPassCommand>
+        <Command>cargo test -p worldline-reference --test s2_acceptance</Command>
+      </MustPassCommand>
+      <MustPassCommand>
+        <Command>cargo test -p worldline-reference --test s3b_acceptance</Command>
+      </MustPassCommand>
+      <MustPassCommand>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>docs/browser-provider-budget-matrix.md</File>
+      <File>crates/worldline-browser-contract/Cargo.toml</File>
+      <Glob>crates/worldline-browser-contract/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-contract/tests/*.rs</Glob>
+      <File>crates/worldline-browser-provider/Cargo.toml</File>
+      <Glob>crates/worldline-browser-provider/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-provider/tests/*.rs</Glob>
+      <File>crates/worldline-browser-provider-process/Cargo.toml</File>
+      <Glob>crates/worldline-browser-provider-process/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-provider-process/tests/*.rs</Glob>
+      <File>crates/worldline-reference/Cargo.toml</File>
+      <File>crates/worldline-reference/src/s2.rs</File>
+      <File>crates/worldline-reference/src/s3b.rs</File>
+      <Glob>crates/worldline-reference/tests/s2*.rs</Glob>
+      <Glob>crates/worldline-reference/tests/s3b*.rs</Glob>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Document the browser-provider finite-budget evidence matrix</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Create docs/browser-provider-budget-matrix.md mapping every finite-budget claim from the applied M1.2 specification to an authoritative owner, implementation location, configured/default limit and concrete acceptance test or explicitly identified separately owned bound.</Criterion>
+          <Criterion>The matrix covers contexts, pages, pending native RPC/in-flight calls, native frame size, query bounds, capture bounds, event/download buffering or mailboxes, startup/shutdown deadlines and the provider dispatch queue.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Enforce max_contexts and max_pages_per_context in BrowserProviderCore with independent tests</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Enforce max_contexts on context creation: with injected limit of 2, the first two contexts succeed, the third fails with an explicit bounded limit error before creating excess backend resources, and list_contexts reports exactly 2.</Criterion>
+          <Criterion>Enforce max_pages_per_context per BrowserContextId: with injected limit of 2, the first two pages in one context succeed, the third fails explicitly, and another context retains its own independent page budget.</Criterion>
+          <Criterion>Closing a context or page releases budget occupancy, allowing replacement resources to be created.</Criterion>
+          <Criterion>Zero-value limits deterministically deny creation (deny-all) and are tested.</Criterion>
+          <Criterion>Existing max_action_text_len behavior remains enforced and receives an independent assertion.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Carry explicit contract identity across native provider IPC and eliminate payload-shape heuristics</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>CapabilityPayload carries explicit contract identity (contract: Option&lt;String&gt;). When contract is present, native request routing dispatches to dispatch_contract without inspecting payload shape.</Criterion>
+          <Criterion>Bare ambiguous create, close and list requests without contract fail closed and no longer inspect payload shape.</Criterion>
+          <Criterion>Unambiguous aliases normalize to canonical contract-plus-operation without duplicating backend dispatch logic.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider</Command>
+          <Command>cargo test -p worldline-browser-provider-process</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Migrate proving slices and acceptance suites to explicit contract routing and add negative tests</Title>
+        <DependsOn>
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Out-of-process acceptance suite in worldline-browser-provider-process sends explicit contract identity for all operations and verifies create, page create, navigation, observe, query, action, capture, cookies, and storage.</Criterion>
+          <Criterion>Negative tests prove bare ambiguous create/close/list fail closed, unknown contracts fail closed, and payload fields cannot redirect execution to another contract.</Criterion>
+          <Criterion>Proving slices S2 and S3B use explicit contract routing across all provider calls.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-provider-process</Command>
+          <Command>cargo test -p worldline-reference --test s2_acceptance</Command>
+          <Command>cargo test -p worldline-reference --test s3b_acceptance</Command>
+        </Verification>
+      </T-004>
+
+      <T-005>
+        <Title>Harden architecture static checks and reconcile GRACE projections</Title>
+        <DependsOn>
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>scripts/ci/Test-WorldlineArchitecture.ps1 rejects payload-shape contract inference in BrowserProviderCore, verifies CapabilityPayload explicit contract field, and checks budget matrix presence.</Criterion>
+          <Criterion>GRACE lint and status verify all active artifacts and clean working tree.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+          <Command>grace lint --path . --assertions current</Command>
+          <Command>cargo test --workspace</Command>
+        </Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-BROWSER-PROVIDER-ROUTING-BUDGET-REMEDIATION-20260902>
+</GraceChangePlan>

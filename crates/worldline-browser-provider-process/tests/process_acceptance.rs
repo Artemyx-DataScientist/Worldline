@@ -48,6 +48,28 @@ fn provider_process_spec() -> NativeChildSpec {
     }
 }
 
+fn call_contract_op(
+    connection: &NativeProviderConnection,
+    contract: &str,
+    operation: &str,
+    payload: Value,
+) -> Result<Value, String> {
+    let call_payload = serde_json::json!({
+        "contract": contract,
+        "operation": operation,
+        "payload": payload
+    });
+    let val = connection
+        .call(call_payload)
+        .map_err(|e| format!("IPC error: {e}"))?;
+    if let Some(err) = val.get("error").and_then(Value::as_str) {
+        return Err(err.to_string());
+    }
+    val.get("result")
+        .cloned()
+        .ok_or_else(|| "Missing result field in response".to_string())
+}
+
 fn call_op(
     connection: &NativeProviderConnection,
     operation: &str,
@@ -94,8 +116,9 @@ fn out_of_process_browser_provider_ipc_full_lifecycle() {
         incognito: false,
         user_agent: None,
     };
-    let ctx_val = call_op(
+    let ctx_val = call_contract_op(
         &connection,
+        "browser.context",
         OP_CREATE_CONTEXT,
         serde_json::to_value(ctx_req).unwrap(),
     )
@@ -107,8 +130,9 @@ fn out_of_process_browser_provider_ipc_full_lifecycle() {
         context_id: ctx_resp.context_id.clone(),
         initial_url: Some("https://worldline.test/oop".to_string()),
     };
-    let page_val = call_op(
+    let page_val = call_contract_op(
         &connection,
+        "browser.page",
         OP_CREATE_PAGE,
         serde_json::to_value(page_req).unwrap(),
     )
@@ -119,8 +143,9 @@ fn out_of_process_browser_provider_ipc_full_lifecycle() {
     let obs_req = ObservePageRequest {
         page_id: page_resp.page_id.clone(),
     };
-    let obs_val = call_op(
+    let obs_val = call_contract_op(
         &connection,
+        "browser.observe",
         OP_OBSERVE,
         serde_json::to_value(obs_req).unwrap(),
     )
@@ -134,8 +159,9 @@ fn out_of_process_browser_provider_ipc_full_lifecycle() {
         page_id: page_resp.page_id.clone(),
         bounds: None,
     };
-    let doc_val = call_op(
+    let doc_val = call_contract_op(
         &connection,
+        "browser.query",
         OP_QUERY_DOCUMENT,
         serde_json::to_value(query_req).unwrap(),
     )
@@ -151,8 +177,9 @@ fn out_of_process_browser_provider_ipc_full_lifecycle() {
             "btn-submit",
         ),
     };
-    let act_val = call_op(
+    let act_val = call_contract_op(
         &connection,
+        "browser.act",
         OP_CLICK,
         serde_json::to_value(click_req).unwrap(),
     )
@@ -167,8 +194,9 @@ fn out_of_process_browser_provider_ipc_full_lifecycle() {
         quality: None,
         max_bytes: None,
     };
-    let cap_val = call_op(
+    let cap_val = call_contract_op(
         &connection,
+        "browser.capture",
         OP_CAPTURE,
         serde_json::to_value(cap_req).unwrap(),
     )
@@ -183,8 +211,9 @@ fn out_of_process_browser_provider_ipc_full_lifecycle() {
         offset: 0,
         max_bytes: 512,
     };
-    let read_val = call_op(
+    let read_val = call_contract_op(
         &connection,
+        "browser.capture",
         OP_READ_CAPTURE,
         serde_json::to_value(read_req).unwrap(),
     )
@@ -207,8 +236,9 @@ fn out_of_process_browser_provider_ipc_full_lifecycle() {
             expires_epoch_sec: None,
         },
     };
-    call_op(
+    call_contract_op(
         &connection,
+        "browser.engine.cookies",
         OP_COOKIE_SET,
         serde_json::to_value(set_cookie).unwrap(),
     )
@@ -219,8 +249,9 @@ fn out_of_process_browser_provider_ipc_full_lifecycle() {
         url: None,
         domain: None,
     };
-    let cookies_val = call_op(
+    let cookies_val = call_contract_op(
         &connection,
+        "browser.engine.cookies",
         OP_COOKIE_GET,
         serde_json::to_value(get_cookies).unwrap(),
     )
@@ -235,8 +266,9 @@ fn out_of_process_browser_provider_ipc_full_lifecycle() {
         origin: "https://worldline.test".to_string(),
         storage_type: StorageType::LocalStorage,
     };
-    call_op(
+    call_contract_op(
         &connection,
+        "browser.engine.storage",
         OP_STORAGE_CLEAR,
         serde_json::to_value(clear_storage).unwrap(),
     )
@@ -246,4 +278,150 @@ fn out_of_process_browser_provider_ipc_full_lifecycle() {
     connection
         .close(Duration::from_millis(500))
         .expect("orderly shutdown must complete");
+}
+
+#[test]
+fn out_of_process_browser_provider_bare_ambiguous_operations_rejected() {
+    let identity = ExpectedIdentity {
+        package_id: "worldline.browser.pkg".to_string(),
+        plugin_definition_id: "worldline.browser.provider".to_string(),
+    };
+
+    let (connection, _ack) = NativeProviderConnection::connect_with_required_interface(
+        provider_process_spec(),
+        &identity,
+        Arc::new(DummySink),
+        16,
+        REQUEST_POLICY_INTERFACE,
+    )
+    .expect("must connect to browser provider process");
+
+    // Bare "create" must fail closed
+    let err_create = call_op(&connection, "create", serde_json::json!({"context_id": "ctx-1"}))
+        .expect_err("bare create must fail closed");
+    assert!(err_create.contains("ambiguous bare operation"));
+
+    // Bare "close" must fail closed
+    let err_close = call_op(&connection, "close", serde_json::json!({"page_id": "page-1"}))
+        .expect_err("bare close must fail closed");
+    assert!(err_close.contains("ambiguous bare operation"));
+
+    // Bare "list" must fail closed
+    let err_list = call_op(&connection, "list", serde_json::json!({"context_id": "ctx-1"}))
+        .expect_err("bare list must fail closed");
+    assert!(err_list.contains("ambiguous bare operation"));
+
+    connection
+        .close(Duration::from_millis(500))
+        .expect("shutdown must succeed");
+}
+
+#[test]
+fn out_of_process_browser_provider_contract_mismatch_and_unknown_fail_closed() {
+    let identity = ExpectedIdentity {
+        package_id: "worldline.browser.pkg".to_string(),
+        plugin_definition_id: "worldline.browser.provider".to_string(),
+    };
+
+    let (connection, _ack) = NativeProviderConnection::connect_with_required_interface(
+        provider_process_spec(),
+        &identity,
+        Arc::new(DummySink),
+        16,
+        REQUEST_POLICY_INTERFACE,
+    )
+    .expect("must connect to browser provider process");
+
+    // Mismatched contract/operation: browser.context with create_page
+    let err_mismatch = call_contract_op(
+        &connection,
+        "browser.context",
+        "create_page",
+        serde_json::json!({"context_id": "c1"}),
+    )
+    .expect_err("mismatched contract/op must fail closed");
+    assert!(err_mismatch.contains("unknown operation: browser.context/create_page"));
+
+    // Unknown contract: unknown.contract with create
+    let err_unknown = call_contract_op(
+        &connection,
+        "unknown.contract",
+        "create",
+        serde_json::json!({}),
+    )
+    .expect_err("unknown contract must fail closed");
+    assert!(err_unknown.contains("unknown operation: browser.unknown.contract/create"));
+
+    connection
+        .close(Duration::from_millis(500))
+        .expect("shutdown must succeed");
+}
+
+#[test]
+fn out_of_process_browser_provider_payload_shape_does_not_drive_routing() {
+    let identity = ExpectedIdentity {
+        package_id: "worldline.browser.pkg".to_string(),
+        plugin_definition_id: "worldline.browser.provider".to_string(),
+    };
+
+    let (connection, _ack) = NativeProviderConnection::connect_with_required_interface(
+        provider_process_spec(),
+        &identity,
+        Arc::new(DummySink),
+        16,
+        REQUEST_POLICY_INTERFACE,
+    )
+    .expect("must connect to browser provider process");
+
+    // 1. Context creation with a rogue "page_id" injected:
+    // Because contract is explicitly "browser.context", it routes to context creation and ignores page_id
+    let malicious_ctx_payload = serde_json::json!({
+        "profile_id": "injected-profile",
+        "incognito": false,
+        "page_id": "malicious-injected-page-id",
+        "context_id": "malicious-injected-context-id"
+    });
+    let ctx_val = call_contract_op(
+        &connection,
+        "browser.context",
+        OP_CREATE_CONTEXT,
+        malicious_ctx_payload,
+    )
+    .expect("context creation with rogue fields must succeed via explicit contract routing");
+    let ctx_resp: CreateContextResponse = serde_json::from_value(ctx_val).unwrap();
+    assert_eq!(ctx_resp.profile_id, Some("injected-profile".to_string()));
+
+    // 2. Page creation with rogue context fields:
+    // Routed strictly to "browser.page", succeeds as page creation
+    let page_payload = serde_json::json!({
+        "context_id": ctx_resp.context_id,
+        "initial_url": "about:blank",
+        "profile_id": "rogue-profile-id"
+    });
+    let page_val = call_contract_op(
+        &connection,
+        "browser.page",
+        OP_CREATE_PAGE,
+        page_payload,
+    )
+    .expect("page creation with rogue context fields must succeed via explicit page routing");
+    let page_resp: CreatePageResponse = serde_json::from_value(page_val).unwrap();
+    assert!(!page_resp.page_id.as_str().is_empty());
+
+    // 3. Sending page creation payload to browser.context fails closed and never creates a page
+    let invalid_ctx_req = serde_json::json!({
+        "initial_url": "https://worldline.test/leak"
+    });
+    let ctx_err = call_contract_op(
+        &connection,
+        "browser.context",
+        OP_CREATE_PAGE, // "create"
+        invalid_ctx_req,
+    )
+    .expect_err("page payload to context contract must fail closed");
+    assert!(ctx_err.contains("create_context payload invalid") || ctx_err.contains("unknown operation"));
+
+    connection
+        .close(Duration::from_millis(500))
+        .expect("shutdown must succeed");
 }

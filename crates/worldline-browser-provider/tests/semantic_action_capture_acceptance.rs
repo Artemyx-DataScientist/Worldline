@@ -22,7 +22,8 @@ fn semantic_query_projection_and_bounds() {
     let core = BrowserProviderCore::new(backend);
 
     let ctx_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.context",
             OP_CREATE_CONTEXT,
             serde_json::to_value(CreateContextRequest {
                 profile_id: None,
@@ -35,7 +36,8 @@ fn semantic_query_projection_and_bounds() {
     let ctx_resp: CreateContextResponse = serde_json::from_value(ctx_val).unwrap();
 
     let page_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.page",
             OP_CREATE_PAGE,
             serde_json::to_value(CreatePageRequest {
                 context_id: ctx_resp.context_id,
@@ -134,7 +136,8 @@ fn by_value_action_dispatch_and_element_ref_validation() {
     let core = BrowserProviderCore::new(backend);
 
     let ctx_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.context",
             OP_CREATE_CONTEXT,
             serde_json::to_value(CreateContextRequest {
                 profile_id: None,
@@ -147,7 +150,8 @@ fn by_value_action_dispatch_and_element_ref_validation() {
     let ctx_resp: CreateContextResponse = serde_json::from_value(ctx_val).unwrap();
 
     let page_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.page",
             OP_CREATE_PAGE,
             serde_json::to_value(CreatePageRequest {
                 context_id: ctx_resp.context_id,
@@ -252,7 +256,8 @@ fn capture_page_artifacts_and_bounded_streaming() {
     let core = BrowserProviderCore::new(backend);
 
     let ctx_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.context",
             OP_CREATE_CONTEXT,
             serde_json::to_value(CreateContextRequest {
                 profile_id: None,
@@ -265,7 +270,8 @@ fn capture_page_artifacts_and_bounded_streaming() {
     let ctx_resp: CreateContextResponse = serde_json::from_value(ctx_val).unwrap();
 
     let page_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.page",
             OP_CREATE_PAGE,
             serde_json::to_value(CreatePageRequest {
                 context_id: ctx_resp.context_id,
