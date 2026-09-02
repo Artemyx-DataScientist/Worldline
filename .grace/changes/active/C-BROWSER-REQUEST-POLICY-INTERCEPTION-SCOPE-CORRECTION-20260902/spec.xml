@@ -1,6 +1,12 @@
 <GraceChangeSpec graceVersion="4.0" status="approved">
-  <C-BROWSER-REQUEST-POLICY-INTERCEPTION-20260902>
+  <C-BROWSER-REQUEST-POLICY-INTERCEPTION-SCOPE-CORRECTION-20260902>
     <Summary>
+      This superseding bundle is limited to the authorized scope correction for
+      the predecessor C-BROWSER-REQUEST-POLICY-INTERCEPTION-20260902. It keeps
+      the implementation, architecture, acceptance criteria and verification
+      intent unchanged while making the three already-used evidence/helper
+      files explicit in the replacement plan's ObservedWriteScope.
+
       Deliver the next bounded M1.3 browser-service slice by introducing an
       explicit, deadline-bounded request interception path and proving it with a
       replaceable ad-blocking policy plugin against the real CEF provider.
@@ -18,6 +24,11 @@
     </Summary>
 
     <Problem>
+      The predecessor plan was approved and executed, but its observed-write
+      scope omitted three files that are part of the same implementation state:
+      the T-004 feasibility harness, the parallel-safe real-CEF lock helper,
+      and the synchronization-only S3B touch.
+
       M1.2 and the completed M1.3 service slices provide a real CEF engine
       provider, browser service plugins, durable downloads and cookies/site-data,
       but they do not yet provide a network-time policy interception mechanism.
@@ -42,6 +53,7 @@
     </Problem>
 
     <Goals>
+      <Goal>Supersede the predecessor only to correct ObservedWriteScope for the three authorized files.</Goal>
       <Goal>
         Define an experimental engine-neutral request-policy/interception contract
         for bounded pre-dispatch network request decisions.
@@ -87,6 +99,7 @@
     </Goals>
 
     <Constraints>
+      <Constraint>No functional, architectural, acceptance, task, verification, graph, or apply semantics may change in this correction.</Constraint>
       <Constraint>
         SPEC APPROVAL AND EXACT PLAN APPROVAL REMAIN SEPARATE; THIS DRAFT DOES
         NOT AUTHORIZE IMPLEMENTATION.
@@ -217,6 +230,7 @@
     </Constraints>
 
     <NonGoals>
+      <NonGoal>Do not add behavior, refactor implementation, weaken tests, or modify graph/verification projections in this scope correction.</NonGoal>
       <NonGoal>Building a full new competitor to uBlock Origin, AdGuard or similar blockers.</NonGoal>
       <NonGoal>Inventing a permanent Worldline-specific filter-list language.</NonGoal>
       <NonGoal>Full EasyList, uBO, AdGuard or ABP syntax compatibility in this slice.</NonGoal>
@@ -235,6 +249,7 @@
     </NonGoals>
 
     <AcceptanceCriteria>
+      <Criterion>The replacement plan is identical in functional scope to the predecessor and adds only the three authorized files to ObservedWriteScope.</Criterion>
       <Criterion>
         docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md is updated or a bounded request
         policy companion ADR is added to document interception semantics,
@@ -486,6 +501,7 @@
     </VerificationIntent>
 
     <Assumptions>
+      <Assumption>The existing implementation and named evidence remain unchanged while the replacement plan is reviewed; final GRACE evidence may reuse fresh unchanged runs, with lifecycle lint rerun after approval.</Assumption>
       <Assumption>
         The previously verified real CEF provider and Real-S3B path remain the
         production evidence baseline consumed by this change rather than being
@@ -521,5 +537,5 @@
         M1.3 changes.
       </Assumption>
     </Assumptions>
-  </C-BROWSER-REQUEST-POLICY-INTERCEPTION-20260902>
+  </C-BROWSER-REQUEST-POLICY-INTERCEPTION-SCOPE-CORRECTION-20260902>
 </GraceChangeSpec>

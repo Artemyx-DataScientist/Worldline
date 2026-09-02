@@ -1,5 +1,6 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="superseded">
   <C-BROWSER-REQUEST-POLICY-INTERCEPTION-20260902>
+    <Replacement>C-BROWSER-REQUEST-POLICY-INTERCEPTION-SCOPE-CORRECTION-20260902</Replacement>
     <IntentSummary>
       Execute the approved bounded M1.3 browser request-policy interception
       slice. The plan keeps request policy and the first deterministic adblock

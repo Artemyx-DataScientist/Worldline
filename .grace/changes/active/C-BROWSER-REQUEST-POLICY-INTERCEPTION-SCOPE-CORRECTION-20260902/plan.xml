@@ -1,0 +1,438 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-BROWSER-REQUEST-POLICY-INTERCEPTION-SCOPE-CORRECTION-20260902>
+    <IntentSummary>
+      This is a superseding scope-correction plan for the approved bounded
+      M1.3 browser request-policy interception implementation. Its functional
+      scope, architecture, acceptance criteria, tasks and verification gates
+      remain unchanged; only ObservedWriteScope is extended for three files
+      already used by the implementation and parallel-safe evidence.
+
+      Execute the approved bounded M1.3 browser request-policy interception
+      slice. The plan keeps request policy and the first deterministic adblock
+      evaluator above the kernel, keeps CEF responsible only for native
+      interception mechanics, and keeps the event plane observational rather
+      than using it as an RPC result channel.
+
+      The first implementation gate is a minimal real CEF feasibility proof
+      for one CEF -> policy boundary -> decision -> CEF request, including a
+      bounded bidirectional provider-process request/result path and an
+      immediate latency/concurrency benchmark. The current native transport
+      is host-initiated for capability calls and child-initiated for
+      state/blob/event messages; the plan therefore requires an explicit,
+      correlated, versioned policy request/result path before a full
+      per-subresource policy plugin or S3C slice is built. A deadlock,
+      unbounded queue, unsafe callback lifetime, missed deadline, or need to
+      move adblock evaluation into CEF or the kernel is a stop-and-replan
+      condition.
+
+      Admission is codex_led on the isolated branch
+      codex/browser-request-policy-plan-20260902, based on the approved
+      spec at commit b92c19bec7d4d10c42d8416697b93ce1b72a190d. The intentional
+      dirty state is limited to the approved spec status transition and this
+      draft plan; no unrelated edits were present at admission. The prior
+      downloads/cookies reality change remains applied and archived. This plan
+      is draft: exact-plan approval, implementation evidence, explicit apply
+      confirmation, and GRACE graph/verification reconciliation are separate
+      gates. M1.3 remains Active throughout this bounded slice.
+    </IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-BROWSER-ENGINE-PROVIDER-PROCESS</Value>
+        <Value>M-BROWSER-SERVICE-PLUGINS</Value>
+        <Value>M-BROWSER-CONTRACT-ENGINE-SPIKE</Value>
+        <Value>M-EXTERNAL-PLUGIN-BOUNDARY</Value>
+        <Value>M-KERNEL-CAPABILITY-RUNTIME</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>M-OPERABILITY-COMPATIBILITY-UPGRADE</Value>
+        <Value>crates/worldline-browser-contract/src/lib.rs</Value>
+        <Value>crates/worldline-browser-contract/src/authority.rs</Value>
+        <Value>crates/worldline-browser-provider/src/backend.rs</Value>
+        <Value>crates/worldline-browser-provider/src/core.rs</Value>
+        <Value>crates/worldline-browser-cef/src/backend.rs</Value>
+        <Value>crates/worldline-browser-provider-process/src/lib.rs</Value>
+        <Value>crates/worldline-plugin-protocol/src/envelope.rs</Value>
+        <Value>crates/worldline-native-host/src/connection.rs</Value>
+        <Value>crates/worldline-reference/src/s3b.rs</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md</Value>
+      </MustExist>
+      <MustOwn>
+        <Owner>GD-MAIN</Owner>
+        <Anchor>M-BROWSER-SERVICE-PLUGINS</Anchor>
+      </MustOwn>
+      <MustOwn>
+        <Owner>VD-MAIN</Owner>
+        <Anchor>V-M-BROWSER-SERVICE-PLUGINS</Anchor>
+      </MustOwn>
+      <MustContain>
+        <File>crates/worldline-browser-contract/src/lib.rs</File>
+        <Text>pub mod authority;</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-browser-provider/src/core.rs</File>
+        <Text>pub struct BrowserProviderCore</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-browser-cef/src/backend.rs</File>
+        <Text>wrap_client!</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-browser-cef/src/backend.rs</File>
+        <Text>browser_host_create_browser</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-browser-provider-process/src/lib.rs</File>
+        <Text>MessageKind::CapabilityRequest</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-plugin-protocol/src/envelope.rs</File>
+        <Text>pub enum MessageKind</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-native-host/src/connection.rs</File>
+        <Text>pub trait HostRequestSink</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-reference/src/s3b.rs</File>
+        <Text>struct LoopbackServer</Text>
+      </MustContain>
+      <MustContain>
+        <File>docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md</File>
+        <Text>EVENT BUS IS NOT RPC</Text>
+      </MustContain>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>crates/worldline-browser-contract/src/lib.rs</Value>
+        <Value>crates/worldline-browser-provider/src/core.rs</Value>
+        <Value>crates/worldline-browser-cef/src/backend.rs</Value>
+        <Value>crates/worldline-browser-provider-process/src/lib.rs</Value>
+        <Value>crates/worldline-plugin-protocol/src/envelope.rs</Value>
+        <Value>crates/worldline-native-host/src/connection.rs</Value>
+        <Value>crates/worldline-reference/src/request_policy.rs</Value>
+        <Value>crates/worldline-reference/tests/request_policy_feasibility_acceptance.rs</Value>
+        <Value>crates/worldline-reference/tests/request_policy_feasibility_real_acceptance.rs</Value>
+        <Value>crates/worldline-reference/src/s3c.rs</Value>
+        <Value>crates/worldline-reference/tests/s3c_acceptance.rs</Value>
+        <Value>crates/worldline-reference/tests/s3c_real_acceptance.rs</Value>
+        <Value>crates/worldline-browser-adblock/Cargo.toml</Value>
+        <Value>crates/worldline-browser-adblock/src/lib.rs</Value>
+        <Value>docs/adr/ADR-BROWSER-REQUEST-POLICY-INTERCEPTION-V1.md</Value>
+      </MustExist>
+      <MustOwn>
+        <Owner>GD-MAIN</Owner>
+        <Anchor>M-BROWSER-SERVICE-PLUGINS</Anchor>
+      </MustOwn>
+      <MustOwn>
+        <Owner>VD-MAIN</Owner>
+        <Anchor>V-M-BROWSER-SERVICE-PLUGINS</Anchor>
+      </MustOwn>
+      <MustLink>
+        <From>M-BROWSER-SERVICE-PLUGINS</From>
+        <To>M-BROWSER-ENGINE-PROVIDER-PROCESS</To>
+      </MustLink>
+      <MustLink>
+        <From>M-BROWSER-SERVICE-PLUGINS</From>
+        <To>M-BROWSER-CONTRACT-ENGINE-SPIKE</To>
+      </MustLink>
+      <MustLink>
+        <From>M-BROWSER-SERVICE-PLUGINS</From>
+        <To>M-EXTERNAL-PLUGIN-BOUNDARY</To>
+      </MustLink>
+      <MustLink>
+        <From>M-BROWSER-SERVICE-PLUGINS</From>
+        <To>M-REFERENCE-PROVING-SLICE</To>
+      </MustLink>
+      <MustVerify>
+        <Module>M-BROWSER-ENGINE-PROVIDER-PROCESS</Module>
+        <Module>M-BROWSER-SERVICE-PLUGINS</Module>
+        <Module>M-BROWSER-CONTRACT-ENGINE-SPIKE</Module>
+        <Module>M-EXTERNAL-PLUGIN-BOUNDARY</Module>
+        <Module>M-KERNEL-CAPABILITY-RUNTIME</Module>
+        <Module>M-REFERENCE-PROVING-SLICE</Module>
+        <Module>M-CI-BASELINE</Module>
+        <Module>M-OPERABILITY-COMPATIBILITY-UPGRADE</Module>
+      </MustVerify>
+      <MustNotContain>
+        <File>crates/worldline-browser-cef/src/backend.rs</File>
+        <Text>AdblockRule</Text>
+      </MustNotContain>
+      <MustNotContain>
+        <File>crates/worldline-browser-cef/src/backend.rs</File>
+        <Text>FilterList</Text>
+      </MustNotContain>
+      <MustNotContain>
+        <File>crates/worldline-browser-cef/src/backend.rs</File>
+        <Text>ReferenceBrowserBackend</Text>
+      </MustNotContain>
+      <MustPassCommand>
+        <Command>cargo fmt --all -- --check</Command>
+        <Command>cargo check --workspace --all-targets</Command>
+        <Command>cargo clippy --workspace --all-targets --all-features -- -D warnings</Command>
+        <Command>cargo test --workspace</Command>
+        <Command>cargo test -p worldline-browser-contract</Command>
+        <Command>cargo test -p worldline-plugin-protocol</Command>
+        <Command>cargo test -p worldline-native-host</Command>
+        <Command>cargo test -p worldline-browser-provider</Command>
+        <Command>cargo test -p worldline-browser-cef</Command>
+        <Command>cargo test -p worldline-browser-provider-process</Command>
+        <Command>cargo test -p worldline-browser-services-contract</Command>
+        <Command>cargo test -p worldline-browser-adblock</Command>
+        <Command>cargo test -p worldline-reference --test s3b_acceptance</Command>
+        <Command>cargo test -p worldline-reference --test s3b_real_acceptance</Command>
+        <Command>cargo test -p worldline-reference --test s3c_acceptance</Command>
+        <Command>cargo test -p worldline-reference --test s3c_real_acceptance</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserRequestPolicy</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealS3B</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+        <M-BROWSER-SERVICE-PLUGINS />
+        <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <M-EXTERNAL-PLUGIN-BOUNDARY />
+        <M-KERNEL-CAPABILITY-RUNTIME />
+        <M-REFERENCE-PROVING-SLICE />
+        <M-CI-BASELINE />
+        <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-BROWSER-ENGINE-PROVIDER-PROCESS />
+        <V-M-BROWSER-SERVICE-PLUGINS />
+        <V-M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <V-M-EXTERNAL-PLUGIN-BOUNDARY />
+        <V-M-KERNEL-CAPABILITY-RUNTIME />
+        <V-M-REFERENCE-PROVING-SLICE />
+        <V-M-CI-BASELINE />
+        <V-M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      </VerificationAnchors>
+      <ContextArtifact>requirements.xml</ContextArtifact>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>Cargo.toml</File>
+      <File>Cargo.lock</File>
+      <File>docs/CI-CD.md</File>
+      <File>docs/adr/ADR-BROWSER-REQUEST-POLICY-INTERCEPTION-V1.md</File>
+      <File>crates/worldline-browser-contract/Cargo.toml</File>
+      <Glob>crates/worldline-browser-contract/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-contract/tests/*.rs</Glob>
+      <File>crates/worldline-browser-provider/Cargo.toml</File>
+      <Glob>crates/worldline-browser-provider/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-provider/tests/*.rs</Glob>
+      <File>crates/worldline-browser-cef/Cargo.toml</File>
+      <Glob>crates/worldline-browser-cef/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-cef/tests/*.rs</Glob>
+      <File>crates/worldline-browser-provider-process/Cargo.toml</File>
+      <Glob>crates/worldline-browser-provider-process/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-provider-process/tests/*.rs</Glob>
+      <File>crates/worldline-plugin-protocol/Cargo.toml</File>
+      <Glob>crates/worldline-plugin-protocol/src/*.rs</Glob>
+      <Glob>crates/worldline-plugin-protocol/tests/*.rs</Glob>
+      <Glob>crates/worldline-plugin-protocol/fixtures/*.json</Glob>
+      <File>crates/worldline-native-host/Cargo.toml</File>
+      <Glob>crates/worldline-native-host/src/*.rs</Glob>
+      <Glob>crates/worldline-native-host/tests/*.rs</Glob>
+      <File>crates/worldline-browser-adblock/Cargo.toml</File>
+      <Glob>crates/worldline-browser-adblock/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-adblock/tests/*.rs</Glob>
+      <File>crates/worldline-reference/Cargo.toml</File>
+      <File>crates/worldline-reference/src/lib.rs</File>
+      <File>crates/worldline-reference/src/request_policy_feasibility.rs</File>
+      <File>crates/worldline-reference/src/real_cef_lock.rs</File>
+      <File>crates/worldline-reference/src/s3b.rs</File>
+      <File>crates/worldline-reference/src/request_policy.rs</File>
+      <Glob>crates/worldline-reference/tests/request_policy*.rs</Glob>
+      <File>crates/worldline-reference/src/s3c.rs</File>
+      <Glob>crates/worldline-reference/tests/s3c*.rs</Glob>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Freeze the neutral request-policy contract and prove the callback and transport topology</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Add an additive experimental browser.request-policy/v0.1 contract without changing Browser Contract v1 or reinterpreting existing engine primitive 0.1/0.2 DTOs. Request metadata contains only the bounded neutral fields required by the approved spec: BrowserContextId, optional PageId, request URL, HTTP method, resource type, and reliable initiator/top-level origin when available.</Criterion>
+          <Criterion>Define an explicit pre-dispatch Allow or Block result with a finite deadline and cancellation outcome. Keep observation and interception/decision authority separate, require exact context/page scope, and ensure possession of an identifier, URL, or opaque rule reference never grants authority.</Criterion>
+          <Criterion>Keep CEF/Chromium/HWND/raw-pointer/provider handles out of every contract, plugin API, event, metric, panic, Debug representation, and transport payload. Do not include cookies, authorization headers, client certificates, request bodies, uploads, response content, or unrestricted query-bearing telemetry.</Criterion>
+          <Criterion>Inspect and exercise the pinned cef 151.8.0 binding surface to establish the actual ResourceRequestHandler::on_before_resource_load callback, its IO-thread affinity, async callback lifetime, and the required CEF teardown ordering. Inspect the current native host/provider transport and select an explicit correlated RequestPolicyRequest/RequestPolicyResult path with capability negotiation and bounded cancellation.</Criterion>
+          <Criterion>Record the selected semantics, versioning, authority separation, configurable failure-policy behavior, lifecycle invalidation, observability, and hot-path topology in docs/adr/ADR-BROWSER-REQUEST-POLICY-INTERCEPTION-V1.md. If the callback cannot be completed safely without an unbounded or deadlocking route, a CEF fork, CEF-side rule engine, or kernel policy, stop and preserve the feasibility evidence for a superseding design/spec/plan.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-contract</Command>
+          <Command>cargo test -p worldline-plugin-protocol</Command>
+          <Command>cargo test -p worldline-native-host</Command>
+          <Command>cargo check -p worldline-browser-cef</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Implement the engine-neutral bounded request-policy broker and lifecycle authority</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Implement the request-policy registry/evaluator boundary in worldline-browser-provider or another engine-neutral provider-owned module. It must expose registration, decision, cancellation, and safe outcome observation without importing CEF, Chromium, platform handles, or adblock rule syntax.</Criterion>
+          <Criterion>Bound registrations, concurrent decisions, queueing, metadata size, and decision deadlines. The generic broker applies an explicit failure policy declared by the registration or policy profile; it does not globally assume fail-open. A timeout, evaluator error, panic, unavailable provider, unload, quarantine, or crash is mapped through that declared policy and never blocks navigation indefinitely.</Criterion>
+          <Criterion>Enforce exact BrowserContextId/PageId scope at registration and evaluation time, with distinct observation and decision authorities. Prove that context A cannot inspect or decide for context B, and that stale registration or authority from a closed page, unloaded runtime, crashed provider, or restarted provider is rejected.</Criterion>
+          <Criterion>Make decision outcomes independent from the event bus. Observation may report decision, provider identity, bounded latency/status, and an opaque rule reference after the result, but observation is never consulted to determine Allow or Block.</Criterion>
+          <Criterion>Preserve the existing provider lifecycle, tabs/history/downloads/cookies behavior, stable Browser Contract v1, and experimental engine primitives. The reference backend may use a deterministic test evaluator, but it must not be presented as real CEF evidence.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-contract</Command>
+          <Command>cargo test -p worldline-browser-provider</Command>
+          <Command>cargo test -p worldline-browser-services-contract</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Extend the native provider boundary with a bounded bidirectional policy request/result channel</Title>
+        <DependsOn>
+          <T-001 />
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Add an explicit versioned request/result message contract for a provider-process interception decision, correlated independently from host-initiated capability calls and distinct from EventPublishRequest. Negotiate the experimental interface during the existing handshake and fail closed when a peer does not advertise it.</Criterion>
+          <Criterion>Refactor the host and provider process demultiplexers so a CEF IO callback can issue one bounded policy request while the provider process continues servicing host commands and receiving the correlated result. Bound in-flight requests and frames, send cancellation on deadline, reject unknown correlations and malformed/sensitive payloads, and map disconnect, crash, unload, and restart through the declared registration/profile failure policy; the adblock profile will explicitly select FailOpen.</Criterion>
+          <Criterion>Prove that the duplex writer, reader, pending-request map, and host sink cannot recurse through the BrowserProviderCore mutex or wait on an event publication. The implementation must not use the event plane as an RPC result and must not introduce an unbounded global mailbox or lock held across a callback or policy evaluation.</Criterion>
+          <Criterion>Keep the transport payload neutral and minimal. Host policy evaluation receives only the authorized context/page-scoped metadata and returns Allow or Block plus bounded diagnostic status; no CEF object, raw request object, credential, body, or response data crosses the process boundary.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-plugin-protocol</Command>
+          <Command>cargo test -p worldline-native-host</Command>
+          <Command>cargo test -p worldline-browser-provider-process</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Wire one minimal real CEF interception path and pass the early hot-path feasibility gate</Title>
+        <DependsOn>
+          <T-002 />
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Install the smallest real ResourceRequestHandler path through WorldlineClient for one eligible CEF request. Marshal only neutral request metadata, invoke the provider request-policy broker through the explicit bounded request/result path, and complete the CEF callback before dispatch with Allow or Block. Do not add the full adblock rule engine or S3C proving fixture in this task.</Criterion>
+          <Criterion>Keep all CEF reference-counted objects, callbacks, thread-affine operations, and platform handles inside crates/worldline-browser-cef. The CEF adapter must not parse adblock rules, own filter lists, decide tracker policy, or depend on the adblock crate; it only translates native callback state to the neutral contract and translates the decision back to CEF Continue/Cancel mechanics.</Criterion>
+          <Criterion>Handle async callback lifetime, page/context close, renderer/browser crash, provider shutdown, and policy replacement without invoking a stale callback or retaining a dead RuntimeId/authority. Apply the declared registration/profile failure policy; this task must demonstrate the adblock-profile-compatible FailOpen behavior without making it a global broker default.</Criterion>
+          <Criterion>Immediately after the first real CEF round trip is wired, run a bounded benchmark/feasibility fixture with no policy and an active passthrough/decision policy at declared concurrency. Record provider/runtime topology, throughput, latency distribution, queue pressure, in-flight saturation, callback completion/cancellation exactly once, deadline/timeout behavior, and transport overhead in the companion ADR or evidence packet.</Criterion>
+          <Criterion>Pass the early gate before T-005 or T-006 starts: all requests remain within the configured finite deadline or take the declared failure-policy result; queue and in-flight counts stay within explicit bounds; no deadlock, unbounded growth, stale callback, cross-context decision, or navigation hang occurs; and the owner records an explicit latency/topology acceptance decision. If any condition fails, stop before full per-subresource commitment and preserve evidence for a superseding design/spec/plan.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-cef</Command>
+          <Command>cargo test -p worldline-browser-provider-process</Command>
+          <Command>cargo test -p worldline-browser-provider</Command>
+          <Command>cargo test -p worldline-reference --test request_policy_feasibility_acceptance</Command>
+          <Command>cargo test -p worldline-reference --test request_policy_feasibility_real_acceptance</Command>
+        </Verification>
+      </T-004>
+
+      <T-005>
+        <Title>Deliver the first optional replaceable deterministic adblock policy plugin</Title>
+        <DependsOn>
+          <T-002 />
+          <T-003 />
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Add an ordinary replaceable worldline-browser-adblock package that implements the neutral request-policy evaluator boundary without depending on CEF, Chromium, the kernel's domain policy, or unrelated browser service crates.</Criterion>
+          <Criterion>Support only the minimal deterministic proving rule model needed by this slice: bounded host/URL matching with explicit Allow/Block outcomes and an opaque rule reference. Do not claim support for uBlock/AdGuard syntax, cosmetic or DOM filtering, scriptlets, response rewriting, arbitrary headers, redirects, malware policy, subscriptions, UI, or DevTools.</Criterion>
+          <Criterion>Make rule parsing and evaluation bounded and deterministic. Malformed or oversized rules are rejected without panic. The adblock policy instance/profile explicitly registers the FailOpen failure mode, so its timeout, evaluator failure, unload, quarantine, restart, or absence produces an Allow/degraded result and cannot block navigation; the generic interception broker remains capable of a different explicitly declared failure mode for future profiles.</Criterion>
+          <Criterion>Test replacement and lifecycle behavior, exact context/page isolation, separate observation versus decision authority, safe metadata omission, and compatibility with the experimental contract without weakening existing browser or kernel security tests.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-adblock</Command>
+          <Command>cargo test -p worldline-browser-contract</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-005>
+
+      <T-006>
+        <Title>Build deterministic loopback and hosted Windows real-CEF request-policy proving slices</Title>
+        <DependsOn>
+          <T-003 />
+          <T-004 />
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Add a separate deterministic s3c request-policy fixture in worldline-reference and keep the existing S3B downloads/cookies fixture unchanged. The loopback origin records inbound paths and serves one page with one rule-matching subresource and one allowed subresource; the blocked request produces zero origin hits and the allowed request produces an origin hit.</Criterion>
+          <Criterion>Exercise the real provider integration through the request-policy contract, not by calling the adblock matcher alone. Prove that the page remains usable, the main navigation completes, unrelated requests continue, and existing tabs/history/downloads/cookies and S3B proving assertions remain green.</Criterion>
+          <Criterion>Prove context/page isolation, provider or plugin unload/restart cleanup, the adblock profile's timeout/crash/unavailable FailOpen behavior, no stale authority, and safe post-outcome observations in the fixture. Keep the server loopback-only and deterministic; do not use public Internet dependencies.</Criterion>
+          <Criterion>Add a hosted Windows real-CEF path using the pinned bootstrap/runtime and the native CEF provider process. The proving test must reject ReferenceBrowserBackend substitution, record the selected provider/runtime identity, and separate local deterministic evidence from hosted real-browser evidence.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-reference --test s3b_acceptance</Command>
+          <Command>cargo test -p worldline-reference --test s3b_real_acceptance</Command>
+          <Command>cargo test -p worldline-reference --test s3c_acceptance</Command>
+          <Command>cargo test -p worldline-reference --test s3c_real_acceptance</Command>
+        </Verification>
+      </T-006>
+
+      <T-007>
+        <Title>Finalize architecture, security, and CI guards from the accepted early-gate measurements</Title>
+        <DependsOn>
+          <T-004 />
+          <T-005 />
+          <T-006 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Consume the T-004 feasibility report as the already-completed hot-path measurement and freeze its accepted provider/runtime topology, declared concurrency, throughput, latency distribution, timeout/error rate, queue bound, callback-lifetime result, and transport cost in the companion ADR or evidence packet. T-007 must not defer or replace the T-004 stop/replan decision.</Criterion>
+          <Criterion>Extend Test-WorldlineArchitecture.ps1 and the separate BrowserRequestPolicy CI suite to enforce kernel agnosticism, engine-neutral contract DTOs, no CEF/adblock dependency inversion, no adblock rule engine in worldline-browser-cef, no service-domain dependency on the request-policy implementation, bounded transport declarations, configurable failure-policy semantics, and preservation of existing gates.</Criterion>
+          <Criterion>Document that CI-hosted Windows runs and local runs are distinct evidence. Do not claim RealChromium, RealS3B, or real request-policy evidence without a named run and the required staged runtime variables.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserRequestPolicy</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+        </Verification>
+      </T-007>
+
+      <T-008>
+        <Title>Run the complete regression gates and hand off evidence without applying GRACE projections</Title>
+        <DependsOn>
+          <T-006 />
+          <T-007 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Run formatting, workspace check, clippy with warnings denied, workspace tests, targeted contract/provider/CEF/process/services/adblock/reference tests, architecture checks, and the Source, Correctness, ArchitectureSecurity, ProvingSlice, RealChromium, BrowserProvider, BrowserServices, BrowserRequestPolicy, RealS3B, and All suites. Preserve S0 and every previously promoted proving gate.</Criterion>
+          <Criterion>Report scaffolded, wired, and verified claims separately, with exact commands, local versus hosted environment, named run identifiers where applicable, unrun checks, unresolved gaps, measured risks, stop/replan decisions, and rollback notes. A skipped or unavailable hosted check remains an explicit gap.</Criterion>
+          <Criterion>Do not weaken, delete, skip, or rewrite protected acceptance tests, and do not mutate .grace/graph, .grace/verification, shared context, or the approved plan during implementation. After fresh evidence and separate explicit apply confirmation, the operation root may centrally reconcile the existing M-BROWSER-SERVICE-PLUGINS and V-M-BROWSER-SERVICE-PLUGINS projections; that reconciliation is not implied by this draft plan.</Criterion>
+          <Criterion>If any invariant, authority, deadline, lifecycle, architecture, real-provider, or security gate fails, leave M1.3 Active, stop claiming verification, preserve the failure evidence, and create a superseding spec/plan before changing the approved architecture.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo fmt --all -- --check</Command>
+          <Command>cargo check --workspace --all-targets</Command>
+          <Command>cargo clippy --workspace --all-targets --all-features -- -D warnings</Command>
+          <Command>cargo test --workspace</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserRequestPolicy</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealS3B</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-008>
+    </ImplementationPlan>
+  </C-BROWSER-REQUEST-POLICY-INTERCEPTION-SCOPE-CORRECTION-20260902>
+</GraceChangePlan>
