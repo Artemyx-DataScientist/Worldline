@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-BROWSER-DOWNLOADS-COOKIES-REALITY-REMEDIATION-20260901>
     <IntentSummary>
       Execute the approved remediation from a recovered, green GRACE baseline.

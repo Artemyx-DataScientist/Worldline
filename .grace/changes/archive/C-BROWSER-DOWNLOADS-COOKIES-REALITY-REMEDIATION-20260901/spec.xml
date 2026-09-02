@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-BROWSER-DOWNLOADS-COOKIES-REALITY-REMEDIATION-20260901>
     <Summary>
       Superseding remediation for the M1.3 downloads/cookies slice and the
