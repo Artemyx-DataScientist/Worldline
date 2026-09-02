@@ -43,8 +43,12 @@ pub const OP_READ_CAPTURE: &str = "read_capture";
 pub const OP_COOKIE_GET: &str = "cookie_get";
 pub const OP_COOKIE_SET: &str = "cookie_set";
 pub const OP_COOKIE_DELETE: &str = "cookie_delete";
+pub const OP_COOKIE_GET_V0_2: &str = "cookie_get_v0_2";
+pub const OP_COOKIE_SET_V0_2: &str = "cookie_set_v0_2";
 
 pub const OP_STORAGE_CLEAR: &str = "storage_clear";
+pub const OP_STORAGE_SET_V0_2: &str = "storage_set_v0_2";
+pub const OP_STORAGE_GET_V0_2: &str = "storage_get_v0_2";
 
 pub const OP_DOWNLOAD_HOOK: &str = "download_hook";
 
@@ -96,9 +100,18 @@ impl BrowserAuthority {
             Self::CapturePage => ("browser.capture", &[OP_CAPTURE, OP_READ_CAPTURE]),
             Self::ManageCookies => (
                 "browser.engine.cookies",
-                &[OP_COOKIE_GET, OP_COOKIE_SET, OP_COOKIE_DELETE],
+                &[
+                    OP_COOKIE_GET,
+                    OP_COOKIE_SET,
+                    OP_COOKIE_DELETE,
+                    OP_COOKIE_GET_V0_2,
+                    OP_COOKIE_SET_V0_2,
+                ],
             ),
-            Self::ManageStorage => ("browser.engine.storage", &[OP_STORAGE_CLEAR]),
+            Self::ManageStorage => (
+                "browser.engine.storage",
+                &[OP_STORAGE_CLEAR, OP_STORAGE_SET_V0_2, OP_STORAGE_GET_V0_2],
+            ),
             Self::ControlDownloadHook => ("browser.engine.download_hook", &[OP_DOWNLOAD_HOOK]),
         }
     }
@@ -178,5 +191,18 @@ mod tests {
         assert!(set.permits("browser.query", OP_FIND_ELEMENTS));
         assert!(!set.permits("browser.act", OP_CLICK));
         assert!(!set.permits("browser.navigate", OP_NAVIGATE));
+    }
+
+    #[test]
+    fn versioned_engine_primitives_keep_their_existing_authority() {
+        let authorities = BrowserAuthoritySet::new()
+            .with(BrowserAuthority::ManageCookies)
+            .with(BrowserAuthority::ManageStorage);
+
+        assert!(authorities.permits("browser.engine.cookies", OP_COOKIE_GET_V0_2));
+        assert!(authorities.permits("browser.engine.cookies", OP_COOKIE_SET_V0_2));
+        assert!(authorities.permits("browser.engine.storage", OP_STORAGE_SET_V0_2));
+        assert!(authorities.permits("browser.engine.storage", OP_STORAGE_GET_V0_2));
+        assert!(!authorities.permits("browser.engine.cookies", OP_STORAGE_GET_V0_2));
     }
 }

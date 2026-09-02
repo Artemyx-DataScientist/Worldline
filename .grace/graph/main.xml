@@ -10,9 +10,10 @@
       <Summary>Repository-local GRACE 4 workflow model, immutable change contracts, scope controls, verification projection, evidence language, and acceptance protocol.</Summary>
     </M-GRACE-CONTROL-LAYER>
     <M-CI-BASELINE>
-      <Summary>Repository-owned CI entrypoint, toolchain bootstrap, LOC metrics, and thin pull-request/master orchestration for source, correctness, architecture-security, and permanent S0/S1 proving-slice gates.</Summary>
+      <Summary>Repository-owned CI entrypoint, toolchain bootstrap, LOC metrics, and thin pull-request/master orchestration for source, correctness, architecture-security, permanent S0/S1 proving-slice gates, and the required pinned Windows CEF S3B-real gate.</Summary>
       <Path>rust-toolchain.toml</Path>
       <Path>scripts/ci/Initialize-WorldlineCi.ps1</Path>
+      <Path>scripts/ci/Initialize-WorldlineCef.ps1</Path>
       <Path>scripts/ci/Get-WorldlineLoc.ps1</Path>
       <Path>scripts/ci/Invoke-WorldlineCi.ps1</Path>
       <Path>scripts/ci/Test-WorldlineArchitecture.ps1</Path>
@@ -115,7 +116,7 @@
       <M-CI-BASELINE />
     </M-BROWSER-CONTRACT-ENGINE-SPIKE>
     <M-BROWSER-ENGINE-PROVIDER-PROCESS>
-      <Summary>Supervised native browser engine provider process on Windows using Chromium Embedded Framework (CEF), Windows Job Object tree containment, thread-affine UI message loop runner, early subprocess dispatch, revision-guarded action validation, bounded AX tree projection, content-addressed visual capture, cookie/storage partitioning, and proving slice S2.</Summary>
+      <Summary>Supervised native browser engine provider process on Windows using a pinned Chromium Embedded Framework (CEF) runtime, Windows Job Object tree containment, thread-affine UI message loop runner, early subprocess dispatch, revision-guarded action validation, bounded AX tree projection, content-addressed visual capture, cookie/storage partitioning, and real native S2/S3B proving paths.</Summary>
       <Path>docs/adr/ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1.md</Path>
       <Path>crates/worldline-browser-contract/Cargo.toml</Path>
       <Path>crates/worldline-browser-contract/src/lib.rs</Path>
@@ -138,16 +139,19 @@
       <Path>crates/worldline-browser-provider/tests/profiles_primitives_acceptance.rs</Path>
       <Path>crates/worldline-browser-provider/tests/recovery_health_acceptance.rs</Path>
       <Path>crates/worldline-browser-cef/Cargo.toml</Path>
+      <Path>crates/worldline-browser-cef/cef-runtime.manifest.json</Path>
       <Path>crates/worldline-browser-cef/src/lib.rs</Path>
       <Path>crates/worldline-browser-cef/src/ffi.rs</Path>
       <Path>crates/worldline-browser-cef/src/loop_runner.rs</Path>
       <Path>crates/worldline-browser-cef/src/backend.rs</Path>
       <Path>crates/worldline-browser-cef/tests/cef_headful_acceptance.rs</Path>
       <Path>crates/worldline-browser-provider-process/Cargo.toml</Path>
+      <Path>crates/worldline-browser-provider-process/src/lib.rs</Path>
       <Path>crates/worldline-browser-provider-process/src/main.rs</Path>
       <Path>crates/worldline-browser-provider-process/tests/process_acceptance.rs</Path>
       <Path>crates/worldline-reference/src/s2.rs</Path>
       <Path>crates/worldline-reference/tests/s2_acceptance.rs</Path>
+      <Path>crates/worldline-reference/tests/s3b_real_acceptance.rs</Path>
       <M-KERNEL-CAPABILITY-RUNTIME />
       <M-EXTERNAL-PLUGIN-BOUNDARY />
       <M-PERSISTENCE-RECOVERY />
@@ -155,7 +159,7 @@
       <M-CI-BASELINE />
     </M-BROWSER-ENGINE-PROVIDER-PROCESS>
     <M-BROWSER-SERVICE-PLUGINS>
-      <Summary>Second M1.3 browser-service slice: independent downloads and cookies/site-data service plugins above engine primitives. Downloads manages durable DownloadRecordId lifecycle, pre-engine intent persistence, opaque ArtifactRef handoff without path authority, and post-crash Reconciling reconciliation. Cookies separates CookieMetadata inspection from CookieValue disclosure, applies policy-scoped context isolation, and delegates value authority to the Chromium profile cookie store. Site-data clearing is origin-scoped and context-bounded. Verified by proving slice S3B.</Summary>
+      <Summary>Second M1.3 browser-service slice: independent downloads and cookies/site-data service plugins above engine primitives. Downloads uses durable metadata plus generic content-addressed SHA-256 blobs with independent brokered byte reads; cookies preserve host-only/domain semantics through additive engine contracts and canonical label-boundary matching; site-data clearing is origin-scoped and context-bounded. Deterministic S3B remains separate from the required real native CEF S3B proof.</Summary>
       <Path>docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md</Path>
       <Path>crates/worldline-browser-services-contract/Cargo.toml</Path>
       <Path>crates/worldline-browser-services-contract/src/lib.rs</Path>
@@ -179,8 +183,12 @@
       <Path>crates/worldline-browser-cookies/tests/cookies_acceptance.rs</Path>
       <Path>crates/worldline-reference/src/s3b.rs</Path>
       <Path>crates/worldline-reference/tests/s3b_acceptance.rs</Path>
+      <Path>crates/worldline-reference/tests/s3b_real_acceptance.rs</Path>
+      <Path>crates/worldline-storage/src/blob.rs</Path>
       <M-BROWSER-ENGINE-PROVIDER-PROCESS />
       <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-PERSISTENCE-RECOVERY />
       <M-CI-BASELINE />
     </M-BROWSER-SERVICE-PLUGINS>
   </GD-MAIN>

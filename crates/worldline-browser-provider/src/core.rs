@@ -21,7 +21,10 @@ use worldline_browser_contract::{
     },
     error::BrowserError,
     identity::{DocumentRevision, ElementRef, PageId},
-    primitives::{ClearStorageRequest, DeleteCookiesRequest, GetCookiesRequest, SetCookieRequest},
+    primitives::{
+        ClearStorageRequest, DeleteCookiesRequest, GetCookiesRequest, SetCookieRequest,
+        SetCookieRequestV0_2, StorageItemRequestV0_2,
+    },
     query::SemanticElement,
 };
 
@@ -69,6 +72,25 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
         }
     }
 
+    /// Runs a read-only inspection against the concrete backend without
+    /// exposing it to callers or allowing a second ownership path. Native
+    /// adapters use this to drain engine-originated events after a capability
+    /// dispatch; the capability request and the event publication remain
+    /// separate protocol messages.
+    pub fn with_backend<R>(&self, callback: impl FnOnce(&B) -> R) -> R {
+        let backend = self.backend.lock().unwrap();
+        callback(&backend)
+    }
+
+    /// Shuts down the concrete backend while the provider still owns it.
+    ///
+    /// Native provider processes use this lifecycle hook before terminating
+    /// so that an engine-backed backend can tear down its UI/message-loop and
+    /// subprocess tree on the owning thread.
+    pub fn shutdown_backend(&self) -> Result<(), BrowserError> {
+        self.backend.lock().unwrap().shutdown()
+    }
+
     /// Reserves a generation for a page under CAS semantics.
     pub fn reserve_generation(
         &self,
@@ -77,14 +99,13 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
     ) -> Result<u64, BrowserError> {
         let mut gens = self.page_generations.lock().unwrap();
         let current = gens.entry(page_id.clone()).or_insert(1);
-        if let Some(expected_gen) = expected {
-            #[allow(clippy::collapsible_if)]
-            if *current != expected_gen {
-                return Err(BrowserError::StaleElementReference {
-                    expected_revision: DocumentRevision::new(expected_gen),
-                    actual_revision: DocumentRevision::new(*current),
-                });
-            }
+        if let Some(expected_gen) = expected
+            && *current != expected_gen
+        {
+            return Err(BrowserError::StaleElementReference {
+                expected_revision: DocumentRevision::new(expected_gen),
+                actual_revision: DocumentRevision::new(*current),
+            });
         }
         *current += 1;
         Ok(*current)
@@ -421,6 +442,22 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
                 let res = backend.set_cookie(&req)?;
                 Ok(serde_json::to_value(res).unwrap())
             }
+            ("browser.engine.cookies", OP_COOKIE_GET_V0_2) => {
+                let req: GetCookiesRequest = serde_json::from_value(payload).map_err(|e| {
+                    BrowserError::InvalidRequest(format!("get_cookies v0.2 payload invalid: {e}"))
+                })?;
+                let backend = self.backend.lock().unwrap();
+                let res = backend.get_cookies_v0_2(&req)?;
+                Ok(serde_json::to_value(res).unwrap())
+            }
+            ("browser.engine.cookies", OP_COOKIE_SET_V0_2) => {
+                let req: SetCookieRequestV0_2 = serde_json::from_value(payload).map_err(|e| {
+                    BrowserError::InvalidRequest(format!("set_cookie v0.2 payload invalid: {e}"))
+                })?;
+                let mut backend = self.backend.lock().unwrap();
+                let res = backend.set_cookie_v0_2(&req)?;
+                Ok(serde_json::to_value(res).unwrap())
+            }
             ("browser.engine.cookies", OP_COOKIE_DELETE) => {
                 let req: DeleteCookiesRequest = serde_json::from_value(payload).map_err(|e| {
                     BrowserError::InvalidRequest(format!("delete_cookies payload invalid: {e}"))
@@ -437,6 +474,22 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
                 })?;
                 let mut backend = self.backend.lock().unwrap();
                 let res = backend.clear_storage(&req)?;
+                Ok(serde_json::to_value(res).unwrap())
+            }
+            ("browser.engine.storage", OP_STORAGE_SET_V0_2) => {
+                let req: StorageItemRequestV0_2 = serde_json::from_value(payload).map_err(|e| {
+                    BrowserError::InvalidRequest(format!("set_storage_item payload invalid: {e}"))
+                })?;
+                let mut backend = self.backend.lock().unwrap();
+                let res = backend.set_storage_item(&req)?;
+                Ok(serde_json::to_value(res).unwrap())
+            }
+            ("browser.engine.storage", OP_STORAGE_GET_V0_2) => {
+                let req: StorageItemRequestV0_2 = serde_json::from_value(payload).map_err(|e| {
+                    BrowserError::InvalidRequest(format!("get_storage_item payload invalid: {e}"))
+                })?;
+                let backend = self.backend.lock().unwrap();
+                let res = backend.get_storage_item(&req)?;
                 Ok(serde_json::to_value(res).unwrap())
             }
 
@@ -509,9 +562,21 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
             "browser.engine.cookies.delete" | "cookie_delete" | "delete_cookies" => {
                 ("browser.engine.cookies", OP_COOKIE_DELETE)
             }
+            "browser.engine.cookies.v0_2.get" | "cookie_get_v0_2" => {
+                ("browser.engine.cookies", OP_COOKIE_GET_V0_2)
+            }
+            "browser.engine.cookies.v0_2.set" | "cookie_set_v0_2" => {
+                ("browser.engine.cookies", OP_COOKIE_SET_V0_2)
+            }
 
             "browser.engine.storage.clear" | "storage_clear" | "clear_storage" => {
                 ("browser.engine.storage", OP_STORAGE_CLEAR)
+            }
+            "browser.engine.storage.v0_2.set" | "storage_set_v0_2" => {
+                ("browser.engine.storage", OP_STORAGE_SET_V0_2)
+            }
+            "browser.engine.storage.v0_2.get" | "storage_get_v0_2" => {
+                ("browser.engine.storage", OP_STORAGE_GET_V0_2)
             }
 
             "create" => {

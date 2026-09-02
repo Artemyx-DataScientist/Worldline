@@ -8,6 +8,7 @@ pub mod artifact;
 pub mod service;
 pub mod state;
 
-pub use artifact::ArtifactStore;
+pub use artifact::{AUTH_BLOB_READ, ArtifactReadError, ArtifactStore};
 pub use service::DownloadsService;
-pub use state::DownloadsSnapshot;
+pub use state::{DownloadsSnapshot, EngineDownloadStarted};
+pub use worldline_storage::{BlobReadBroker, BlobReadGrant};

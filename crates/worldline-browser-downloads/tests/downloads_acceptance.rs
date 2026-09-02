@@ -1,12 +1,43 @@
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use worldline_browser_contract::identity::{BrowserContextId, DownloadId, PageId};
-use worldline_browser_downloads::{ArtifactStore, DownloadsService};
+use worldline_browser_downloads::{
+    AUTH_BLOB_READ, ArtifactStore, BlobReadBroker, DownloadsService, EngineDownloadStarted,
+};
 use worldline_browser_services_contract::{
     CancelDownloadRequest, DownloadLifecycleStatus, GetDownloadRecordRequest,
     ListDownloadRecordsRequest, PauseDownloadRequest, ResumeDownloadRequest, StartDownloadRequest,
 };
+
+struct TempRoot(PathBuf);
+
+impl TempRoot {
+    fn new(label: &str) -> Self {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock must be after Unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "worldline-browser-downloads-{label}-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&path).expect("temporary downloads root must be created");
+        Self(path)
+    }
+
+    fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+impl Drop for TempRoot {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
 
 #[test]
 fn download_lifecycle_progression() {
@@ -30,15 +61,15 @@ fn download_lifecycle_progression() {
 
     // 2. Engine download started event -> Active
     let engine_dl_id = DownloadId::new("engine-dl-1");
-    service.on_engine_download_started(
-        engine_dl_id.clone(),
-        context_id.clone(),
-        page_id.clone(),
-        url.clone(),
-        "bundle.zip".to_string(),
-        Some(4096),
-        Some("application/zip".to_string()),
-    );
+    service.on_engine_download_started(EngineDownloadStarted {
+        engine_download_id: engine_dl_id.clone(),
+        context_id: context_id.clone(),
+        page_id: page_id.clone(),
+        url: url.clone(),
+        suggested_filename: "bundle.zip".to_string(),
+        total_bytes: Some(4096),
+        media_type: Some("application/zip".to_string()),
+    });
 
     let rec = service
         .get_download_record(GetDownloadRecordRequest {
@@ -80,8 +111,16 @@ fn download_lifecycle_progression() {
     assert_eq!(artifact_ref.mime_type, Some("application/zip".to_string()));
 
     // Verify artifact bytes in store
+    let blob_broker = BlobReadBroker::new();
+    let blob_grant = blob_broker
+        .issue(
+            "download-reader",
+            "blob.read",
+            artifact_ref.artifact_id.as_str(),
+        )
+        .unwrap();
     let stored_bytes = artifact_store
-        .read_bytes(&artifact_ref.artifact_id)
+        .read_bytes_with_authority(&artifact_ref.artifact_id, &blob_grant)
         .unwrap();
     assert_eq!(stored_bytes, payload);
 }
@@ -139,15 +178,15 @@ fn durable_intent_and_restart_reconciliation() {
         suggested_filename: Some("file1.txt".to_string()),
     });
     let e1 = DownloadId::new("eng-1");
-    service.on_engine_download_started(
-        e1.clone(),
-        BrowserContextId::new("ctx-1"),
-        PageId::new("p1"),
-        "https://worldline.test/file1.txt".to_string(),
-        "file1.txt".to_string(),
-        Some(10),
-        None,
-    );
+    service.on_engine_download_started(EngineDownloadStarted {
+        engine_download_id: e1.clone(),
+        context_id: BrowserContextId::new("ctx-1"),
+        page_id: PageId::new("p1"),
+        url: "https://worldline.test/file1.txt".to_string(),
+        suggested_filename: "file1.txt".to_string(),
+        total_bytes: Some(10),
+        media_type: None,
+    });
     service.on_engine_download_completed(&e1, b"hello file", None);
 
     // Record 2: Active in engine
@@ -158,15 +197,15 @@ fn durable_intent_and_restart_reconciliation() {
         suggested_filename: Some("file2.txt".to_string()),
     });
     let e2 = DownloadId::new("eng-2");
-    service.on_engine_download_started(
-        e2.clone(),
-        BrowserContextId::new("ctx-1"),
-        PageId::new("p1"),
-        "https://worldline.test/file2.txt".to_string(),
-        "file2.txt".to_string(),
-        Some(100),
-        None,
-    );
+    service.on_engine_download_started(EngineDownloadStarted {
+        engine_download_id: e2.clone(),
+        context_id: BrowserContextId::new("ctx-1"),
+        page_id: PageId::new("p1"),
+        url: "https://worldline.test/file2.txt".to_string(),
+        suggested_filename: "file2.txt".to_string(),
+        total_bytes: Some(100),
+        media_type: None,
+    });
 
     // Record 3: Intent created but engine outcome lost / unknown
     let r3 = service.start_download(StartDownloadRequest {
@@ -218,26 +257,26 @@ fn redelivered_engine_events_are_idempotent() {
     let engine_id = DownloadId::new("eng-repeat");
 
     // First delivery
-    service.on_engine_download_started(
-        engine_id.clone(),
-        BrowserContextId::new("ctx-1"),
-        PageId::new("p1"),
-        "https://worldline.test/data.bin".to_string(),
-        "data.bin".to_string(),
-        Some(500),
-        None,
-    );
+    service.on_engine_download_started(EngineDownloadStarted {
+        engine_download_id: engine_id.clone(),
+        context_id: BrowserContextId::new("ctx-1"),
+        page_id: PageId::new("p1"),
+        url: "https://worldline.test/data.bin".to_string(),
+        suggested_filename: "data.bin".to_string(),
+        total_bytes: Some(500),
+        media_type: None,
+    });
 
     // Redelivery
-    service.on_engine_download_started(
-        engine_id.clone(),
-        BrowserContextId::new("ctx-1"),
-        PageId::new("p1"),
-        "https://worldline.test/data.bin".to_string(),
-        "data.bin".to_string(),
-        Some(500),
-        None,
-    );
+    service.on_engine_download_started(EngineDownloadStarted {
+        engine_download_id: engine_id.clone(),
+        context_id: BrowserContextId::new("ctx-1"),
+        page_id: PageId::new("p1"),
+        url: "https://worldline.test/data.bin".to_string(),
+        suggested_filename: "data.bin".to_string(),
+        total_bytes: Some(500),
+        media_type: None,
+    });
 
     let list_res = service.list_download_records(ListDownloadRecordsRequest::default());
     assert_eq!(
@@ -259,15 +298,15 @@ fn artifact_authority_isolation() {
         suggested_filename: None,
     });
     let engine_id = DownloadId::new("eng-sec");
-    service.on_engine_download_started(
-        engine_id.clone(),
-        BrowserContextId::new("ctx-1"),
-        PageId::new("p1"),
-        "https://worldline.test/secret_doc.pdf".to_string(),
-        "secret_doc.pdf".to_string(),
-        Some(12),
-        Some("application/pdf".to_string()),
-    );
+    service.on_engine_download_started(EngineDownloadStarted {
+        engine_download_id: engine_id.clone(),
+        context_id: BrowserContextId::new("ctx-1"),
+        page_id: PageId::new("p1"),
+        url: "https://worldline.test/secret_doc.pdf".to_string(),
+        suggested_filename: "secret_doc.pdf".to_string(),
+        total_bytes: Some(12),
+        media_type: Some("application/pdf".to_string()),
+    });
     service.on_engine_download_completed(
         &engine_id,
         b"%PDF-1.7-TEST",
@@ -282,13 +321,107 @@ fn artifact_authority_isolation() {
         .unwrap();
 
     let art_ref = rec.artifact_ref.unwrap();
-    // Possession of DownloadRecord or metadata alone does not yield bytes;
-    // bytes must be fetched explicitly through ArtifactStore
+    // Possession of DownloadRecord or metadata alone does not yield bytes.
     assert_eq!(art_ref.size_bytes, 13);
     assert_eq!(art_ref.mime_type, Some("application/pdf".to_string()));
 
-    let bytes = artifact_store.read_bytes(&art_ref.artifact_id).unwrap();
+    let blob_broker = BlobReadBroker::new();
+    assert!(
+        blob_broker
+            .issue(
+                "metadata-reader",
+                "browser.downloads.read",
+                art_ref.artifact_id.as_str()
+            )
+            .is_err()
+    );
+    let blob_grant = blob_broker
+        .issue("blob-reader", "blob.read", art_ref.artifact_id.as_str())
+        .unwrap();
+    let bytes = artifact_store
+        .read_bytes_with_authority(&art_ref.artifact_id, &blob_grant)
+        .unwrap();
     assert_eq!(bytes, b"%PDF-1.7-TEST");
+}
+
+#[test]
+fn persistent_service_metadata_and_blob_survive_restart() {
+    let root = TempRoot::new("persistent-restart");
+    let artifact_store = Arc::new(
+        ArtifactStore::open(root.path().join("blobs")).expect("generic blob store must open"),
+    );
+    let state_path = root.path().join("service-state").join("records.json");
+    let staging_root = root.path().join("staging");
+    let service = DownloadsService::open_persistent(
+        Arc::clone(&artifact_store),
+        staging_root.clone(),
+        state_path.clone(),
+    )
+    .expect("persistent downloads service must open");
+    let start = service.start_download(StartDownloadRequest {
+        context_id: BrowserContextId::new("ctx-persistent"),
+        page_id: Some(PageId::new("page-persistent")),
+        url: "https://worldline.test/persistent.bin".to_string(),
+        suggested_filename: Some("persistent.bin".to_string()),
+    });
+    let engine_id = DownloadId::new("engine-persistent");
+    service.on_engine_download_started(EngineDownloadStarted {
+        engine_download_id: engine_id.clone(),
+        context_id: BrowserContextId::new("ctx-persistent"),
+        page_id: PageId::new("page-persistent"),
+        url: "https://worldline.test/persistent.bin".to_string(),
+        suggested_filename: "persistent.bin".to_string(),
+        total_bytes: Some(9),
+        media_type: Some("application/octet-stream".to_string()),
+    });
+    service.on_engine_download_completed(
+        &engine_id,
+        b"durable\n",
+        Some("application/octet-stream".to_string()),
+    );
+    service
+        .check_persistence()
+        .expect("service metadata must be durably flushed");
+    drop(service);
+    drop(artifact_store);
+
+    let reopened_store =
+        Arc::new(ArtifactStore::open(root.path().join("blobs")).expect("blob store must reopen"));
+    let restarted =
+        DownloadsService::open_persistent(Arc::clone(&reopened_store), staging_root, state_path)
+            .expect("downloads service must reopen from durable metadata");
+    let record = restarted
+        .get_download_record(GetDownloadRecordRequest {
+            record_id: start.record_id,
+        })
+        .record
+        .expect("download record must survive restart");
+    let artifact = record
+        .artifact_ref
+        .clone()
+        .expect("artifact reference must survive restart");
+    assert_eq!(record.status, DownloadLifecycleStatus::Completed);
+    assert_eq!(
+        artifact.sha256_hash.as_deref(),
+        artifact.artifact_id.strip_prefix("sha256-v1-")
+    );
+    assert!(artifact.sha256_hash.as_deref().is_some_and(
+        |digest| digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+    ));
+    let broker = BlobReadBroker::new();
+    let grant = broker
+        .issue(
+            "persistent-reader",
+            AUTH_BLOB_READ,
+            artifact.artifact_id.clone(),
+        )
+        .expect("generic blob broker must issue an exact read grant");
+    assert_eq!(
+        reopened_store
+            .read_bytes_with_authority(&artifact.artifact_id, &grant)
+            .expect("reopened blob must be readable with generic authority"),
+        b"durable\n"
+    );
 }
 
 #[test]
@@ -301,15 +434,15 @@ fn download_failure_isolation() {
         suggested_filename: None,
     });
     let engine_id = DownloadId::new("eng-fail");
-    service.on_engine_download_started(
-        engine_id.clone(),
-        BrowserContextId::new("ctx-1"),
-        PageId::new("p1"),
-        "https://worldline.test/broken".to_string(),
-        "broken".to_string(),
-        None,
-        None,
-    );
+    service.on_engine_download_started(EngineDownloadStarted {
+        engine_download_id: engine_id.clone(),
+        context_id: BrowserContextId::new("ctx-1"),
+        page_id: PageId::new("p1"),
+        url: "https://worldline.test/broken".to_string(),
+        suggested_filename: "broken".to_string(),
+        total_bytes: None,
+        media_type: None,
+    });
 
     service.on_engine_download_failed(&engine_id, "HTTP 404 Not Found".to_string());
 

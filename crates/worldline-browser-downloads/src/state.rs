@@ -14,6 +14,19 @@ pub struct DownloadsSnapshot {
     pub next_record_index: u64,
 }
 
+/// Native engine download-start notification passed across the service
+/// boundary as one coherent event instead of a positional argument list.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EngineDownloadStarted {
+    pub engine_download_id: DownloadId,
+    pub context_id: BrowserContextId,
+    pub page_id: PageId,
+    pub url: String,
+    pub suggested_filename: String,
+    pub total_bytes: Option<u64>,
+    pub media_type: Option<String>,
+}
+
 impl DownloadsSnapshot {
     pub fn new() -> Self {
         Self {
@@ -41,7 +54,7 @@ impl DownloadsSnapshot {
         let record_id = self.generate_record_id();
         let filename = suggested_filename.unwrap_or_else(|| {
             url.split('/')
-                .last()
+                .next_back()
                 .filter(|s| !s.is_empty())
                 .unwrap_or("download")
                 .to_string()
@@ -90,25 +103,27 @@ impl DownloadsSnapshot {
     /// Idempotently associates an engine download hook event with an existing or new record.
     pub fn handle_engine_download_started(
         &mut self,
-        engine_download_id: DownloadId,
-        context_id: BrowserContextId,
-        page_id: PageId,
-        url: String,
-        suggested_filename: String,
-        total_bytes: Option<u64>,
-        media_type: Option<String>,
+        event: EngineDownloadStarted,
         started_at_unix_ms: u64,
     ) -> DownloadRecord {
+        let EngineDownloadStarted {
+            engine_download_id,
+            context_id,
+            page_id,
+            url,
+            suggested_filename,
+            total_bytes,
+            media_type,
+        } = event;
         if let Some(record_id) = self
             .engine_id_to_record_id
             .get(&engine_download_id)
             .cloned()
+            && let Some(record) = self.records.get_mut(&record_id)
         {
-            if let Some(record) = self.records.get_mut(&record_id) {
-                record.total_bytes = total_bytes.or(record.total_bytes);
-                record.media_type = media_type.or(record.media_type.clone());
-                return record.clone();
-            }
+            record.total_bytes = total_bytes.or(record.total_bytes);
+            record.media_type = media_type.or(record.media_type.clone());
+            return record.clone();
         }
 
         // Search for matching pending intent by context_id, page_id, url
@@ -205,36 +220,34 @@ impl DownloadsSnapshot {
     }
 
     pub fn pause_download(&mut self, record_id: &DownloadRecordId) -> bool {
-        if let Some(record) = self.records.get_mut(record_id) {
-            if record.status == DownloadLifecycleStatus::Active
-                || record.status == DownloadLifecycleStatus::Pending
-            {
-                record.status = DownloadLifecycleStatus::Paused;
-                return true;
-            }
+        if let Some(record) = self.records.get_mut(record_id)
+            && (record.status == DownloadLifecycleStatus::Active
+                || record.status == DownloadLifecycleStatus::Pending)
+        {
+            record.status = DownloadLifecycleStatus::Paused;
+            return true;
         }
         false
     }
 
     pub fn resume_download(&mut self, record_id: &DownloadRecordId) -> bool {
-        if let Some(record) = self.records.get_mut(record_id) {
-            if record.status == DownloadLifecycleStatus::Paused {
-                record.status = DownloadLifecycleStatus::Active;
-                return true;
-            }
+        if let Some(record) = self.records.get_mut(record_id)
+            && record.status == DownloadLifecycleStatus::Paused
+        {
+            record.status = DownloadLifecycleStatus::Active;
+            return true;
         }
         false
     }
 
     pub fn cancel_download(&mut self, record_id: &DownloadRecordId) -> bool {
-        if let Some(record) = self.records.get_mut(record_id) {
-            if record.status != DownloadLifecycleStatus::Completed
-                && record.status != DownloadLifecycleStatus::Cancelled
-                && record.status != DownloadLifecycleStatus::Failed
-            {
-                record.status = DownloadLifecycleStatus::Cancelled;
-                return true;
-            }
+        if let Some(record) = self.records.get_mut(record_id)
+            && record.status != DownloadLifecycleStatus::Completed
+            && record.status != DownloadLifecycleStatus::Cancelled
+            && record.status != DownloadLifecycleStatus::Failed
+        {
+            record.status = DownloadLifecycleStatus::Cancelled;
+            return true;
         }
         false
     }
@@ -279,15 +292,15 @@ impl DownloadsSnapshot {
         self.records
             .values()
             .filter(|r| {
-                if let Some(cid) = context_id {
-                    if r.context_id.as_ref() != Some(cid) {
-                        return false;
-                    }
+                if let Some(cid) = context_id
+                    && r.context_id.as_ref() != Some(cid)
+                {
+                    return false;
                 }
-                if let Some(st) = status {
-                    if r.status != st {
-                        return false;
-                    }
+                if let Some(st) = status
+                    && r.status != st
+                {
+                    return false;
                 }
                 true
             })

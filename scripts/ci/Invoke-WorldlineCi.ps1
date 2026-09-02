@@ -12,7 +12,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Source', 'Correctness', 'RealChromium', 'BrowserProvider', 'BrowserServices', 'ArchitectureSecurity', 'ProvingSlice', 'All')]
+    [ValidateSet('Source', 'Correctness', 'RealChromium', 'RealS3B', 'BrowserProvider', 'BrowserServices', 'ArchitectureSecurity', 'ProvingSlice', 'All')]
     [string]$Suite
 )
 
@@ -100,6 +100,24 @@ function Invoke-RealChromiumSuite {
     Invoke-WorldlineCommand -Label 'real chromium engine spike acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--features', 'real-chromium', '--test', 'real_chromium_acceptance', '--', '--test-threads=1')
 }
 
+function Invoke-RealS3BSuite {
+    Write-Host '--- Real S3B suite ---'
+    if ($env:OS -ne 'Windows_NT') {
+        throw 'RealS3B is a required hosted Windows suite and cannot be downgraded on another OS.'
+    }
+    foreach ($requiredEnvironment in @(
+        'CEF_PATH',
+        'WORLDLINE_BROWSER_PROVIDER_BOOTSTRAP',
+        'WORLDLINE_BROWSER_PROVIDER_CLIENT'
+    )) {
+        $environmentValue = [Environment]::GetEnvironmentVariable($requiredEnvironment)
+        if ([string]::IsNullOrWhiteSpace($environmentValue)) {
+            throw "RealS3B requires the verified CEF bootstrap environment variable '$requiredEnvironment'."
+        }
+    }
+    Invoke-WorldlineCommand -Label 'real native CEF S3B proving slice' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3b_real_acceptance', '--', '--nocapture')
+}
+
 function Invoke-BrowserProviderSuite {
     Write-Host '--- BrowserProvider suite ---'
     Invoke-WorldlineCommand -Label 'browser provider core tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-provider')
@@ -157,6 +175,10 @@ switch ($Suite) {
         Invoke-RealChromiumSuite
         break
     }
+    'RealS3B' {
+        Invoke-RealS3BSuite
+        break
+    }
     'BrowserProvider' {
         Invoke-BrowserProviderSuite
         break
@@ -177,6 +199,7 @@ switch ($Suite) {
         Invoke-SourceSuite
         Invoke-CorrectnessSuite
         Invoke-RealChromiumSuite
+        Invoke-RealS3BSuite
         Invoke-BrowserProviderSuite
         Invoke-BrowserServicesSuite
         Invoke-ArchitectureSecuritySuite

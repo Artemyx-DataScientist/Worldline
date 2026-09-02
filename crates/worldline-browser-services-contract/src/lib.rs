@@ -15,11 +15,12 @@ pub mod tabs;
 
 pub use cookies::{
     AUTH_COOKIES_ADMIN, AUTH_COOKIES_METADATA_READ, AUTH_COOKIES_MUTATE, AUTH_COOKIES_VALUE_READ,
-    CONTRACT_BROWSER_COOKIES, CONTRACT_BROWSER_COOKIES_VERSION, CookieMetadata, CookieValue,
+    CONTRACT_BROWSER_COOKIES, CONTRACT_BROWSER_COOKIES_V0_2, CONTRACT_BROWSER_COOKIES_V0_2_VERSION,
+    CONTRACT_BROWSER_COOKIES_VERSION, CookieMetadata, CookieMetadataV0_2, CookieValue,
     DeleteCookieServiceRequest, DeleteCookieServiceResponse, GetCookieMetadataRequest,
-    GetCookieMetadataResponse, GetCookieValueRequest, GetCookieValueResponse, OP_DELETE_COOKIE,
-    OP_GET_COOKIE_METADATA, OP_GET_COOKIE_VALUE, OP_SET_COOKIE, SetCookieServiceRequest,
-    SetCookieServiceResponse,
+    GetCookieMetadataResponse, GetCookieMetadataResponseV0_2, GetCookieValueRequest,
+    GetCookieValueResponse, OP_DELETE_COOKIE, OP_GET_COOKIE_METADATA, OP_GET_COOKIE_VALUE,
+    OP_SET_COOKIE, SetCookieServiceRequest, SetCookieServiceRequestV0_2, SetCookieServiceResponse,
 };
 pub use downloads::{
     AUTH_DOWNLOADS_CONTROL, AUTH_DOWNLOADS_READ, ArtifactRef, CONTRACT_BROWSER_DOWNLOADS,

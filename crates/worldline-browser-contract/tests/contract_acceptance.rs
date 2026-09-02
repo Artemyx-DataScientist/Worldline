@@ -496,3 +496,55 @@ fn all_eight_v1_contracts_and_v0_1_experimental_contracts_wire_compatibility() {
         renderer_crashed
     );
 }
+
+#[test]
+fn engine_cookie_v0_1_shape_is_preserved_and_v0_2_adds_scope() {
+    use worldline_browser_contract::{
+        Cookie, CookieV0_2, GetCookiesResponseV0_2, SetCookieRequest, SetCookieRequestV0_2,
+    };
+
+    let legacy = SetCookieRequest {
+        context_id: BrowserContextId::new("legacy"),
+        cookie: Cookie {
+            name: "session".to_string(),
+            value: "value".to_string(),
+            domain: "example.com".to_string(),
+            path: "/".to_string(),
+            secure: false,
+            http_only: true,
+            same_site: None,
+            expires_epoch_sec: None,
+        },
+    };
+    let legacy_json = serde_json::to_string(&legacy).unwrap();
+    assert!(!legacy_json.contains("host_only"));
+    assert_eq!(
+        serde_json::from_str::<SetCookieRequest>(&legacy_json).unwrap(),
+        legacy
+    );
+
+    let versioned = SetCookieRequestV0_2 {
+        context_id: BrowserContextId::new("versioned"),
+        cookie: CookieV0_2 {
+            name: "session".to_string(),
+            value: "value".to_string(),
+            domain: "example.com".to_string(),
+            path: "/".to_string(),
+            secure: false,
+            http_only: true,
+            same_site: None,
+            expires_epoch_sec: None,
+            host_only: false,
+        },
+    };
+    let versioned_json = serde_json::to_string(&versioned).unwrap();
+    assert!(versioned_json.contains("\"host_only\":false"));
+    let response = GetCookiesResponseV0_2 {
+        cookies: vec![versioned.cookie],
+    };
+    assert_eq!(
+        serde_json::from_str::<GetCookiesResponseV0_2>(&serde_json::to_string(&response).unwrap())
+            .unwrap(),
+        response
+    );
+}

@@ -1,0 +1,659 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-BROWSER-DOWNLOADS-COOKIES-REALITY-REMEDIATION-20260901>
+    <Summary>
+      Superseding remediation for the M1.3 downloads/cookies slice and the
+      browser-provider prerequisites whose current implementation invalidates
+      production evidence.
+
+      This change replaces simulated/reference-only proof with a genuine
+      production browser path, integrates completed download artifacts with the
+      generic host blob authority model, fixes cookie-domain authorization,
+      repairs persistence and GRACE projections, and restores fail-closed hosted
+      evidence.
+
+      It supersedes the implementation claims of
+      C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901 where those claims depended
+      on ReferenceBrowserBackend, InMemoryCookieEngine, local ArtifactStore or
+      premature GRACE apply state.
+
+      The archived predecessor remains historical evidence and is not silently
+      rewritten into success.
+    </Summary>
+
+    <Problem>
+      The predecessor M1.3 slice was marked applied before required hosted
+      evidence was green and several acceptance claims are not backed by the
+      production execution path.
+
+      CefBrowserBackend currently delegates browser operations to
+      ReferenceBrowserBackend.
+
+      worldline-browser-provider-process parses a backend selector but
+      unconditionally constructs ReferenceBrowserBackend.
+
+      S3B constructs BrowserProviderCore directly with ReferenceBrowserBackend,
+      manually injects download lifecycle callbacks and uses InMemoryCookieEngine.
+
+      The downloads ArtifactStore is a process-local in-memory map rather than
+      the generic host blob boundary and therefore cannot prove independent
+      blob-read authority or durable artifact ownership.
+
+      ArtifactRef.sha256_hash is populated by a non-SHA-256 hash.
+
+      Cookie domain filtering uses raw string suffix matching and therefore does
+      not satisfy host/domain authorization semantics.
+
+      ClearStorageResponse currently reports success independently of actual
+      storage outcome.
+
+      GRACE graph/verification projections contain browser-service module data
+      that is not correctly indexed, and the local workspace may contain an
+      overlapping active predecessor bundle.
+
+      The current implementation therefore cannot honestly satisfy the
+      production, security, persistence or hosted-evidence claims required for
+      the M1.3 downloads/cookies slice.
+    </Problem>
+
+    <Goals>
+      <Goal>
+        Establish one real production browser-provider execution path selected
+        explicitly by the native provider process and backed by CefBrowserBackend
+        rather than ReferenceBrowserBackend.
+      </Goal>
+
+      <Goal>
+        Remove ReferenceBrowserBackend from the production CEF implementation
+        path except where explicitly retained as a test/reference fixture.
+      </Goal>
+
+      <Goal>
+        Make the native provider --backend selection authoritative, validated and
+        fail-closed for unknown or unavailable production backends.
+      </Goal>
+
+      <Goal>
+        Route engine cookie, storage and download operations used by S3B through
+        the real native plugin/provider boundary.
+      </Goal>
+
+      <Goal>
+        Replace the downloads-local ArtifactStore as production evidence with the
+        generic M1.2 blob/artifact host mechanism and normal broker authority.
+      </Goal>
+
+      <Goal>
+        Prove download metadata authority and artifact-content-read authority are
+        independently granted.
+      </Goal>
+
+      <Goal>
+        Use actual SHA-256 where the public contract says sha256_hash.
+      </Goal>
+
+      <Goal>
+        Implement canonical cookie host/domain matching with label boundaries and
+        explicit host-only/domain-cookie semantics.
+      </Goal>
+
+      <Goal>
+        Repair site-data result semantics and add hostile cross-domain tests.
+      </Goal>
+
+      <Goal>
+        Repair GRACE graph/verification projections and remove overlapping active
+        predecessor state before final verification.
+      </Goal>
+
+      <Goal>
+        Produce fresh local and hosted evidence before this remediation can be
+        applied.
+      </Goal>
+    </Goals>
+
+    <Constraints>
+      <Constraint>
+        SPEC APPROVAL AND EXACT PLAN APPROVAL ARE SEPARATE.
+        THIS DRAFT DOES NOT AUTHORIZE IMPLEMENTATION.
+      </Constraint>
+
+      <Constraint>
+        DO NOT EDIT THE ARCHIVED PREDECESSOR TO PRETEND ITS ORIGINAL HOSTED RUN
+        WAS GREEN.
+      </Constraint>
+
+      <Constraint>
+        ANY ACTIVE COPY OF
+        C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901 THAT CONFLICTS WITH ITS
+        ARCHIVED INSTANCE MUST BE RESOLVED THROUGH THE NORMAL GRACE LIFECYCLE
+        BEFORE THIS REMEDIATION PLAN IS EXECUTED.
+      </Constraint>
+
+      <Constraint>
+        PRODUCTION CEF CODE MUST NOT DELEGATE BROWSER SEMANTICS TO
+        ReferenceBrowserBackend.
+      </Constraint>
+
+      <Constraint>
+        ReferenceBrowserBackend MAY REMAIN AVAILABLE ONLY FOR UNIT, CONTRACT,
+        DETERMINISTIC REFERENCE AND EXPLICIT NON-PRODUCTION TEST PATHS.
+      </Constraint>
+
+      <Constraint>
+        THE NATIVE PROVIDER PROCESS MUST NOT SILENTLY FALL BACK FROM REQUESTED
+        CEF/PRODUCTION BACKEND TO REFERENCE.
+      </Constraint>
+
+      <Constraint>
+        UNKNOWN BACKEND, MISSING REQUIRED CEF ASSETS OR CEF INITIALIZATION
+        FAILURE MUST PRODUCE AN ACTIONABLE STARTUP/HEALTH FAILURE.
+      </Constraint>
+
+      <Constraint>
+        CEF TYPES, POINTERS, CALLBACK OBJECTS AND PLATFORM HANDLES MUST NOT CROSS
+        THE ENGINE-NEUTRAL WORLDLINE CONTRACT OR IPC BOUNDARY.
+      </Constraint>
+
+      <Constraint>
+        NO NEW BROWSER-SPECIFIC PRIVILEGED KERNEL PATH IS ALLOWED.
+      </Constraint>
+
+      <Constraint>
+        THE GENERIC HOST BLOB MECHANISM REMAINS GENERIC.
+        DO NOT ADD A DOWNLOAD-SPECIFIC KERNEL BLOB STORE.
+      </Constraint>
+
+      <Constraint>
+        ArtifactRef IS IDENTITY/METADATA ONLY.
+        POSSESSION OF ArtifactRef DOES NOT GRANT CONTENT READ AUTHORITY.
+      </Constraint>
+
+      <Constraint>
+        BLOB READS MUST PASS THROUGH NORMAL PRINCIPAL/CAPABILITY ADMISSION.
+      </Constraint>
+
+      <Constraint>
+        IF THE EXISTING EXPERIMENTAL 0.1 GENERIC BLOB API CANNOT EXPRESS
+        BROKERED ARTIFACT READS WITH INDEPENDENT PRINCIPAL AUTHORITY, AN
+        ADDITIVE EXPERIMENTAL 0.2 OR SEPARATELY NAMED NEW EXPERIMENTAL CONTRACT
+        IS PERMITTED.  IT MUST PRESERVE 0.1 CONTRACTS, FIXTURES AND COMPATIBILITY
+        TESTS; IT MUST NOT REINTERPRET, REMOVE OR WEAKEN 0.1 IN PLACE.
+      </Constraint>
+
+      <Constraint>
+        COMPLETED DOWNLOAD ARTIFACTS REQUIRED TO SURVIVE SERVICE RESTART MUST NOT
+        DEPEND SOLELY ON PROCESS-LOCAL MEMORY.
+      </Constraint>
+
+      <Constraint>
+        sha256_hash MUST CONTAIN SHA-256 OR THE CONTRACT FIELD MUST BE REPLACED BY
+        A CORRECTLY VERSIONED GENERIC DIGEST REPRESENTATION.
+        DO NOT LABEL FNV OR ANOTHER HASH AS SHA-256.
+      </Constraint>
+
+      <Constraint>
+        COOKIE AUTHORIZATION MUST NOT USE raw ends_with(domain) OR EQUIVALENT
+        STRING-SUFFIX MATCHING.
+      </Constraint>
+
+      <Constraint>
+        COOKIE MATCHING MUST CANONICALIZE HOSTS AND ENFORCE DNS LABEL BOUNDARIES.
+      </Constraint>
+
+      <Constraint>
+        HOST-ONLY COOKIE AND DOMAIN COOKIE SEMANTICS MUST BE EXPLICIT AND TESTED.
+      </Constraint>
+
+      <Constraint>
+        IF THE EXISTING EXPERIMENTAL 0.1 COOKIE PRIMITIVE CANNOT EXPRESS THE
+        DISTINCTION BETWEEN HOST-ONLY AND DOMAIN COOKIES, AN ADDITIVE
+        EXPERIMENTAL 0.2 OR SEPARATELY NAMED NEW EXPERIMENTAL CONTRACT IS
+        PERMITTED.  IT MUST PRESERVE 0.1 CONTRACTS, FIXTURES AND COMPATIBILITY
+        TESTS; IT MUST NOT SILENTLY REINTERPRET OR BREAK 0.1 SEMANTICS.
+      </Constraint>
+
+      <Constraint>
+        INVALID, PRIVILEGED OR NON-HOST COOKIE TARGETS MUST FAIL CLOSED.
+      </Constraint>
+
+      <Constraint>
+        BrowserContextId REMAINS PART OF THE AUTHORITATIVE COOKIE/STORAGE SCOPE;
+        EQUAL HOSTNAMES DO NOT PERMIT CROSS-CONTEXT ACCESS.
+      </Constraint>
+
+      <Constraint>
+        RAW COOKIE VALUES MUST NOT ENTER GENERIC LOGGING, METRICS, TRAJECTORY OR
+        ORDINARY ERROR TEXT.
+      </Constraint>
+
+      <Constraint>
+        ClearSiteDataResponse MUST REPRESENT DEFINED OPERATION SEMANTICS RATHER
+        THAN A CONSTANT SUCCESS EXPRESSION.
+      </Constraint>
+
+      <Constraint>
+        S3B PRODUCTION EVIDENCE MUST NOT DIRECTLY CONSTRUCT BrowserProviderCore,
+        CALL SERVICE ENGINE CALLBACKS MANUALLY AS THE SOLE ENGINE EVIDENCE, OR
+        USE InMemoryCookieEngine AS THE PRODUCTION COOKIE PROOF.
+      </Constraint>
+
+      <Constraint>
+        REFERENCE/IN-MEMORY TESTS MAY REMAIN AS FAST DETERMINISTIC LOWER-LEVEL
+        TESTS BUT MUST BE LABELLED AS SUCH.
+      </Constraint>
+
+      <Constraint>
+        EXISTING M0, M1.1, M1.2, S2, S3A AND BROWSER CONTRACT COMPATIBILITY
+        TESTS MUST NOT BE WEAKENED OR SKIPPED.
+      </Constraint>
+
+      <Constraint>
+        ALL REQUIRED HOSTED TESTS REMAIN FAIL-CLOSED.
+      </Constraint>
+
+      <Constraint>
+        GRACE LINT IS REQUIRED AS A LIFECYCLE PREFLIGHT: RUN
+        grace lint --path . --assertions current BEFORE OBSERVED WRITES, AND RUN
+        THE PLAN-SELECTED FINAL ASSERTION PROFILE BEFORE COMPLETION.  IT IS NOT
+        PRODUCT OR RUNTIME ACCEPTANCE EVIDENCE AND MUST NOT APPEAR IN
+        VerificationIntent.
+      </Constraint>
+
+      <Constraint>
+        THIS REMEDIATION MUST NOT BE TRANSITIONED TO applied OR ARCHIVED AS
+        SUCCESSFULLY APPLIED UNTIL REQUIRED HOSTED EVIDENCE IS GREEN AND EXPLICIT
+        OWNER APPLY CONFIRMATION IS OBTAINED.
+      </Constraint>
+    </Constraints>
+
+    <NonGoals>
+      <NonGoal>Request-policy/adblock implementation.</NonGoal>
+      <NonGoal>Diagnostics/search service implementation.</NonGoal>
+      <NonGoal>Worldline Shell.</NonGoal>
+      <NonGoal>OSR/wgpu composition.</NonGoal>
+      <NonGoal>Final downloads UI.</NonGoal>
+      <NonGoal>Final cookies/settings UI.</NonGoal>
+      <NonGoal>Arbitrary filesystem export.</NonGoal>
+      <NonGoal>Malware/reputation scanning.</NonGoal>
+      <NonGoal>Third-party-cookie network interception.</NonGoal>
+      <NonGoal>Second browser engine.</NonGoal>
+      <NonGoal>Promoting experimental M1.3 contracts to stable v1.</NonGoal>
+    </NonGoals>
+
+    <AcceptanceCriteria>
+      <Criterion>
+        CefBrowserBackend no longer stores or delegates production browser
+        operations to ReferenceBrowserBackend.
+      </Criterion>
+
+      <Criterion>
+        The CEF adapter implements or delegates to genuine CEF-backed
+        context/page/navigation/observe/query/act/download/cookie/storage
+        operations required by the production proving path.
+      </Criterion>
+
+      <Criterion>
+        Operations not genuinely implemented by the production CEF backend fail
+        explicitly as Unsupported/Unavailable rather than succeeding through a
+        reference fallback.
+      </Criterion>
+
+      <Criterion>
+        worldline-browser-provider-process selects the requested backend through
+        an explicit backend factory or equivalent bounded construction seam.
+      </Criterion>
+
+      <Criterion>
+        --backend reference selects ReferenceBrowserBackend only when explicitly
+        requested for reference/test use.
+      </Criterion>
+
+      <Criterion>
+        --backend cef selects CefBrowserBackend and a test proves the process
+        cannot silently instantiate ReferenceBrowserBackend instead.
+      </Criterion>
+
+      <Criterion>
+        Unknown --backend values fail startup with non-zero status and actionable
+        diagnostics.
+      </Criterion>
+
+      <Criterion>
+        The provider handshake/manifest truthfully reports only operations
+        supported by the selected backend.
+      </Criterion>
+
+      <Criterion>
+        Production S3B communicates with the browser provider through the normal
+        native plugin IPC/capability path rather than direct BrowserProviderCore
+        construction.
+      </Criterion>
+
+      <Criterion>
+        Production S3B creates real browser contexts/pages through the selected
+        CEF-backed provider and uses real engine cookie/storage primitives.
+      </Criterion>
+
+      <Criterion>
+        A deterministic loopback download reaches the downloads service through
+        the real engine/provider integration rather than only manual
+        on_engine_download_started/on_engine_download_completed calls.
+      </Criterion>
+
+      <Criterion>
+        Manual callback injection remains permitted only in separately named
+        unit/reference tests.
+      </Criterion>
+
+      <Criterion>
+        Completed download bytes are inserted through the existing generic host
+        blob protocol/storage path or an explicitly generic additive completion
+        of that path.
+      </Criterion>
+
+      <Criterion>
+        worldline-browser-downloads does not use an in-memory BTreeMap as the
+        authoritative production artifact store.
+      </Criterion>
+
+      <Criterion>
+        Artifact metadata persists sufficiently for a completed download record to
+        remain valid across downloads-service restart.
+      </Criterion>
+
+      <Criterion>
+        A principal with browser.downloads.read can inspect DownloadRecord and
+        ArtifactRef metadata but receives AccessDenied when attempting blob bytes
+        without the separate generic blob-read grant.
+      </Criterion>
+
+      <Criterion>
+        A principal with the admitted generic blob-read grant can read the same
+        artifact through the normal broker/host boundary.
+      </Criterion>
+
+      <Criterion>
+        Cross-principal or cross-scope blob access is rejected even when the
+        attacker knows the opaque artifact identifier.
+      </Criterion>
+
+      <Criterion>
+        The implementation documents whether experimental 0.1 can provide
+        brokered artifact reads with independent authority.  If it cannot, the
+        contract delta is additive experimental 0.2 or a new experimental
+        contract, while 0.1 fixtures and compatibility tests remain intact.
+      </Criterion>
+
+      <Criterion>
+        Artifact content digest is actual SHA-256 and verified against deterministic
+        fixture bytes.
+      </Criterion>
+
+      <Criterion>
+        Cookie domain matching uses canonicalized host/domain semantics and DNS
+        label boundaries.
+      </Criterion>
+
+      <Criterion>
+        example.com domain-cookie matching accepts an authorized sub.example.com
+        case according to the documented model.
+      </Criterion>
+
+      <Criterion>
+        evil-example.com does not match example.com.
+      </Criterion>
+
+      <Criterion>
+        Case normalization is tested.
+      </Criterion>
+
+      <Criterion>
+        Trailing-dot/canonical-host behavior is explicitly defined and tested.
+      </Criterion>
+
+      <Criterion>
+        Invalid empty hosts, malformed domains and unsupported scheme targets fail
+        closed.
+      </Criterion>
+
+      <Criterion>
+        Host-only cookies do not become domain cookies by normalization.
+      </Criterion>
+
+      <Criterion>
+        The implementation documents whether experimental 0.1 can represent
+        host-only and domain-cookie distinction.  If it cannot, the contract
+        delta is additive experimental 0.2 or a new experimental contract,
+        while 0.1 fixtures and compatibility tests remain intact.
+      </Criterion>
+
+      <Criterion>
+        Context A cannot enumerate, read, mutate or delete Context B cookie data
+        for the same canonical host.
+      </Criterion>
+
+      <Criterion>
+        Cookie value DTO debug/diagnostic representation remains redacted.
+      </Criterion>
+
+      <Criterion>
+        ClearSiteDataResponse has documented deterministic semantics and no
+        constant `... || true` implementation remains.
+      </Criterion>
+
+      <Criterion>
+        Site-data clearing against Context A/origin X cannot clear Context B or a
+        sibling origin.
+      </Criterion>
+
+      <Criterion>
+        Download uncertain-outcome reconciliation still does not automatically
+        replay a potentially completed start.
+      </Criterion>
+
+      <Criterion>
+        Existing compile failure around EngineDownloadStartedEvent or its
+        replacement is resolved through the approved contract design rather than
+        by leaving an undefined test-only type.
+      </Criterion>
+
+      <Criterion>
+        cargo clippy --workspace --all-targets --all-features -- -D warnings is
+        green without broad lint suppression for the newly introduced errors.
+      </Criterion>
+
+      <Criterion>
+        .grace/graph/index.xml owns every browser-service graph module present in
+        the indexed graph document, including M-BROWSER-SERVICE-PLUGINS where
+        applicable.
+      </Criterion>
+
+      <Criterion>
+        .grace/verification/index.xml owns the corresponding verification module,
+        including V-M-BROWSER-SERVICE-PLUGINS where applicable.
+      </Criterion>
+
+      <Criterion>
+        No duplicate active/archive change identity remains for
+        C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901.
+      </Criterion>
+
+      <Criterion>
+        The predecessor remains historically recorded as the superseded flawed
+        slice rather than being retroactively presented as having passed hosted
+        CI.
+      </Criterion>
+
+      <Criterion>
+        A dedicated real S3B hosted Windows job proves:
+        production CEF provider selection,
+        native IPC,
+        real engine cookie/storage operations,
+        real download integration,
+        generic blob authority separation,
+        service restart,
+        and context isolation.
+      </Criterion>
+
+      <Criterion>
+        Source, Correctness, ArchitectureSecurity, ProvingSlice, RealChromium,
+        BrowserProvider, BrowserServices and the real S3B required hosted gate
+        are all green for the same remediation commit.
+      </Criterion>
+
+      <Criterion>
+        Local completion evidence and hosted completion evidence are reported
+        separately.
+      </Criterion>
+
+      <Criterion>
+        Completion packet explicitly lists the prior red hosted run and the new
+        green superseding run.
+      </Criterion>
+
+      <Criterion>
+        This remediation is neither transitioned to applied nor archived as
+        successfully applied until required hosted evidence is green and an owner
+        explicitly confirms apply.
+      </Criterion>
+    </AcceptanceCriteria>
+
+    <AffectedAreas>
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-BROWSER-SERVICE-PLUGINS />
+      <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-PERSISTENCE-RECOVERY />
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+      <M-GRACE-CONTROL-LAYER />
+    </AffectedAreas>
+
+    <VerificationIntent>
+      <ExpectedCommand>
+        cargo fmt --all -- --check
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo check --workspace --all-targets
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo clippy --workspace --all-targets --all-features -- -D warnings
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test --workspace
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-provider-process
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-cef
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-downloads
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-cookies
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-services-contract
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All
+      </ExpectedCommand>
+
+      <ExpectedEvidence>
+        Fresh evidence distinguishes reference/unit tests from production tests
+        and demonstrates a real CEF-selected native provider path, real
+        cookie/storage/download engine integration, generic brokered blob access,
+        SHA-256 artifact verification, hostile cookie-domain cases, persistence
+        and restart behavior, repaired GRACE projections, no duplicate active
+        predecessor, clippy-clean source and a fresh required hosted run.
+      </ExpectedEvidence>
+    </VerificationIntent>
+
+    <Assumptions>
+      <Assumption>
+        The current production-provider claims are considered unproven until this
+        remediation produces fresh evidence; previously green reference-backed
+        tests remain useful but are not promoted to production evidence.
+      </Assumption>
+
+      <Assumption>
+        Existing M0.6 generic native IPC and M1.2 generic blob protocol are the
+        intended mechanisms and should be completed/reused rather than replaced
+        by browser-specific transports.
+      </Assumption>
+
+      <Assumption>
+        ReferenceBrowserBackend remains valuable as deterministic reference
+        infrastructure once its production role is removed.
+      </Assumption>
+
+      <Assumption>
+        The exact CEF binding implementation strategy is chosen in the separately
+        approved plan after inspecting currently available CEF primitives and
+        thread-affinity requirements.
+      </Assumption>
+
+      <Assumption>
+        If the existing CEF wrapper lacks enough real implementation to satisfy
+        the required operations, the plan may explicitly stage those operations
+        inside this remediation rather than pretending the wrapper is already a
+        production backend.
+      </Assumption>
+
+      <Assumption>
+        The local duplicate active predecessor described in preflight is workspace
+        state not visible in the remote repository; its exact cleanup must be
+        validated locally by GRACE before execution.
+      </Assumption>
+
+      <Assumption>
+        Request-policy/adblock and later M1.3 slices remain blocked until this
+        remediation is applied.
+      </Assumption>
+    </Assumptions>
+  </C-BROWSER-DOWNLOADS-COOKIES-REALITY-REMEDIATION-20260901>
+</GraceChangeSpec>

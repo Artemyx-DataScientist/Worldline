@@ -55,6 +55,35 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium
 
+  real-s3b:
+    name: Real-S3B
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Bootstrap toolchain
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/ci/Initialize-WorldlineCi.ps1
+      - name: Bootstrap pinned CEF runtime and native provider client
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/ci/Initialize-WorldlineCef.ps1
+      - name: Run real native S3B suite
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealS3B
+
+  browser-provider:
+    name: BrowserProvider
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Bootstrap toolchain
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/ci/Initialize-WorldlineCi.ps1
+      - name: Run BrowserProvider suite
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider
+
   architecture-security:
     name: Architecture-Security
     runs-on: ubuntu-24.04
@@ -93,4 +122,3 @@ jobs:
       - name: Run Proving-Slice suite
         shell: pwsh
         run: pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice
-

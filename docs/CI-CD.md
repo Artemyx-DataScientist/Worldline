@@ -541,6 +541,22 @@ Matrix должна отражать реальную поддержку про�
 Windows required gate (`Real-Chromium`), а Linux workspace/correctness gates
 остаются детерминированными и не зависят от внешнего браузерного процесса.
 
+Browser service proving slices that exercise the native CEF provider are also a
+separate Windows required gate (`Real-S3B`). The gate must bootstrap the exact
+repository-declared CEF runtime, verify its archive checksum, build and stage
+the native provider client, and then run the real S3B acceptance test through
+the normal native-host boundary:
+
+```text
+pwsh -NoProfile -File scripts/ci/Initialize-WorldlineCef.ps1
+pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealS3B
+```
+
+Missing CEF assets, an ambient/unpinned runtime, an unavailable native client,
+or a skipped real-engine path are failures. Reference and in-memory providers
+remain useful for deterministic unit fixtures, but they do not satisfy the
+`Real-S3B` hosted evidence requirement.
+
 Если поведение зависит от ОС, test должен явно исполняться на соответствующей
 ОС.
 

@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 use worldline_browser_contract::identity::BrowserContextId;
-use worldline_browser_contract::primitives::StorageType;
-use worldline_browser_cookies::{CookiesService, InMemoryCookieEngine};
+use worldline_browser_contract::primitives::{
+    CookieV0_2, GetCookiesRequest, SetCookieRequestV0_2, StorageType,
+};
+use worldline_browser_cookies::{CookieEngineBackend, CookiesService, InMemoryCookieEngine};
 use worldline_browser_services_contract::{
     ClearSiteDataRequest, DeleteCookieServiceRequest, GetCookieMetadataRequest,
     GetCookieValueRequest, SetCookieServiceRequest,
@@ -323,4 +325,158 @@ fn restart_recovery_preserves_engine_as_source_of_truth() {
         .unwrap();
 
     assert_eq!(val_res.cookie.unwrap().expose_value(), "true_12345");
+}
+
+#[test]
+fn cookie_matching_uses_label_boundaries_and_host_only_semantics() {
+    let engine = InMemoryCookieEngine::new();
+    let context_id = BrowserContextId::new("ctx-domain-boundary");
+
+    engine
+        .set_cookie_v0_2(SetCookieRequestV0_2 {
+            context_id: context_id.clone(),
+            cookie: CookieV0_2 {
+                name: "parent".to_string(),
+                value: "parent-value".to_string(),
+                domain: ".Example.COM".to_string(),
+                path: "/".to_string(),
+                secure: false,
+                http_only: false,
+                same_site: None,
+                expires_epoch_sec: None,
+                host_only: false,
+            },
+        })
+        .unwrap();
+    engine
+        .set_cookie_v0_2(SetCookieRequestV0_2 {
+            context_id: context_id.clone(),
+            cookie: CookieV0_2 {
+                name: "host".to_string(),
+                value: "host-value".to_string(),
+                domain: "EXAMPLE.COM".to_string(),
+                path: "/".to_string(),
+                secure: false,
+                http_only: false,
+                same_site: None,
+                expires_epoch_sec: None,
+                host_only: true,
+            },
+        })
+        .unwrap();
+    engine
+        .set_cookie_v0_2(SetCookieRequestV0_2 {
+            context_id: context_id.clone(),
+            cookie: CookieV0_2 {
+                name: "evil".to_string(),
+                value: "evil-value".to_string(),
+                domain: "evil-example.com".to_string(),
+                path: "/".to_string(),
+                secure: false,
+                http_only: false,
+                same_site: None,
+                expires_epoch_sec: None,
+                host_only: false,
+            },
+        })
+        .unwrap();
+
+    let subdomain = engine
+        .get_cookies_v0_2(GetCookiesRequest {
+            context_id: context_id.clone(),
+            url: Some("https://sub.Example.COM/path".to_string()),
+            domain: None,
+        })
+        .unwrap();
+    let names: Vec<_> = subdomain
+        .cookies
+        .iter()
+        .map(|cookie| cookie.name.as_str())
+        .collect();
+    assert!(names.contains(&"parent"));
+    assert!(!names.contains(&"host"));
+    assert!(!names.contains(&"evil"));
+
+    let exact_host = engine
+        .get_cookies_v0_2(GetCookiesRequest {
+            context_id: context_id.clone(),
+            url: Some("https://EXAMPLE.com/".to_string()),
+            domain: None,
+        })
+        .unwrap();
+    let names: Vec<_> = exact_host
+        .cookies
+        .iter()
+        .map(|cookie| cookie.name.as_str())
+        .collect();
+    assert!(names.contains(&"parent"));
+    assert!(names.contains(&"host"));
+    assert!(!names.contains(&"evil"));
+
+    let selected = engine
+        .get_cookies_v0_2(GetCookiesRequest {
+            context_id,
+            url: None,
+            domain: Some("example.com".to_string()),
+        })
+        .unwrap();
+    assert!(selected.cookies.iter().all(|cookie| {
+        cookie.domain == "example.com" || cookie.domain.ends_with(".example.com")
+    }));
+    assert!(!selected.cookies.iter().any(|cookie| cookie.name == "evil"));
+
+    let trailing_dot = engine
+        .get_cookies_v0_2(GetCookiesRequest {
+            context_id: BrowserContextId::new("ctx-domain-boundary"),
+            url: Some("https://sub.example.com./path".to_string()),
+            domain: None,
+        })
+        .unwrap();
+    assert!(
+        trailing_dot
+            .cookies
+            .iter()
+            .any(|cookie| cookie.name == "parent")
+    );
+}
+
+#[test]
+fn invalid_cookie_domains_are_rejected_and_clear_reports_actual_change() {
+    let engine = InMemoryCookieEngine::new();
+    let context_id = BrowserContextId::new("ctx-invalid-domain");
+    for domain in [
+        "",
+        ".",
+        "..example.com",
+        "example.com..",
+        "example.com/path",
+        "bad domain",
+    ] {
+        let result = engine.set_cookie_v0_2(SetCookieRequestV0_2 {
+            context_id: context_id.clone(),
+            cookie: CookieV0_2 {
+                name: "bad".to_string(),
+                value: "value".to_string(),
+                domain: domain.to_string(),
+                path: "/".to_string(),
+                secure: false,
+                http_only: false,
+                same_site: None,
+                expires_epoch_sec: None,
+                host_only: true,
+            },
+        });
+        assert!(result.is_err(), "domain {domain:?} must be rejected");
+    }
+
+    let first_clear = engine
+        .clear_storage(
+            worldline_browser_contract::primitives::ClearStorageRequest {
+                context_id: context_id.clone(),
+                origin: "https://example.com".to_string(),
+                storage_type: StorageType::LocalStorage,
+            },
+        )
+        .unwrap();
+    assert!(!first_clear.cleared);
 }

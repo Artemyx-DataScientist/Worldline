@@ -18,7 +18,8 @@ use worldline_browser_contract::{
     error::BrowserError,
     primitives::{
         ClearStorageRequest, ClearStorageResponse, DeleteCookiesRequest, DeleteCookiesResponse,
-        GetCookiesRequest, GetCookiesResponse, SetCookieRequest, SetCookieResponse,
+        GetCookiesRequest, GetCookiesResponse, GetCookiesResponseV0_2, SetCookieRequest,
+        SetCookieRequestV0_2, SetCookieResponse, StorageItemRequestV0_2, StorageItemResponseV0_2,
     },
     query::DocumentSnapshot,
 };
@@ -87,6 +88,30 @@ pub trait BrowserBackend: Send + Sync {
     // Experimental: primitives
     fn get_cookies(&self, req: &GetCookiesRequest) -> Result<GetCookiesResponse, BrowserError>;
     fn set_cookie(&mut self, req: &SetCookieRequest) -> Result<SetCookieResponse, BrowserError>;
+
+    /// Additive engine.cookies/0.2 path. The default adapter preserves the
+    /// 0.1 behavior for backends that do not expose explicit scope semantics;
+    /// native providers override it because host-only/domain-cookie scope is
+    /// security-relevant and cannot be inferred from a 0.1 DTO.
+    fn get_cookies_v0_2(
+        &self,
+        req: &GetCookiesRequest,
+    ) -> Result<GetCookiesResponseV0_2, BrowserError> {
+        let response = self.get_cookies(req)?;
+        Ok(GetCookiesResponseV0_2 {
+            cookies: response.cookies.into_iter().map(Into::into).collect(),
+        })
+    }
+
+    fn set_cookie_v0_2(
+        &mut self,
+        req: &SetCookieRequestV0_2,
+    ) -> Result<SetCookieResponse, BrowserError> {
+        self.set_cookie(&SetCookieRequest {
+            context_id: req.context_id.clone(),
+            cookie: req.cookie.clone().into(),
+        })
+    }
     fn delete_cookies(
         &mut self,
         req: &DeleteCookiesRequest,
@@ -95,4 +120,22 @@ pub trait BrowserBackend: Send + Sync {
         &mut self,
         req: &ClearStorageRequest,
     ) -> Result<ClearStorageResponse, BrowserError>;
+
+    fn set_storage_item(
+        &mut self,
+        _req: &StorageItemRequestV0_2,
+    ) -> Result<StorageItemResponseV0_2, BrowserError> {
+        Err(BrowserError::UnsupportedOperation(
+            "storage item set is not implemented by this backend".to_string(),
+        ))
+    }
+
+    fn get_storage_item(
+        &self,
+        _req: &StorageItemRequestV0_2,
+    ) -> Result<StorageItemResponseV0_2, BrowserError> {
+        Err(BrowserError::UnsupportedOperation(
+            "storage item get is not implemented by this backend".to_string(),
+        ))
+    }
 }

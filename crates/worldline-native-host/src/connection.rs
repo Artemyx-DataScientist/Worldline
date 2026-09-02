@@ -152,6 +152,24 @@ impl NativeProviderConnection {
         self.max_frame_bytes
     }
 
+    /// Returns the bounded stderr diagnostics collected from the supervised
+    /// provider process. This is intentionally a tail so a misbehaving child
+    /// cannot grow host memory without bound.
+    pub fn stderr_text(&self) -> String {
+        self.child
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .stderr_text()
+    }
+
+    /// Returns the provider's exit status when it has already terminated.
+    pub fn try_status(&self) -> Option<std::process::ExitStatus> {
+        self.child
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .try_status()
+    }
+
     /// Sends one correlated capability request and awaits the reply.
     pub fn call(&self, payload: Value) -> Result<Value, NativeHostError> {
         self.call_inner(MessageKind::CapabilityRequest, payload, None)
@@ -281,6 +299,9 @@ fn spawn_reader(
             let envelope = match read_frame(&mut stdout, max_frame_bytes) {
                 Ok(envelope) => envelope,
                 Err(error) => {
+                    if !matches!(&error, NativeHostError::TransportClosed) {
+                        eprintln!("worldline native host reader stopped: {error}");
+                    }
                     shared.break_with(error);
                     break;
                 }

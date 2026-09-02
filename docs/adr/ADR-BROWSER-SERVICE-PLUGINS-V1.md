@@ -1,7 +1,7 @@
 # ADR: Browser Service Plugins Architecture, Experimental Contracts, and Failure Isolation (v1)
 
 Статус: accepted  
-Change: C-BROWSER-TABS-HISTORY-SERVICES-20260901, C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901  
+Change: C-BROWSER-TABS-HISTORY-SERVICES-20260901, C-BROWSER-DOWNLOADS-COOKIES-SERVICES-20260901, C-BROWSER-DOWNLOADS-COOKIES-REALITY-REMEDIATION-20260901 (active)
 Рубеж: M1.3 — Browser service plugins  
 
 ---
@@ -131,6 +131,33 @@ Change: C-BROWSER-TABS-HISTORY-SERVICES-20260901, C-BROWSER-DOWNLOADS-COOKIES-SE
 3. **Chromium как единственный источник истины для значений:** Сервис cookies не создаёт вторичную базу данных cookie. Актуальные значения всегда запрашиваются из профиля Chromium (`engine.cookies/0.1`).
 4. **Строгая контекстная изоляция:** Любые операции с cookies и site-data валидируют точный `BrowserContextId` и канонические селекторы. Контекст A не может читать или удалять cookies/данные Контекста B даже при совпадении origin.
 5. **Очистка `browser.site-data/0.1`:** Очищает данные origin через `engine.storage/0.1` без побочного удаления истории, вкладок или загрузок.
+
+### 8.1 Remediation contract delta (C-BROWSER-DOWNLOADS-COOKIES-REALITY-REMEDIATION-20260901)
+
+Проверка реального CEF-примитива показала, что исходный `engine.cookies/0.1`
+не может выразить различие между host-only cookie и domain cookie без
+изменения формы DTO. Поэтому выбран только additive путь:
+
+1. `engine.cookies/0.1`, `browser.cookies` 0.1 DTO, их JSON fixtures и
+   compatibility tests сохранены без добавления нового поля и без изменения
+   смысла существующих данных.
+2. Добавлены экспериментальные `engine.cookies/0.2` и service DTO 0.2 с
+   явным `host_only`, а также `engine.storage/0.2` для bounded item
+   set/get. CEF-типы не пересекают этот контракт или IPC boundary.
+3. Generic blob transport остаётся существующим
+   `worldline-plugin-protocol::BlobRequest/BlobResult`, а generic durable
+   implementation и read admission принадлежат `worldline-storage`:
+   `FilesystemBlobStore` плюс exact-scope `BlobReadBroker`. Browser downloads
+   публикует только opaque `ArtifactRef` и не получает browser-specific blob
+   API или права превратить `browser.downloads.read` в `blob.read`.
+4. `ArtifactRef.sha256_hash` содержит digest, вычисленный generic
+   content-addressed store как SHA-256; browser service metadata and blob
+   bytes survive independent service restart through durable snapshot and
+   filesystem blob reopening.
+
+Этот additive contract delta оставляет 0.1 fixtures и compatibility evidence
+доступными для клиентов, пока 0.2 проходит отдельную hosted real-CEF
+проверку.
 
 ---
 

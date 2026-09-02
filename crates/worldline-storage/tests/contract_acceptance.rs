@@ -12,7 +12,10 @@ use worldline_kernel::{
     JobStore, OutboxId, OutboxRecord, OutboxStatus, OutboxStore, PluginId, PrincipalId,
     StateBackend, StateError, StateKey, StateRevision, StateSchemaVersion, StateTransactionId,
 };
-use worldline_storage::{FilesystemBlobStore, SqliteEventJournal, SqliteStateBackend};
+use worldline_storage::{
+    BLOB_READ_CAPABILITY, BlobReadBroker, FilesystemBlobStore, SqliteEventJournal,
+    SqliteStateBackend,
+};
 
 struct TempProfile(PathBuf);
 
@@ -410,6 +413,28 @@ fn audit_blob_and_job_stores_preserve_safe_metadata_and_recovery_state() {
             b"immutable content"
         );
         BlobStore::verify(&blob, &blob_id).expect("fresh blob must verify");
+        let broker = BlobReadBroker::new();
+        assert!(
+            broker
+                .issue(
+                    "downloads-metadata-reader",
+                    "browser.downloads.read",
+                    blob_id.as_str()
+                )
+                .is_err()
+        );
+        let grant = broker
+            .issue(
+                "generic-blob-reader",
+                BLOB_READ_CAPABILITY,
+                blob_id.as_str(),
+            )
+            .expect("generic blob broker must issue an exact grant");
+        assert_eq!(
+            blob.get_with_authority(&blob_id, &grant)
+                .expect("authorized generic read must succeed"),
+            b"immutable content"
+        );
 
         let job = JobRecord::new(
             "job-contract",

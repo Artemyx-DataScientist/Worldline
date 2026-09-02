@@ -1,0 +1,397 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-BROWSER-DOWNLOADS-COOKIES-REALITY-REMEDIATION-20260901>
+    <IntentSummary>
+      Execute the approved remediation from a recovered, green GRACE baseline.
+      The active/archive collision, pre-existing downloads edits, and index
+      ownership repair were resolved before this plan was regenerated; they are
+      not implementation tasks in this bundle and must not be repeated during
+      execution.
+
+      The first implementation gate is an actual CEF feasibility and binding
+      bootstrap. Only after that gate establishes a real native engine path may
+      the work define compatible contract deltas, replace the reference-backed
+      provider, broker completed artifacts, correct cookie authority semantics,
+      and prove the result through a Windows real-S3B path. Reference and
+      in-memory fixtures remain available only as explicitly labelled
+      deterministic lower-level evidence.
+
+      This draft neither authorizes observed implementation writes nor permits
+      apply/archive. Exact plan approval, green hosted evidence, and explicit
+      owner apply confirmation remain separate requirements.
+    </IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-BROWSER-ENGINE-PROVIDER-PROCESS</Value>
+        <Value>M-BROWSER-SERVICE-PLUGINS</Value>
+        <Value>M-BROWSER-CONTRACT-ENGINE-SPIKE</Value>
+        <Value>M-PERSISTENCE-RECOVERY</Value>
+        <Value>M-EXTERNAL-PLUGIN-BOUNDARY</Value>
+        <Value>M-OPERABILITY-COMPATIBILITY-UPGRADE</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>crates/worldline-browser-cef/src/backend.rs</Value>
+        <Value>crates/worldline-browser-cef/src/ffi.rs</Value>
+        <Value>crates/worldline-browser-cef/src/loop_runner.rs</Value>
+        <Value>crates/worldline-browser-provider-process/src/main.rs</Value>
+        <Value>crates/worldline-browser-provider/src/backend.rs</Value>
+        <Value>crates/worldline-plugin-protocol/src/blob.rs</Value>
+        <Value>crates/worldline-native-host/src/connection.rs</Value>
+        <Value>crates/worldline-storage/src/blob.rs</Value>
+        <Value>crates/worldline-browser-downloads/src/service.rs</Value>
+        <Value>crates/worldline-browser-downloads/src/state.rs</Value>
+        <Value>crates/worldline-browser-downloads/src/artifact.rs</Value>
+        <Value>crates/worldline-browser-cookies/src/service.rs</Value>
+        <Value>crates/worldline-browser-services-contract/src/cookies.rs</Value>
+        <Value>crates/worldline-browser-services-contract/src/downloads.rs</Value>
+        <Value>crates/worldline-reference/src/s3b.rs</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+      </MustExist>
+      <MustOwn>
+        <Owner>GD-MAIN</Owner>
+        <Anchor>M-BROWSER-SERVICE-PLUGINS</Anchor>
+      </MustOwn>
+      <MustOwn>
+        <Owner>VD-MAIN</Owner>
+        <Anchor>V-M-BROWSER-SERVICE-PLUGINS</Anchor>
+      </MustOwn>
+      <MustContain>
+        <File>crates/worldline-browser-cef/src/backend.rs</File>
+        <Text>ReferenceBrowserBackend</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-browser-provider-process/src/main.rs</File>
+        <Text>let backend = ReferenceBrowserBackend::new();</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-browser-downloads/src/artifact.rs</File>
+        <Text>fn simple_hash</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-browser-cookies/src/service.rs</File>
+        <Text>ends_with(domain)</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-browser-cookies/src/service.rs</File>
+        <Text>had_items || true</Text>
+      </MustContain>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>crates/worldline-reference/tests/s3b_real_acceptance.rs</Value>
+      </MustExist>
+      <MustOwn>
+        <Owner>GD-MAIN</Owner>
+        <Anchor>M-BROWSER-SERVICE-PLUGINS</Anchor>
+      </MustOwn>
+      <MustOwn>
+        <Owner>VD-MAIN</Owner>
+        <Anchor>V-M-BROWSER-SERVICE-PLUGINS</Anchor>
+      </MustOwn>
+      <MustLink>
+        <From>M-BROWSER-SERVICE-PLUGINS</From>
+        <To>M-BROWSER-ENGINE-PROVIDER-PROCESS</To>
+      </MustLink>
+      <MustLink>
+        <From>M-BROWSER-SERVICE-PLUGINS</From>
+        <To>M-EXTERNAL-PLUGIN-BOUNDARY</To>
+      </MustLink>
+      <MustLink>
+        <From>M-BROWSER-SERVICE-PLUGINS</From>
+        <To>M-PERSISTENCE-RECOVERY</To>
+      </MustLink>
+      <MustVerify>
+        <Module>M-BROWSER-ENGINE-PROVIDER-PROCESS</Module>
+        <Module>M-BROWSER-SERVICE-PLUGINS</Module>
+        <Module>M-BROWSER-CONTRACT-ENGINE-SPIKE</Module>
+        <Module>M-EXTERNAL-PLUGIN-BOUNDARY</Module>
+        <Module>M-PERSISTENCE-RECOVERY</Module>
+        <Module>M-OPERABILITY-COMPATIBILITY-UPGRADE</Module>
+        <Module>M-REFERENCE-PROVING-SLICE</Module>
+        <Module>M-CI-BASELINE</Module>
+      </MustVerify>
+      <MustNotContain>
+        <File>crates/worldline-browser-cef/src/backend.rs</File>
+        <Text>ReferenceBrowserBackend</Text>
+      </MustNotContain>
+      <MustNotContain>
+        <File>crates/worldline-browser-downloads/src/artifact.rs</File>
+        <Text>fn simple_hash</Text>
+      </MustNotContain>
+      <MustNotContain>
+        <File>crates/worldline-browser-cookies/src/service.rs</File>
+        <Text>ends_with(domain)</Text>
+      </MustNotContain>
+      <MustNotContain>
+        <File>crates/worldline-browser-cookies/src/service.rs</File>
+        <Text>had_items || true</Text>
+      </MustNotContain>
+      <MustPassCommand>
+        <Command>cargo fmt --all -- --check</Command>
+        <Command>cargo check --workspace --all-targets</Command>
+        <Command>cargo clippy --workspace --all-targets --all-features -- -D warnings</Command>
+        <Command>cargo test --workspace</Command>
+        <Command>cargo test -p worldline-browser-contract</Command>
+        <Command>cargo test -p worldline-plugin-protocol</Command>
+        <Command>cargo test -p worldline-native-host</Command>
+        <Command>cargo test -p worldline-browser-provider</Command>
+        <Command>cargo test -p worldline-browser-cef</Command>
+        <Command>cargo test -p worldline-browser-provider-process</Command>
+        <Command>cargo test -p worldline-browser-services-contract</Command>
+        <Command>cargo test -p worldline-browser-downloads</Command>
+        <Command>cargo test -p worldline-browser-cookies</Command>
+        <Command>cargo test -p worldline-reference --test s2_acceptance</Command>
+        <Command>cargo test -p worldline-reference --test s3b_acceptance</Command>
+        <Command>cargo test -p worldline-reference --test s3b_real_acceptance</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealS3B</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+        <M-BROWSER-SERVICE-PLUGINS />
+        <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <M-EXTERNAL-PLUGIN-BOUNDARY />
+        <M-PERSISTENCE-RECOVERY />
+        <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+        <M-REFERENCE-PROVING-SLICE />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-BROWSER-ENGINE-PROVIDER-PROCESS />
+        <V-M-BROWSER-SERVICE-PLUGINS />
+        <V-M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <V-M-EXTERNAL-PLUGIN-BOUNDARY />
+        <V-M-PERSISTENCE-RECOVERY />
+        <V-M-OPERABILITY-COMPATIBILITY-UPGRADE />
+        <V-M-REFERENCE-PROVING-SLICE />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>Cargo.toml</File>
+      <File>Cargo.lock</File>
+      <File>docs/CI-CD.md</File>
+      <File>docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md</File>
+      <File>docs/adr/ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1.md</File>
+      <File>docs/adr/ADR-PERSISTENCE-RECOVERY-V1.md</File>
+      <File>docs/adr/ADR-EXTERNAL-PLUGIN-BOUNDARY-V1.md</File>
+      <File>crates/worldline-browser-contract/Cargo.toml</File>
+      <Glob>crates/worldline-browser-contract/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-contract/tests/*.rs</Glob>
+      <File>crates/worldline-browser-provider/Cargo.toml</File>
+      <Glob>crates/worldline-browser-provider/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-provider/tests/*.rs</Glob>
+      <File>crates/worldline-browser-cef/Cargo.toml</File>
+      <File>crates/worldline-browser-cef/build.rs</File>
+      <File>crates/worldline-browser-cef/cef-runtime.manifest.json</File>
+      <Glob>crates/worldline-browser-cef/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-cef/tests/*.rs</Glob>
+      <Glob>crates/worldline-browser-cef/bindings/*.rs</Glob>
+      <File>crates/worldline-browser-provider-process/Cargo.toml</File>
+      <Glob>crates/worldline-browser-provider-process/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-provider-process/tests/*.rs</Glob>
+      <File>crates/worldline-browser-services-contract/Cargo.toml</File>
+      <Glob>crates/worldline-browser-services-contract/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-services-contract/tests/*.rs</Glob>
+      <File>crates/worldline-browser-downloads/Cargo.toml</File>
+      <Glob>crates/worldline-browser-downloads/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-downloads/tests/*.rs</Glob>
+      <File>crates/worldline-browser-cookies/Cargo.toml</File>
+      <Glob>crates/worldline-browser-cookies/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-cookies/tests/*.rs</Glob>
+      <File>crates/worldline-plugin-protocol/Cargo.toml</File>
+      <Glob>crates/worldline-plugin-protocol/src/*.rs</Glob>
+      <Glob>crates/worldline-plugin-protocol/tests/*.rs</Glob>
+      <Glob>crates/worldline-plugin-protocol/fixtures/*.json</Glob>
+      <File>crates/worldline-plugin-protocol/wit/worldline-plugin.wit</File>
+      <File>crates/worldline-native-host/Cargo.toml</File>
+      <Glob>crates/worldline-native-host/src/*.rs</Glob>
+      <Glob>crates/worldline-native-host/tests/*.rs</Glob>
+      <File>crates/worldline-storage/Cargo.toml</File>
+      <Glob>crates/worldline-storage/src/*.rs</Glob>
+      <Glob>crates/worldline-storage/tests/*.rs</Glob>
+      <File>crates/worldline-reference/Cargo.toml</File>
+      <File>crates/worldline-reference/src/lib.rs</File>
+      <File>crates/worldline-reference/src/s3b.rs</File>
+      <Glob>crates/worldline-reference/tests/**</Glob>
+      <Glob>scripts/ci/*.ps1</Glob>
+      <File>.github/workflows/pr.yml</File>
+      <File>.github/workflows/master.yml</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Bootstrap a real, pinned CEF runtime and binding before treating CEF as production-capable</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Select and record an exact supported CEF binary distribution, platform/architecture, version, provenance and SHA-256 in a repository-controlled manifest. The bootstrap path verifies that identity before use and fails closed on missing, substituted or mismatched assets; it must not use an ambient system CEF installation.</Criterion>
+          <Criterion>Replace the simulated FFI surface with executable bindings to the selected CEF C API. Establish the ABI boundary, reference-counted callback ownership, callback lifetime teardown, thread-affinity/marshalling model, message-loop integration, browser subprocess executable/resource paths, and ordered cef_execute_process, initialize, run-work, close and shutdown lifecycle. CEF pointers, callbacks and platform handles remain inside the CEF adapter.</Criterion>
+          <Criterion>Create a true native headful browser through CEF rather than a synthetic Win32 loop or BrowserProviderCore fixture. The bootstrap proves that the concrete CEF API is loaded, a native browser instance is created, and a CEF callback observes its lifecycle on the required Windows environment.</Criterion>
+          <Criterion>If an actual maintained binding, compatible pinned CEF distribution, required sandboxed subprocess model, or true headful lifecycle cannot be established within this approved architecture, stop before substituting a reference or simulated path. Preserve the feasibility evidence and create a superseding design/spec/plan for the new architectural commitment.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check -p worldline-browser-cef</Command>
+          <Command>cargo test -p worldline-browser-cef --test cef_headful_acceptance</Command>
+          <Command>cargo test -p worldline-browser-provider-process</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Define only necessary additive experimental contract deltas while preserving 0.1 compatibility</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Determine from the actual provider and host surfaces whether experimental 0.1 can express both host-only versus domain-cookie semantics and brokered artifact reads with independent principal authority.</Criterion>
+          <Criterion>If either surface is insufficient, introduce only an additive experimental 0.2 or separately named generic experimental contract. Preserve 0.1 DTOs, fixtures, compatibility tests and semantics without in-place reinterpretation or weakening.</Criterion>
+          <Criterion>The selected delta stays engine-neutral and generic: CEF FFI objects never cross a Worldline contract or IPC boundary, and no browser-specific privileged kernel capability or blob store is added.</Criterion>
+          <Criterion>The relevant ADR records the selected compatible contract path, including an explicit finding when no new contract version is required.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-contract</Command>
+          <Command>cargo test -p worldline-browser-services-contract</Command>
+          <Command>cargo test -p worldline-plugin-protocol</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Implement a truthful CEF provider factory and re-prove M1.2 process, loading, scheme and headful security</Title>
+        <DependsOn>
+          <T-001 />
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>CefBrowserBackend no longer stores or delegates browser semantics to ReferenceBrowserBackend. It uses the bound CEF primitives for the context, page, navigation, observe, query, act, download, cookie and storage surface needed by the real proving path; operations outside that surface fail explicitly as Unsupported or Unavailable.</Criterion>
+          <Criterion>The native provider process has one authoritative backend factory. --backend cef selects only the CEF backend; --backend reference remains an explicitly labelled deterministic/reference choice. Missing, unknown or unavailable requested backends, missing runtime assets and initialization failures terminate visibly with actionable health diagnostics and never fall back to reference.</Criterion>
+          <Criterion>The production process invokes actual cef_execute_process before host/provider initialization for CEF children and exposes truthful selected-backend health and manifest capability surfaces. Tests prove a requested CEF route cannot instantiate the reference backend.</Criterion>
+          <Criterion>Re-prove the M1.2 security boundary against the actual CEF process tree: production startup neither passes nor accepts --no-sandbox; child processes receive no Worldline capability authority, broker handle or privileged host IPC endpoint; hard termination kills the complete CEF tree with no orphan; and the proof uses the normal containment owner rather than a test-only imitation.</Criterion>
+          <Criterion>Load CEF DLLs and resources only from the verified pinned runtime location using an explicit safe Windows DLL search policy. Tests reject an ambient/current-directory DLL substitution attempt and verify that executable, subprocess and resource paths are the manifest-selected paths.</Criterion>
+          <Criterion>Actual CEF navigation enforces a fail-closed scheme policy for file:, javascript:, chrome: and devtools: while allowing the specifically authorised proving fixture. A real Windows headful S2 path proves browser creation, navigation and teardown through the production provider, not a synthetic adapter.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-cef</Command>
+          <Command>cargo test -p worldline-browser-provider</Command>
+          <Command>cargo test -p worldline-browser-provider-process</Command>
+          <Command>cargo test -p worldline-native-host --test containment_acceptance</Command>
+          <Command>cargo test -p worldline-reference --test s2_acceptance</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Materialize completed downloads through generic brokered blobs with durable metadata and actual SHA-256</Title>
+        <DependsOn>
+          <T-002 />
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>worldline-browser-downloads no longer treats its local BTreeMap ArtifactStore or a public unauthorised read_bytes method as production artifact authority. Any retained in-memory implementation is explicitly test-only and cannot provide real-S3B evidence.</Criterion>
+          <Criterion>Actual CEF/provider download completion inserts bytes through the existing generic host blob mechanism or the additive generic contract selected in T-002. The persisted DownloadRecord and ArtifactRef remain resolvable across downloads-service restart without relying solely on process-local memory.</Criterion>
+          <Criterion>The normal broker independently admits blob reads. A principal with browser.downloads.read may inspect DownloadRecord and ArtifactRef metadata but receives AccessDenied for bytes without the distinct generic blob-read authority; knowledge of an opaque artifact identifier cannot bypass principal or scope checks.</Criterion>
+          <Criterion>ArtifactRef.sha256_hash contains a real SHA-256 digest checked against deterministic fixture bytes. Resolve the EngineDownloadStartedEvent compilation issue through the approved event contract, not a test-only placeholder, broad lint suppression or callback simulation.</Criterion>
+          <Criterion>Download reconciliation preserves pre-engine intent persistence and does not automatically replay an outcome that may already have completed.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-downloads</Command>
+          <Command>cargo test -p worldline-native-host</Command>
+          <Command>cargo test -p worldline-storage --test contract_acceptance</Command>
+        </Verification>
+      </T-004>
+
+      <T-005>
+        <Title>Implement canonical cookie and site-data authorization semantics on the selected CEF path</Title>
+        <DependsOn>
+          <T-002 />
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Cookie matching canonicalizes host and domain input, enforces DNS label boundaries, defines case and trailing-dot handling, and fails closed for empty, malformed, privileged and unsupported targets. Raw suffix matching such as ends_with(domain) is absent from authorization logic.</Criterion>
+          <Criterion>Host-only and domain-cookie semantics use the compatible contract selected in T-002. Hostile tests cover example.com, sub.example.com, evil-example.com, case normalization, trailing dots, invalid domains and BrowserContextId isolation.</Criterion>
+          <Criterion>Production cookie and storage operations use actual selected CEF primitives through the normal provider boundary. InMemoryCookieEngine remains only a separately named deterministic fixture and cannot be used as real-S3B production proof.</Criterion>
+          <Criterion>ClearSiteDataResponse reports the defined operation outcome instead of a constant success expression, and a context/origin cannot clear a sibling context or origin.</Criterion>
+          <Criterion>Cookie metadata and value authority remain separate, and secret-bearing DTO diagnostics remain redacted.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-cookies</Command>
+          <Command>cargo test -p worldline-browser-services-contract</Command>
+          <Command>cargo test -p worldline-browser-provider</Command>
+        </Verification>
+      </T-005>
+
+      <T-006>
+        <Title>Replace simulated S3B with a separately named real native IPC and engine proving path</Title>
+        <DependsOn>
+          <T-003 />
+          <T-004 />
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>A new s3b_real_acceptance path starts the normal native provider process with --backend cef and reaches browser services through ordinary IPC, capability and broker boundaries. It does not construct BrowserProviderCore directly, manually inject service engine callbacks as the sole engine proof, or use InMemoryCookieEngine as the production cookie proof.</Criterion>
+          <Criterion>Using deterministic loopback content, the real path creates CEF contexts/pages, uses actual engine cookies and storage, completes a real engine download, proves SHA-256, generic blob authority separation, downloads-service restart persistence, context isolation and service failure isolation without public-network dependencies.</Criterion>
+          <Criterion>The former reference S3B fixture remains or is renamed as explicitly deterministic reference evidence, so it cannot be confused with the production CEF proof.</Criterion>
+          <Criterion>Required CEF or host asset absence makes the real path fail visibly on its Windows environment; it never downgrades to reference behavior.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-reference --test s3b_acceptance</Command>
+          <Command>cargo test -p worldline-reference --test s3b_real_acceptance</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</Command>
+        </Verification>
+      </T-006>
+
+      <T-007>
+        <Title>Make real S3B and real provider evidence required hosted Windows gates without weakening existing suites</Title>
+        <DependsOn>
+          <T-006 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>CI exposes a fail-closed RealS3B suite and a dedicated required Windows Real-S3B job in both PR and master workflows. It proves selected CEF provider execution, native IPC, real engine cookies/storage, real download integration, generic brokered blob authority, restart behavior and the M1.2 security predicates from T-003.</Criterion>
+          <Criterion>BrowserProvider is required for the same remediation commit, BrowserServices retains deterministic coverage, and Source, Correctness, ArchitectureSecurity, ProvingSlice and RealChromium remain required and unweakened.</Criterion>
+          <Criterion>No required job is made green by conditional skipping, continue-on-error, missing CEF assets, simulated bindings, a reference fallback or a reduced headless-only path. Architecture checks continue to reject browser domain policy in the kernel.</Criterion>
+          <Criterion>CI policy and ADR projections distinguish local evidence from hosted evidence and retain the remediation as unapplied until the lifecycle requirements are met.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealS3B</Command>
+        </Verification>
+      </T-007>
+
+      <T-008>
+        <Title>Collect separated local and hosted evidence, then hold before apply</Title>
+        <DependsOn>
+          <T-007 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Local target evidence passes rustfmt, workspace check, clippy with -D warnings without broad suppression, workspace tests, BrowserProvider, BrowserServices, RealS3B and the declared CEF, containment and S2 suites.</Criterion>
+          <Criterion>The operation root runs selected GRACE target and final lifecycle gates outside product acceptance commands, reports the prior red hosted run beside the new hosted run, and keeps local and hosted evidence distinct.</Criterion>
+          <Criterion>A fresh hosted run for one remediation commit is green for Source, Correctness, ArchitectureSecurity, ProvingSlice, RealChromium, BrowserProvider, BrowserServices and Real-S3B.</Criterion>
+          <Criterion>The completion packet separates scaffolded, wired and verified claims; names any unrun evidence; and does not transition this remediation to applied or archive it as successfully applied until the required hosted run is green and the owner explicitly confirms apply.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealS3B</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-008>
+    </ImplementationPlan>
+  </C-BROWSER-DOWNLOADS-COOKIES-REALITY-REMEDIATION-20260901>
+</GraceChangePlan>

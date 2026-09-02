@@ -7,6 +7,8 @@ use worldline_browser_contract::identity::BrowserContextId;
 
 pub const CONTRACT_BROWSER_COOKIES: &str = "browser.cookies";
 pub const CONTRACT_BROWSER_COOKIES_VERSION: &str = "0.1";
+pub const CONTRACT_BROWSER_COOKIES_V0_2: &str = "browser.cookies";
+pub const CONTRACT_BROWSER_COOKIES_V0_2_VERSION: &str = "0.2";
 
 pub const OP_GET_COOKIE_METADATA: &str = "browser.cookies.get_metadata";
 pub const OP_GET_COOKIE_VALUE: &str = "browser.cookies.get_value";
@@ -28,6 +30,20 @@ pub struct CookieMetadata {
     pub http_only: bool,
     pub same_site: Option<String>,
     pub expires_epoch_sec: Option<u64>,
+}
+
+/// Additive browser.cookies/0.2 metadata. The 0.1 metadata DTO intentionally
+/// remains unchanged because host-only scope was not representable there.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CookieMetadataV0_2 {
+    pub name: String,
+    pub domain: String,
+    pub path: String,
+    pub secure: bool,
+    pub http_only: bool,
+    pub same_site: Option<String>,
+    pub expires_epoch_sec: Option<u64>,
+    pub host_only: bool,
 }
 
 /// Secret cookie value container with redacted diagnostic representation.
@@ -84,6 +100,11 @@ pub struct GetCookieMetadataResponse {
     pub cookies: Vec<CookieMetadata>,
 }
 
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetCookieMetadataResponseV0_2 {
+    pub cookies: Vec<CookieMetadataV0_2>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GetCookieValueRequest {
     pub context_id: BrowserContextId,
@@ -109,6 +130,46 @@ pub struct SetCookieServiceRequest {
     pub http_only: Option<bool>,
     pub same_site: Option<String>,
     pub expires_epoch_sec: Option<u64>,
+}
+
+/// Additive browser.cookies/0.2 mutation request carrying explicit cookie
+/// scope semantics. The 0.1 request remains available for compatibility.
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SetCookieServiceRequestV0_2 {
+    pub context_id: BrowserContextId,
+    pub name: String,
+    pub value: String,
+    pub domain: String,
+    pub path: Option<String>,
+    pub secure: Option<bool>,
+    pub http_only: Option<bool>,
+    pub same_site: Option<String>,
+    pub expires_epoch_sec: Option<u64>,
+    pub host_only: bool,
+}
+
+impl SetCookieServiceRequestV0_2 {
+    pub fn expose_value(&self) -> &str {
+        &self.value
+    }
+}
+
+impl fmt::Debug for SetCookieServiceRequestV0_2 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("SetCookieServiceRequestV0_2")
+            .field("context_id", &self.context_id)
+            .field("name", &self.name)
+            .field("value", &"[REDACTED]")
+            .field("domain", &self.domain)
+            .field("path", &self.path)
+            .field("secure", &self.secure)
+            .field("http_only", &self.http_only)
+            .field("same_site", &self.same_site)
+            .field("expires_epoch_sec", &self.expires_epoch_sec)
+            .field("host_only", &self.host_only)
+            .finish()
+    }
 }
 
 impl SetCookieServiceRequest {

@@ -6,19 +6,21 @@ use worldline_browser_services_contract::{
     AUTH_COOKIES_ADMIN, AUTH_COOKIES_METADATA_READ, AUTH_COOKIES_MUTATE, AUTH_COOKIES_VALUE_READ,
     AUTH_DOWNLOADS_CONTROL, AUTH_DOWNLOADS_READ, AUTH_HISTORY_DELETE, AUTH_HISTORY_READ,
     AUTH_SITE_DATA_CLEAR, AUTH_TABS_MUTATE, AUTH_TABS_READ, ArtifactRef, CONTRACT_BROWSER_COOKIES,
+    CONTRACT_BROWSER_COOKIES_V0_2, CONTRACT_BROWSER_COOKIES_V0_2_VERSION,
     CONTRACT_BROWSER_COOKIES_VERSION, CONTRACT_BROWSER_DOWNLOADS,
     CONTRACT_BROWSER_DOWNLOADS_VERSION, CONTRACT_BROWSER_HISTORY, CONTRACT_BROWSER_HISTORY_VERSION,
     CONTRACT_BROWSER_SITE_DATA, CONTRACT_BROWSER_SITE_DATA_VERSION, CONTRACT_BROWSER_TABS,
     CONTRACT_BROWSER_TABS_VERSION, CancelDownloadRequest, CancelDownloadResponse,
     ClearHistoryRequest, ClearSiteDataRequest, ClearSiteDataResponse, CloseTabRequest,
-    CloseTabResponse, CookieMetadata, CookieValue, CreateTabRequest, DeleteCookieServiceRequest,
-    DeleteCookieServiceResponse, DownloadLifecycleStatus, DownloadRecord, DownloadRecordId,
-    GetCookieMetadataRequest, GetCookieMetadataResponse, GetCookieValueRequest,
-    GetCookieValueResponse, GetDownloadRecordRequest, GetDownloadRecordResponse, HistoryEntry,
-    HistoryEntryId, ListDownloadRecordsRequest, ListDownloadRecordsResponse, PauseDownloadRequest,
+    CloseTabResponse, CookieMetadata, CookieMetadataV0_2, CookieValue, CreateTabRequest,
+    DeleteCookieServiceRequest, DeleteCookieServiceResponse, DownloadLifecycleStatus,
+    DownloadRecord, DownloadRecordId, GetCookieMetadataRequest, GetCookieMetadataResponse,
+    GetCookieMetadataResponseV0_2, GetCookieValueRequest, GetCookieValueResponse,
+    GetDownloadRecordRequest, GetDownloadRecordResponse, HistoryEntry, HistoryEntryId,
+    ListDownloadRecordsRequest, ListDownloadRecordsResponse, PauseDownloadRequest,
     PauseDownloadResponse, QueryHistoryRequest, ResumeDownloadRequest, ResumeDownloadResponse,
-    SetCookieServiceRequest, SetCookieServiceResponse, StartDownloadRequest, StartDownloadResponse,
-    StorageType, TabGroupId, TabId, TabState,
+    SetCookieServiceRequest, SetCookieServiceRequestV0_2, SetCookieServiceResponse,
+    StartDownloadRequest, StartDownloadResponse, StorageType, TabGroupId, TabId, TabState,
 };
 
 #[test]
@@ -390,6 +392,60 @@ fn cookie_value_secret_redaction_diagnostic() {
         serialized.contains(secret),
         "Wire serialization must carry the actual value"
     );
+}
+
+#[test]
+fn browser_cookies_v0_1_shape_is_preserved_and_v0_2_adds_scope() {
+    assert_eq!(CONTRACT_BROWSER_COOKIES_V0_2, CONTRACT_BROWSER_COOKIES);
+    assert_eq!(CONTRACT_BROWSER_COOKIES_V0_2_VERSION, "0.2");
+
+    let legacy = CookieMetadata {
+        name: "session".to_string(),
+        domain: "example.com".to_string(),
+        path: "/".to_string(),
+        secure: false,
+        http_only: true,
+        same_site: None,
+        expires_epoch_sec: None,
+    };
+    let legacy_json = serde_json::to_string(&legacy).unwrap();
+    assert!(!legacy_json.contains("host_only"));
+
+    let versioned = CookieMetadataV0_2 {
+        name: "session".to_string(),
+        domain: "example.com".to_string(),
+        path: "/".to_string(),
+        secure: false,
+        http_only: true,
+        same_site: None,
+        expires_epoch_sec: None,
+        host_only: false,
+    };
+    let response = GetCookieMetadataResponseV0_2 {
+        cookies: vec![versioned],
+    };
+    let json = serde_json::to_string(&response).unwrap();
+    assert!(json.contains("\"host_only\":false"));
+    assert_eq!(
+        serde_json::from_str::<GetCookieMetadataResponseV0_2>(&json).unwrap(),
+        response
+    );
+
+    let set = SetCookieServiceRequestV0_2 {
+        context_id: BrowserContextId::new("ctx-v0-2"),
+        name: "session".to_string(),
+        value: "secret".to_string(),
+        domain: "example.com".to_string(),
+        path: Some("/".to_string()),
+        secure: Some(false),
+        http_only: Some(true),
+        same_site: None,
+        expires_epoch_sec: None,
+        host_only: false,
+    };
+    let debug = format!("{set:?}");
+    assert!(debug.contains("[REDACTED]"));
+    assert!(!debug.contains("secret"));
 }
 
 #[test]

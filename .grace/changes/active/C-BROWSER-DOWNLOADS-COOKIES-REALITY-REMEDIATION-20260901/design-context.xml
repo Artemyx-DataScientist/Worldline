@@ -1,0 +1,129 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-BROWSER-DOWNLOADS-COOKIES-REALITY-REMEDIATION-20260901</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+
+  <Rationale>
+    The predecessor's red hosted Source run is a visible symptom, but the
+    repository inspection found a wider evidence mismatch: the claimed
+    production CEF/native path is reference-backed, S3B bypasses the normal
+    provider boundary, and artifact bytes live behind a downloads-local
+    in-memory store.  Treating the work as a lint-only repair would therefore
+    create green source evidence without establishing the security, persistence
+    and production-path claims needed for M1.3.
+
+    The remediation is intentionally a new bundle rather than an edit to the
+    archived predecessor.  That preserves the historical record of the prior
+    applied state while allowing the new implementation and fresh evidence to
+    state exactly what is repaired.
+  </Rationale>
+
+  <Alternatives>
+    <Alternative>
+      Repair only the current clippy findings and rerun Source.  This is not
+      selected because it leaves the reference-backed provider, simulated S3B
+      engine evidence, artifact authority gap and cookie-domain flaw intact.
+    </Alternative>
+
+    <Alternative>
+      Rewrite the archived predecessor as though its hosted evidence had passed.
+      This is not selected because it would erase the audit trail and violate
+      the GRACE apply lifecycle.
+    </Alternative>
+
+    <Alternative>
+      Retain a browser-downloads-specific artifact store and add a local
+      authorization check.  This is not selected because it duplicates a kernel
+      concern and cannot demonstrate the established generic blob authority
+      boundary.
+    </Alternative>
+
+    <Alternative>
+      Remove CEF from the proving claim and retain only deterministic reference
+      fixtures.  This is not selected because the M1.3 claim under remediation
+      is specifically about the production native provider path.
+    </Alternative>
+  </Alternatives>
+
+  <DeferredDecisions>
+    <Decision>
+      T-001 is an explicit feasibility gate, not an assumption that the existing
+      simulated adapter is a binding. It must choose a pinned CEF distribution,
+      executable C API binding, callback/refcount ownership, thread model,
+      subprocess dispatch and true headful lifecycle before the provider can be
+      treated as production-capable.
+    </Decision>
+
+    <Decision>
+      The plan will identify the smallest generic completion seam for brokered
+      blob read admission and persisted download metadata without creating a
+      browser-specific kernel facility.
+    </Decision>
+
+    <Decision>
+      The plan will determine whether the experimental 0.1 cookie and blob
+      contracts can express the required semantics.  If not, it will specify an
+      additive experimental 0.2 or separately named experimental contract while
+      retaining 0.1 fixtures and compatibility coverage.
+    </Decision>
+
+    <Decision>
+      The plan will select an RFC-aligned host canonicalization implementation
+      and document its treatment of IDNA, trailing dots, IP literals and public
+      suffix restrictions where those cases are in scope.
+    </Decision>
+
+    <Decision>
+      The local active/archive predecessor collision and unrelated incomplete
+      downloads edits were isolated recoverably before the remediation plan was
+      regenerated from a green GRACE baseline. The archived predecessor remains
+      untouched historical evidence; recovery is not an implementation task in
+      this plan.
+    </Decision>
+
+    <Decision>
+      The exact hosted Windows job names, runner fixtures and evidence links are
+      implementation-plan and CI configuration details, not new normative
+      requirements.
+    </Decision>
+    <Decision>
+      The provider implementation must re-prove the existing M1.2 safety claims
+      against actual CEF: sandbox posture, authority-free child processes,
+      process-tree containment, pinned DLL loading, privileged scheme rejection,
+      and a true headful S2 path. A simulated loop or reference fallback cannot
+      discharge that evidence.
+    </Decision>
+  </DeferredDecisions>
+
+  <Scenarios>
+    <Scenario>
+      A native provider started with --backend cef either reports a genuine
+      CEF-backed capability surface or fails visibly; it never silently runs the
+      reference backend.
+    </Scenario>
+
+    <Scenario>
+      A separately labelled reference test starts --backend reference and keeps
+      deterministic fixtures available without being presented as production
+      proof.
+    </Scenario>
+
+    <Scenario>
+      A loopback download reaches the downloads service through the normal
+      provider and IPC path.  A principal may inspect metadata with the
+      downloads grant yet is denied bytes until it also receives generic
+      blob-read authority; after restart the record remains resolvable.
+    </Scenario>
+
+    <Scenario>
+      Cookie operations distinguish example.com, sub.example.com and
+      evil-example.com after canonicalization, preserve host-only scope and
+      retain BrowserContextId isolation.
+    </Scenario>
+
+    <Scenario>
+      The remediation reaches local and hosted evidence while remaining
+      neither applied nor archived as successfully applied until the required
+      hosted result is green and an owner explicitly confirms apply.
+    </Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

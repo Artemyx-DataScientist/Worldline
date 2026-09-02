@@ -1,8 +1,10 @@
 //! S3B acceptance test proving downloads, cookies, site-data, artifact handoff, and failure isolation.
 
+#[cfg(windows)]
 #[test]
 fn s3b_proving_slice_executes() {
-    let report = worldline_reference::s3b::run().expect("S3B proving slice must succeed");
+    let report = worldline_reference::s3b::run_reference()
+        .expect("deterministic S3B proving slice must succeed");
     assert!(
         report.artifact_bytes_verified,
         "Downloaded artifact bytes must match deterministic fixture"

@@ -1,8 +1,10 @@
 use std::{
+    collections::BTreeSet,
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
+    sync::{Arc, Mutex},
 };
 
 use sha2::{Digest, Sha256};
@@ -61,6 +63,25 @@ impl FilesystemBlobStore {
 
     pub fn blob_root(&self) -> &Path {
         &self.blob_root
+    }
+
+    /// Reads a blob only after the generic host broker admits the exact
+    /// principal/capability/blob tuple.
+    pub fn get_with_authority(
+        &self,
+        id: &BlobId,
+        grant: &BlobReadGrant,
+    ) -> Result<Vec<u8>, BlobReadError> {
+        if grant.blob_id() != id.as_str()
+            || grant.capability() != BLOB_READ_CAPABILITY
+            || !grant.is_active()
+        {
+            return Err(BlobReadError::AccessDenied {
+                principal_id: grant.principal_id().to_owned(),
+                blob_id: id.as_str().to_owned(),
+            });
+        }
+        self.get(id).map_err(BlobReadError::Storage)
     }
 
     fn path_for(&self, id: &BlobId) -> Result<PathBuf, PersistenceError> {
@@ -190,5 +211,119 @@ impl BlobStore for FilesystemBlobStore {
 
     fn verify(&self, id: &BlobId) -> Result<(), PersistenceError> {
         self.read_verified(id).map(|_| ())
+    }
+}
+
+/// Generic host capability required before blob bytes may be read.
+///
+/// This authority is intentionally owned by the generic storage boundary,
+/// not by a browser service. Browser services may reference a blob, but they
+/// cannot reinterpret their own metadata capability as a byte-read grant.
+pub const BLOB_READ_CAPABILITY: &str = "blob.read";
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BlobReadError {
+    AccessDenied {
+        principal_id: String,
+        blob_id: String,
+    },
+    Storage(PersistenceError),
+}
+
+impl std::fmt::Display for BlobReadError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::AccessDenied {
+                principal_id,
+                blob_id,
+            } => write!(
+                formatter,
+                "principal '{principal_id}' lacks blob-read authority for '{blob_id}'"
+            ),
+            Self::Storage(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for BlobReadError {}
+
+/// Host-side admission broker for artifact/blob reads.
+///
+/// Grants are exact `(principal, capability, blob)` tuples. The broker never
+/// accepts a browser-specific capability and the storage adapter checks the
+/// active tuple again at the byte-read boundary.
+#[derive(Clone, Debug, Default)]
+pub struct BlobReadBroker {
+    grants: Arc<Mutex<BTreeSet<(String, String, String)>>>,
+}
+
+impl BlobReadBroker {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn issue(
+        &self,
+        principal_id: impl Into<String>,
+        capability: &str,
+        blob_id: impl Into<String>,
+    ) -> Result<BlobReadGrant, String> {
+        if capability != BLOB_READ_CAPABILITY {
+            return Err(format!(
+                "capability '{capability}' cannot authorize generic blob reads"
+            ));
+        }
+        let principal_id = principal_id.into();
+        let blob_id = BlobId::new(blob_id.into())
+            .map_err(|error| format!("invalid blob scope for read grant: {error}"))?;
+        if principal_id.is_empty() {
+            return Err("blob read grant requires a principal".to_string());
+        }
+        let blob_id = blob_id.as_str().to_owned();
+        let key = (principal_id.clone(), capability.to_owned(), blob_id.clone());
+        self.grants
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(key);
+        Ok(BlobReadGrant {
+            principal_id,
+            capability: capability.to_owned(),
+            blob_id,
+            broker: Arc::clone(&self.grants),
+        })
+    }
+}
+
+/// Non-forgeable-by-blob-id, exact-scope generic read grant.
+#[derive(Clone, Debug)]
+pub struct BlobReadGrant {
+    principal_id: String,
+    capability: String,
+    blob_id: String,
+    broker: Arc<Mutex<BTreeSet<(String, String, String)>>>,
+}
+
+impl BlobReadGrant {
+    pub fn principal_id(&self) -> &str {
+        &self.principal_id
+    }
+
+    pub fn capability(&self) -> &str {
+        &self.capability
+    }
+
+    pub fn blob_id(&self) -> &str {
+        &self.blob_id
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.broker
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .contains(&(
+                self.principal_id.clone(),
+                self.capability.clone(),
+                self.blob_id.clone(),
+            ))
     }
 }

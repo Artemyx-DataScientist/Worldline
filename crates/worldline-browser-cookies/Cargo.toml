@@ -12,3 +12,4 @@ serde_json = "1"
 worldline-browser-contract = { path = "../worldline-browser-contract" }
 worldline-browser-services-contract = { path = "../worldline-browser-services-contract" }
 worldline-kernel = { path = "../worldline-kernel" }
+url = "2"
