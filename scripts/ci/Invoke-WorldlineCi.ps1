@@ -2,7 +2,7 @@
 # VERSION: 1.2.0
 # START_MODULE_CONTRACT
 #   PURPOSE: Run the repository-owned Worldline CI suites with local and hosted parity.
-#   SCOPE: Source, Correctness, RealChromium, BrowserProvider, BrowserServices, ArchitectureSecurity, ProvingSlice, and All suite orchestration.
+#   SCOPE: Source, Correctness, RealChromium, BrowserProvider, BrowserServices, BrowserRequestPolicy, ArchitectureSecurity, ProvingSlice, and All suite orchestration.
 #   DEPENDS: M-CI-BASELINE
 #   LINKS: M-CI-BASELINE
 #   ROLE: SCRIPT
@@ -12,7 +12,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Source', 'Correctness', 'RealChromium', 'RealS3B', 'BrowserProvider', 'BrowserServices', 'ArchitectureSecurity', 'ProvingSlice', 'All')]
+    [ValidateSet('Source', 'Correctness', 'RealChromium', 'RealS3B', 'BrowserProvider', 'BrowserServices', 'BrowserRequestPolicy', 'ArchitectureSecurity', 'ProvingSlice', 'All')]
     [string]$Suite
 )
 
@@ -136,6 +136,32 @@ function Invoke-BrowserServicesSuite {
     Invoke-WorldlineCommand -Label 'browser services S3B proving slice' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3b_acceptance')
 }
 
+function Invoke-BrowserRequestPolicySuite {
+    Write-Host '--- BrowserRequestPolicy suite ---'
+    if ($env:OS -ne 'Windows_NT') {
+        throw 'BrowserRequestPolicy is a required hosted Windows suite because its real-CEF acceptance path must not be silently downgraded.'
+    }
+    foreach ($requiredEnvironment in @(
+        'CEF_PATH',
+        'WORLDLINE_BROWSER_PROVIDER_BOOTSTRAP',
+        'WORLDLINE_BROWSER_PROVIDER_CLIENT'
+    )) {
+        $environmentValue = [Environment]::GetEnvironmentVariable($requiredEnvironment)
+        if ([string]::IsNullOrWhiteSpace($environmentValue)) {
+            throw "BrowserRequestPolicy requires the verified CEF staging environment variable '$requiredEnvironment'."
+        }
+    }
+    Invoke-WorldlineCommand -Label 'browser request-policy contract tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-contract')
+    Invoke-WorldlineCommand -Label 'browser request-policy provider tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-provider')
+    Invoke-WorldlineCommand -Label 'browser request-policy native transport tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-provider-process')
+    Invoke-WorldlineCommand -Label 'browser request-policy CEF adapter tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-cef')
+    Invoke-WorldlineCommand -Label 'browser adblock profile tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-adblock')
+    Invoke-WorldlineCommand -Label 'request-policy feasibility reference gate' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 'request_policy_feasibility_acceptance')
+    Invoke-WorldlineCommand -Label 'request-policy feasibility real-CEF gate' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 'request_policy_feasibility_real_acceptance', '--', '--nocapture')
+    Invoke-WorldlineCommand -Label 'request-policy S3C reference gate' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3c_acceptance')
+    Invoke-WorldlineCommand -Label 'request-policy S3C real-CEF gate' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3c_real_acceptance', '--', '--nocapture')
+}
+
 function Invoke-ArchitectureSecuritySuite {
     Write-Host '--- Architecture and security suite ---'
     Build-ExternalNativeFixtures
@@ -187,6 +213,10 @@ switch ($Suite) {
         Invoke-BrowserServicesSuite
         break
     }
+    'BrowserRequestPolicy' {
+        Invoke-BrowserRequestPolicySuite
+        break
+    }
     'ArchitectureSecurity' {
         Invoke-ArchitectureSecuritySuite
         break
@@ -202,6 +232,7 @@ switch ($Suite) {
         Invoke-RealS3BSuite
         Invoke-BrowserProviderSuite
         Invoke-BrowserServicesSuite
+        Invoke-BrowserRequestPolicySuite
         Invoke-ArchitectureSecuritySuite
         Invoke-ProvingSliceSuite
         break

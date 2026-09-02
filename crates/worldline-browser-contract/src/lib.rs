@@ -14,6 +14,7 @@ pub mod events;
 pub mod identity;
 pub mod primitives;
 pub mod query;
+pub mod request_policy;
 
 pub use action::{
     ActionResult, ClickActionRequest, FocusActionRequest, InputActionRequest, InteractionKind,
@@ -69,4 +70,12 @@ pub use primitives::{
     PRIMITIVES_MAJOR_V0_2, PRIMITIVES_MINOR_V0_1, PRIMITIVES_MINOR_V0_2, SetCookieRequest,
     SetCookieRequestV0_2, SetCookieResponse, SetCookieResponseV0_2, StorageItemRequestV0_2,
     StorageItemResponseV0_2, StorageType,
+};
+pub use request_policy::{
+    CONTRACT_REQUEST_POLICY, CONTRACT_REQUEST_POLICY_V0_1, DEFAULT_REQUEST_POLICY_DEADLINE_MS,
+    MAX_REQUEST_POLICY_DEADLINE_MS, OP_REQUEST_POLICY_DECIDE, OP_REQUEST_POLICY_OBSERVE,
+    OP_REQUEST_POLICY_REGISTER, OP_REQUEST_POLICY_UNREGISTER, REQUEST_POLICY_MAJOR_V0_1,
+    REQUEST_POLICY_MINOR_V0_1, RequestPolicyAction, RequestPolicyFailureMode,
+    RequestPolicyMetadata, RequestPolicyObservation, RequestPolicyOutcome,
+    RequestPolicyRegistration, RequestPolicyRequest, RequestPolicyResult, RequestResourceType,
 };

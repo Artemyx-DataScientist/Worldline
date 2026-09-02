@@ -12,7 +12,10 @@ use worldline_plugin_protocol::{Envelope, ProtocolError};
 use crate::error::NativeHostError;
 
 /// Writes one envelope as a framed record.
-pub fn write_frame<W: Write>(writer: &mut W, envelope: &Envelope) -> Result<(), NativeHostError> {
+pub fn write_frame<W: Write + ?Sized>(
+    writer: &mut W,
+    envelope: &Envelope,
+) -> Result<(), NativeHostError> {
     let bytes = envelope
         .encode()
         .map_err(|error| NativeHostError::ProtocolViolation {
@@ -64,7 +67,10 @@ pub fn read_json_frame<R: Read, T: DeserializeOwned>(
     })
 }
 
-fn write_json_bytes<W: Write>(writer: &mut W, bytes: &[u8]) -> Result<(), NativeHostError> {
+fn write_json_bytes<W: Write + ?Sized>(
+    writer: &mut W,
+    bytes: &[u8],
+) -> Result<(), NativeHostError> {
     let length = u32::try_from(bytes.len()).map_err(|_| NativeHostError::PayloadTooLarge {
         limit: u32::MAX as usize,
         actual: bytes.len(),

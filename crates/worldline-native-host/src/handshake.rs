@@ -40,6 +40,18 @@ pub struct ChildAck {
     pub declared_interfaces: Vec<String>,
 }
 
+impl ChildAck {
+    /// Returns whether the child explicitly negotiated one interface during
+    /// the handshake. Interface declarations do not grant authority; they
+    /// only select a wire capability that the host may then authorize.
+    #[must_use]
+    pub fn supports_interface(&self, interface: &str) -> bool {
+        self.declared_interfaces
+            .iter()
+            .any(|declared| declared == interface)
+    }
+}
+
 /// The identity the host expects the child to acknowledge.
 #[derive(Clone, Debug)]
 pub struct ExpectedIdentity {

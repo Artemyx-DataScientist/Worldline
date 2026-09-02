@@ -13,11 +13,15 @@ use worldline_kernel::{ActivationContext, CapabilityHandle, PluginError};
 pub mod agent_like;
 pub mod browser_like;
 pub mod observation;
+pub(crate) mod real_cef_lock;
+pub mod request_policy;
+pub mod request_policy_feasibility;
 pub mod s0;
 pub mod s1;
 pub mod s2;
 pub mod s3a;
 pub mod s3b;
+pub mod s3c;
 pub mod ui_like;
 
 pub use observation::{

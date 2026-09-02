@@ -1,0 +1,12 @@
+[package]
+name = "worldline-browser-adblock"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Deterministic replaceable request-policy profile for Worldline"
+
+[dependencies]
+url = "2"
+worldline-browser-contract = { path = "../worldline-browser-contract" }
+worldline-browser-provider = { path = "../worldline-browser-provider" }

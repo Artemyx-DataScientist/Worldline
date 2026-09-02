@@ -47,7 +47,13 @@ use worldline_browser_contract::primitives::{
 #[cfg(windows)]
 use worldline_browser_contract::primitives::{CookieV0_2, StorageType};
 use worldline_browser_contract::query::DocumentSnapshot;
-use worldline_browser_provider::BrowserBackend;
+use worldline_browser_contract::request_policy::RequestPolicyFailureMode;
+#[cfg(windows)]
+use worldline_browser_contract::request_policy::{
+    DEFAULT_REQUEST_POLICY_DEADLINE_MS, RequestPolicyAction, RequestPolicyMetadata,
+    RequestPolicyRequest, RequestResourceType,
+};
+use worldline_browser_provider::{BrowserBackend, RequestPolicyTransport};
 
 use crate::ffi::CefSettings;
 use crate::loop_runner::CefLoopRunner;
@@ -194,7 +200,8 @@ use cef::*;
 #[cfg(windows)]
 use cef::{
     wrap_client, wrap_cookie_visitor, wrap_delete_cookies_callback, wrap_display_handler,
-    wrap_download_handler, wrap_life_span_handler, wrap_load_handler, wrap_set_cookie_callback,
+    wrap_download_handler, wrap_life_span_handler, wrap_load_handler, wrap_request_handler,
+    wrap_resource_request_handler, wrap_set_cookie_callback,
 };
 
 #[cfg(windows)]
@@ -356,10 +363,151 @@ wrap_display_handler! {
 }
 
 #[cfg(windows)]
+fn map_resource_type(resource_type: ResourceType) -> RequestResourceType {
+    match resource_type {
+        ResourceType::MAIN_FRAME => RequestResourceType::MainFrame,
+        ResourceType::SUB_FRAME => RequestResourceType::SubFrame,
+        ResourceType::STYLESHEET => RequestResourceType::Stylesheet,
+        ResourceType::SCRIPT => RequestResourceType::Script,
+        ResourceType::IMAGE => RequestResourceType::Image,
+        ResourceType::FONT_RESOURCE => RequestResourceType::Font,
+        ResourceType::MEDIA => RequestResourceType::Media,
+        ResourceType::XHR => RequestResourceType::Xhr,
+        _ => RequestResourceType::Other,
+    }
+}
+
+#[cfg(windows)]
+fn fallback_request_policy_action(failure_mode: RequestPolicyFailureMode) -> RequestPolicyAction {
+    match failure_mode {
+        RequestPolicyFailureMode::FailOpen => RequestPolicyAction::Allow,
+        RequestPolicyFailureMode::FailClosed => RequestPolicyAction::Block,
+    }
+}
+
+#[cfg(windows)]
+fn request_policy_metadata(
+    state: &PageCallbackState,
+    request: &mut Request,
+    initiator_origin: Option<&str>,
+) -> Result<RequestPolicyMetadata, String> {
+    let url = cef_string(&request.url());
+    let method = cef_string(&request.method());
+    let resource_type = map_resource_type(request.resource_type());
+    let page = state
+        .pages
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .get(&state.page_id)
+        .cloned()
+        .ok_or_else(|| format!("CEF page '{}' is no longer in adapter scope", state.page_id))?;
+    let metadata = RequestPolicyMetadata {
+        context_id: page.context_id,
+        page_id: Some(state.page_id.clone()),
+        url,
+        method,
+        resource_type,
+        initiator_origin: initiator_origin.map(str::to_owned),
+        top_level_origin: canonical_origin(&page.url).ok(),
+    };
+    metadata.validate()?;
+    Ok(metadata)
+}
+
+#[cfg(windows)]
+wrap_resource_request_handler! {
+    struct WorldlineResourceRequestHandler {
+        state: PageCallbackState,
+        request_policy: Arc<dyn RequestPolicyTransport>,
+        registration_id: String,
+        failure_mode: RequestPolicyFailureMode,
+        initiator_origin: Option<String>,
+    }
+    impl ResourceRequestHandler {
+        fn on_before_resource_load(
+            &self,
+            _browser: Option<&mut Browser>,
+            _frame: Option<&mut Frame>,
+            request: Option<&mut Request>,
+            _callback: Option<&mut Callback>,
+        ) -> ReturnValue {
+            let action = request
+                .ok_or_else(|| "CEF supplied no request to resource policy callback".to_string())
+                .and_then(|request| {
+                    request_policy_metadata(
+                        &self.state,
+                        request,
+                        self.initiator_origin.as_deref(),
+                    )
+                })
+                .and_then(|metadata| {
+                    let policy_request = RequestPolicyRequest {
+                        registration_id: self.registration_id.clone(),
+                        metadata,
+                        deadline_ms: DEFAULT_REQUEST_POLICY_DEADLINE_MS,
+                    };
+                    policy_request.validate()?;
+                    self.request_policy
+                        .decide(policy_request)
+                        .map(|result| result.action)
+                        .map_err(|error| error.to_string())
+                })
+                .unwrap_or_else(|_| fallback_request_policy_action(self.failure_mode));
+
+            // The policy transport is synchronously bounded by its finite
+            // deadline. Return the direct CEF result and do not retain or
+            // invoke the callback: CONTINUE_ASYNC is reserved for a callback
+            // completed later, and using it after synchronous completion could
+            // complete the request twice.
+            match action {
+                RequestPolicyAction::Allow => ReturnValue::CONTINUE,
+                RequestPolicyAction::Block => ReturnValue::CANCEL,
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+wrap_request_handler! {
+    struct WorldlineRequestHandler {
+        state: PageCallbackState,
+        request_policy: Arc<dyn RequestPolicyTransport>,
+        registration_id: String,
+        failure_mode: RequestPolicyFailureMode,
+    }
+    impl RequestHandler {
+        fn resource_request_handler(
+            &self,
+            _browser: Option<&mut Browser>,
+            _frame: Option<&mut Frame>,
+            _request: Option<&mut Request>,
+            _is_navigation: ::std::os::raw::c_int,
+            _is_download: ::std::os::raw::c_int,
+            request_initiator: Option<&CefString>,
+            _disable_default_handling: Option<&mut ::std::os::raw::c_int>,
+        ) -> Option<ResourceRequestHandler> {
+            let initiator_origin = request_initiator
+                .map(ToString::to_string)
+                .and_then(|origin| canonical_origin(&origin).ok());
+            Some(WorldlineResourceRequestHandler::new(
+                self.state.clone(),
+                self.request_policy.clone(),
+                self.registration_id.clone(),
+                self.failure_mode,
+                initiator_origin,
+            ))
+        }
+    }
+}
+
+#[cfg(windows)]
 wrap_client! {
     struct WorldlineClient {
         state: PageCallbackState,
         downloads: Arc<DownloadShared>,
+        request_policy: Option<Arc<dyn RequestPolicyTransport>>,
+        request_policy_registration_id: Option<String>,
+        request_policy_failure_mode: Option<RequestPolicyFailureMode>,
     }
     impl Client {
         fn life_span_handler(&self) -> Option<LifeSpanHandler> {
@@ -376,6 +524,22 @@ wrap_client! {
 
         fn download_handler(&self) -> Option<DownloadHandler> {
             Some(WorldlineDownloadHandler::new(self.downloads.clone()))
+        }
+
+        fn request_handler(&self) -> Option<RequestHandler> {
+            let (Some(request_policy), Some(registration_id), Some(failure_mode)) = (
+                self.request_policy.clone(),
+                self.request_policy_registration_id.clone(),
+                self.request_policy_failure_mode,
+            ) else {
+                return None;
+            };
+            Some(WorldlineRequestHandler::new(
+                self.state.clone(),
+                request_policy,
+                registration_id,
+                failure_mode,
+            ))
         }
     }
 }
@@ -638,15 +802,30 @@ fn native_browser(browser_id: i32) -> Result<Browser, String> {
 }
 
 #[cfg(windows)]
+#[derive(Clone)]
+struct RequestPolicyConfiguration {
+    transport: Option<Arc<dyn RequestPolicyTransport>>,
+    registration_id: Option<String>,
+    failure_mode: Option<RequestPolicyFailureMode>,
+}
+
+#[cfg(windows)]
 fn native_create_browser(
     contexts: &Arc<Mutex<BTreeMap<BrowserContextId, RequestContext>>>,
     context_id: &BrowserContextId,
     initial_url: &str,
     callback_state: PageCallbackState,
     downloads: Arc<DownloadShared>,
+    request_policy: RequestPolicyConfiguration,
 ) -> Result<(), String> {
     let mut request_context = native_context(contexts, context_id)?;
-    let mut client = WorldlineClient::new(callback_state, downloads);
+    let mut client = WorldlineClient::new(
+        callback_state,
+        downloads,
+        request_policy.transport,
+        request_policy.registration_id,
+        request_policy.failure_mode,
+    );
     // S3B is deliberately a native headful CEF path.  The browser is created
     // by CEF itself; this adapter does not substitute an off-screen or
     // reference browser when the hosted proving slice exercises it.
@@ -1222,6 +1401,9 @@ pub struct CefBrowserBackend {
     cache_root: PathBuf,
     #[cfg(windows)]
     download_shared: Arc<DownloadShared>,
+    request_policy_transport: Option<Arc<dyn RequestPolicyTransport>>,
+    request_policy_registration_id: Option<String>,
+    request_policy_failure_mode: Option<RequestPolicyFailureMode>,
 }
 
 impl Default for CefBrowserBackend {
@@ -1306,6 +1488,9 @@ impl CefBrowserBackend {
             cache_root,
             #[cfg(windows)]
             download_shared,
+            request_policy_transport: None,
+            request_policy_registration_id: None,
+            request_policy_failure_mode: None,
         }
     }
 
@@ -1457,6 +1642,19 @@ impl BrowserBackend for CefBrowserBackend {
         Ok(())
     }
 
+    fn set_request_policy_transport(&mut self, transport: Arc<dyn RequestPolicyTransport>) {
+        self.request_policy_transport = Some(transport);
+    }
+
+    fn set_request_policy_profile(
+        &mut self,
+        registration_id: String,
+        failure_mode: RequestPolicyFailureMode,
+    ) {
+        self.request_policy_registration_id = Some(registration_id);
+        self.request_policy_failure_mode = Some(failure_mode);
+    }
+
     fn create_context(
         &mut self,
         req: &CreateContextRequest,
@@ -1604,6 +1802,12 @@ impl BrowserBackend for CefBrowserBackend {
         };
         #[cfg(windows)]
         let downloads = Arc::clone(&self.download_shared);
+        #[cfg(windows)]
+        let request_policy = RequestPolicyConfiguration {
+            transport: self.request_policy_transport.clone(),
+            registration_id: self.request_policy_registration_id.clone(),
+            failure_mode: self.request_policy_failure_mode,
+        };
         let runner = self.runner()?;
         #[cfg(windows)]
         let native_contexts = Arc::clone(&self.native_contexts);
@@ -1620,6 +1824,7 @@ impl BrowserBackend for CefBrowserBackend {
                         &initial_url,
                         callback_state,
                         downloads,
+                        request_policy,
                     )
                 }
                 #[cfg(not(windows))]

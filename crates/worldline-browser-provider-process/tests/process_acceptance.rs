@@ -18,7 +18,7 @@ use worldline_browser_contract::{
 use worldline_native_host::{
     ExpectedIdentity, HostRequestSink, NativeChildSpec, NativeHostError, NativeProviderConnection,
 };
-use worldline_plugin_protocol::MessageKind;
+use worldline_plugin_protocol::{MessageKind, REQUEST_POLICY_INTERFACE};
 
 struct DummySink;
 
@@ -75,16 +75,18 @@ fn out_of_process_browser_provider_ipc_full_lifecycle() {
         plugin_definition_id: "worldline.browser.provider".to_string(),
     };
 
-    let (connection, ack) = NativeProviderConnection::connect(
+    let (connection, ack) = NativeProviderConnection::connect_with_required_interface(
         provider_process_spec(),
         &identity,
         Arc::new(DummySink),
         16,
+        REQUEST_POLICY_INTERFACE,
     )
     .expect("must connect to browser provider process");
 
     assert_eq!(ack.package_id, "worldline.browser.pkg");
     assert_eq!(ack.plugin_definition_id, "worldline.browser.provider");
+    assert!(ack.supports_interface(REQUEST_POLICY_INTERFACE));
 
     // 1. Create context
     let ctx_req = CreateContextRequest {

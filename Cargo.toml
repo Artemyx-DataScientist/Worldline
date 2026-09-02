@@ -13,6 +13,7 @@ members = [
     "crates/worldline-browser-provider",
     "crates/worldline-browser-provider-process",
     "crates/worldline-browser-cef",
+    "crates/worldline-browser-adblock",
     "crates/worldline-browser-services-contract",
     "crates/worldline-browser-tabs",
     "crates/worldline-browser-history",

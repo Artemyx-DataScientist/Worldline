@@ -19,7 +19,7 @@ use crate::error::ProtocolError;
 /// version fails closed with [`ProtocolError::UnsupportedProtocolVersion`].
 pub const PROTOCOL_VERSION: u32 = 1;
 
-/// The nine message classes of the native IPC protocol.
+/// The thirteen message classes of the native IPC protocol.
 ///
 /// These are the spec's message classes, not product messages: capability
 /// invocation stays distinct from event publication (`EVENT BUS IS NOT RPC`),
@@ -35,6 +35,10 @@ pub enum MessageKind {
     CapabilityRequest,
     /// Capability invocation result for a correlated request.
     CapabilityResult,
+    /// Context/page-scoped request-policy decision request.
+    RequestPolicyRequest,
+    /// Correlated request-policy decision result.
+    RequestPolicyResult,
     /// Cancellation notice for a correlated in-flight request.
     Cancellation,
     /// Event publication request. Delivery never substitutes for an RPC
@@ -160,13 +164,17 @@ mod tests {
             (MessageKind::LifecycleResult, "lifecycle_result"),
             (MessageKind::CapabilityRequest, "capability_request"),
             (MessageKind::CapabilityResult, "capability_result"),
+            (MessageKind::RequestPolicyRequest, "request_policy_request"),
+            (MessageKind::RequestPolicyResult, "request_policy_result"),
             (MessageKind::Cancellation, "cancellation"),
             (MessageKind::EventPublishRequest, "event_publish_request"),
             (MessageKind::StateRequest, "state_request"),
             (MessageKind::StateResult, "state_result"),
+            (MessageKind::BlobRequest, "blob_request"),
+            (MessageKind::BlobResult, "blob_result"),
             (MessageKind::ProtocolError, "protocol_error"),
         ];
-        assert_eq!(kinds.len(), 9, "the protocol has exactly nine classes");
+        assert_eq!(kinds.len(), 13, "the protocol has exactly thirteen classes");
         for (kind, name) in kinds {
             let json = serde_json::to_string(&kind).expect("serialize");
             assert_eq!(json, format!(r#""{name}""#));

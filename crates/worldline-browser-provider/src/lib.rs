@@ -3,7 +3,13 @@
 pub mod backend;
 pub mod core;
 pub mod reference;
+pub mod request_policy;
 
 pub use backend::BrowserBackend;
 pub use core::{BrowserProviderCore, ProviderBudgetLimits};
 pub use reference::ReferenceBrowserBackend;
+pub use request_policy::{
+    RequestPolicyBroker, RequestPolicyBrokerError, RequestPolicyBrokerLimits, RequestPolicyCaller,
+    RequestPolicyCancellation, RequestPolicyEvaluator, RequestPolicyEvaluatorError,
+    RequestPolicyTransport, RequestPolicyTransportError,
+};

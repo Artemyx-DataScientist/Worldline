@@ -36,6 +36,11 @@ pub use compatibility::{
 };
 pub use envelope::{Envelope, MessageKind, PROTOCOL_VERSION};
 pub use error::ProtocolError;
+
+/// Experimental native-process request-policy interface negotiated during the
+/// provider handshake. This identifier is transport vocabulary only; the
+/// browser contract owns request metadata and authority semantics.
+pub const REQUEST_POLICY_INTERFACE: &str = "browser.request-policy/v0.1";
 pub use identity::{
     AbiVersion, InstallationRevision, PackageRevisionId, PackageVersion, PluginDefinitionId,
     PluginPackageId,

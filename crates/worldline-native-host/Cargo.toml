@@ -8,6 +8,7 @@ description = "Supervised native-process execution adapter for the Worldline ext
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
+worldline-browser-contract = { path = "../worldline-browser-contract" }
 worldline-plugin-protocol = { path = "../worldline-plugin-protocol" }
 serde_json = "1"
 
@@ -26,4 +27,3 @@ path = "src/bin/reference-native-provider.rs"
 [[bin]]
 name = "test-violator"
 path = "src/bin/test-violator.rs"
-

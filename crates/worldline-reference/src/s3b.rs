@@ -423,6 +423,8 @@ mod real {
     };
     use worldline_plugin_protocol::{BlobAction, BlobRequest, BlobResult, MessageKind};
 
+    use crate::real_cef_lock::RealCefRunGuard;
+
     use super::S3BReport;
 
     const DOWNLOAD_BODY: &[u8] =
@@ -934,6 +936,7 @@ mod real {
     /// provider executable. This function is kept separate from discovery so
     /// hosted runners can audit the exact binary and runtime staging.
     pub fn run_with_provider(program: impl Into<PathBuf>) -> Result<S3BReport, String> {
+        let _real_cef_guard = RealCefRunGuard::acquire()?;
         let program = program.into();
         let server = LoopbackServer::start()?;
         let temp_root = TempRoot::create("run")?;

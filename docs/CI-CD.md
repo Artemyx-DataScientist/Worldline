@@ -557,6 +557,23 @@ or a skipped real-engine path are failures. Reference and in-memory providers
 remain useful for deterministic unit fixtures, but they do not satisfy the
 `Real-S3B` hosted evidence requirement.
 
+Browser request-policy interception follows the same evidence split. Its
+deterministic contract, broker, transport, and loopback S3C checks may be
+run locally, but the required real request-policy evidence is a separate
+Windows-hosted gate and must use the staged repository-pinned CEF runtime and
+native provider client:
+
+```text
+pwsh -NoProfile -File scripts/ci/Initialize-WorldlineCef.ps1
+pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserRequestPolicy
+```
+
+`BrowserRequestPolicy` fails closed when it is not running on Windows or when
+`CEF_PATH`, `WORLDLINE_BROWSER_PROVIDER_BOOTSTRAP`, or
+`WORLDLINE_BROWSER_PROVIDER_CLIENT` is absent. A local deterministic pass is
+not a hosted real-CEF pass, and a hosted pass is named evidence only when the
+test output records the actual CEF/provider topology and run identifier.
+
 Если поведение зависит от ОС, test должен явно исполняться на соответствующей
 ОС.
 

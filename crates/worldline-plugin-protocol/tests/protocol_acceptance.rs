@@ -129,10 +129,14 @@ fn envelope_roundtrips_encode_decode() {
         MessageKind::LifecycleResult,
         MessageKind::CapabilityRequest,
         MessageKind::CapabilityResult,
+        MessageKind::RequestPolicyRequest,
+        MessageKind::RequestPolicyResult,
         MessageKind::Cancellation,
         MessageKind::EventPublishRequest,
         MessageKind::StateRequest,
         MessageKind::StateResult,
+        MessageKind::BlobRequest,
+        MessageKind::BlobResult,
         MessageKind::ProtocolError,
     ] {
         let envelope = Envelope::new(kind, 7, json!({"note": "payload is opaque"}));

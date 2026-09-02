@@ -346,5 +346,86 @@ foreach ($forbiddenToken in @('worldline-browser-tabs', 'worldline-browser-histo
     Assert-Condition (-not $cefManifest.Contains($forbiddenToken)) "worldline-browser-cef manifest must not depend on service token '${forbiddenToken}'."
 }
 
-Write-Host 'Architecture guard passed: GRACE layout, kernel dependency direction, browser contracts, and browser services are valid.'
+Write-Host 'Checking browser request-policy interception boundaries.'
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-adblock/Cargo.toml' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-adblock/src/lib.rs' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-reference/src/request_policy.rs' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-reference/src/s3c.rs' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-reference/tests/s3c_acceptance.rs' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-reference/tests/s3c_real_acceptance.rs' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'docs/adr/ADR-BROWSER-REQUEST-POLICY-INTERCEPTION-V1.md' -Kind File)
 
+$policyContractManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-contract/Cargo.toml') -Raw
+foreach ($forbiddenToken in @(
+        'worldline-browser-adblock',
+        'worldline-browser-provider',
+        'worldline-browser-services-contract',
+        'cef',
+        'chromium',
+        'webview2',
+        'wpewebkit',
+        'gecko',
+        'servo'
+    )) {
+    Assert-Condition (-not $policyContractManifest.ToLowerInvariant().Contains($forbiddenToken)) "worldline-browser-contract must remain engine/provider/profile neutral and must not depend on '${forbiddenToken}'."
+}
+
+$providerManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-provider/Cargo.toml') -Raw
+Assert-Condition ($providerManifest.Contains('worldline-browser-contract')) 'worldline-browser-provider must depend on the neutral browser contract.'
+foreach ($forbiddenToken in @('worldline-browser-cef', 'worldline-browser-adblock', 'worldline-browser-tabs', 'worldline-browser-history', 'worldline-browser-downloads', 'worldline-browser-cookies')) {
+    Assert-Condition (-not $providerManifest.Contains($forbiddenToken)) "worldline-browser-provider must not depend on '${forbiddenToken}'."
+}
+
+$adblockManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-adblock/Cargo.toml') -Raw
+Assert-Condition ($adblockManifest.Contains('worldline-browser-contract')) 'worldline-browser-adblock must depend on the neutral browser contract.'
+Assert-Condition ($adblockManifest.Contains('worldline-browser-provider')) 'worldline-browser-adblock must implement the provider-owned evaluator boundary.'
+foreach ($forbiddenToken in @('worldline-browser-cef', 'worldline-kernel', 'worldline-browser-tabs', 'worldline-browser-history', 'worldline-browser-downloads', 'worldline-browser-cookies')) {
+    Assert-Condition (-not $adblockManifest.Contains($forbiddenToken)) "worldline-browser-adblock must not depend on '${forbiddenToken}'."
+}
+$adblockSource = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-adblock/src/lib.rs') -Raw
+foreach ($forbiddenToken in @('worldline_browser_cef', 'worldline_kernel', 'worldline_browser_tabs', 'worldline_browser_history', 'worldline_browser_downloads', 'worldline_browser_cookies')) {
+    Assert-Condition (-not $adblockSource.Contains($forbiddenToken)) "worldline-browser-adblock source must not reference '${forbiddenToken}'."
+}
+foreach ($requiredToken in @('RequestPolicyEvaluator', 'MAX_RULES', 'fail_open_registration')) {
+    Assert-Condition ($adblockSource.Contains($requiredToken)) "worldline-browser-adblock source must contain '${requiredToken}'."
+}
+
+$cefManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-cef/Cargo.toml') -Raw
+Assert-Condition ($cefManifest.Contains('worldline-browser-provider')) 'worldline-browser-cef must depend on the provider boundary.'
+Assert-Condition ($cefManifest.Contains('worldline-browser-contract')) 'worldline-browser-cef must depend on the neutral browser contract.'
+foreach ($forbiddenToken in @('worldline-browser-adblock', 'worldline-kernel', 'worldline-browser-services-contract')) {
+    Assert-Condition (-not $cefManifest.Contains($forbiddenToken)) "worldline-browser-cef must not depend on '${forbiddenToken}'."
+}
+$cefSourceRoot = Get-RepositoryPath -RelativePath 'crates/worldline-browser-cef/src'
+$cefSourceFiles = @(Get-ChildItem -LiteralPath $cefSourceRoot -Filter '*.rs' -File -Recurse)
+foreach ($sourceFile in $cefSourceFiles) {
+    $sourceText = Get-Content -LiteralPath $sourceFile.FullName -Raw
+    foreach ($forbiddenToken in @('AdblockRule', 'FilterList', 'worldline_browser_adblock', 'worldline_browser_provider::RequestPolicyEvaluator')) {
+        Assert-Condition (-not $sourceText.Contains($forbiddenToken)) "CEF adapter source '$($sourceFile.Name)' must not contain or import '${forbiddenToken}'."
+    }
+}
+
+foreach ($serviceCrate in @('worldline-browser-tabs', 'worldline-browser-history', 'worldline-browser-downloads', 'worldline-browser-cookies')) {
+    $serviceManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath "crates/${serviceCrate}/Cargo.toml") -Raw
+    foreach ($forbiddenToken in @('worldline-browser-adblock', 'worldline-browser-provider', 'worldline-browser-cef')) {
+        Assert-Condition (-not $serviceManifest.Contains($forbiddenToken)) "${serviceCrate} must not depend on request-policy implementation/engine token '${forbiddenToken}'."
+    }
+}
+
+$providerProcessSource = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-provider-process/src/lib.rs') -Raw
+foreach ($requiredToken in @('REQUEST_POLICY_INTERFACE', 'REQUEST_POLICY_MAX_IN_FLIGHT', 'RequestPolicyFailureMode', 'fail-open', 'fail-closed')) {
+    Assert-Condition ($providerProcessSource.Contains($requiredToken)) "Provider-process source must declare '${requiredToken}' for bounded configurable request-policy semantics."
+}
+Assert-Condition ($providerProcessSource.Contains('const PROVIDER_COMMAND_QUEUE_CAPACITY')) 'Provider process must retain an explicit bounded command queue.'
+
+$transportSource = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-provider-process/src/request_policy_transport.rs') -Raw
+foreach ($requiredToken in @('max_in_flight', 'max_frame_bytes', 'DeadlineExceeded', 'Cancellation', 'retired', 'unknown correlation')) {
+    Assert-Condition ($transportSource.Contains($requiredToken)) "Request-policy transport must contain bounded/cancellation guard '${requiredToken}'."
+}
+
+$policyAdr = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'docs/adr/ADR-BROWSER-REQUEST-POLICY-INTERCEPTION-V1.md') -Raw
+foreach ($requiredToken in @('T004-real-20260902-local-01', 'FailOpen', 'EVENT BUS IS NOT RPC', 'real CEF', 'stop/replan')) {
+    Assert-Condition ($policyAdr.Contains($requiredToken)) "Request-policy ADR must preserve '${requiredToken}' evidence or decision text."
+}
+
+Write-Host 'Architecture guard passed: GRACE layout, dependency direction, browser contracts/services, and request-policy interception boundaries are valid.'

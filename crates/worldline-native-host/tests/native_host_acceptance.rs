@@ -15,7 +15,7 @@ use worldline_native_host::{
     ExpectedIdentity, HostRequestSink, NativeChildSpec, NativeHostError, NativeProviderConnection,
     read_frame, write_frame,
 };
-use worldline_plugin_protocol::{Envelope, MessageKind};
+use worldline_plugin_protocol::{Envelope, MessageKind, REQUEST_POLICY_INTERFACE};
 
 fn identity() -> ExpectedIdentity {
     ExpectedIdentity {
@@ -232,6 +232,19 @@ fn provider_spec() -> NativeChildSpec {
         stderr_max_bytes: 64 * 1024,
         enable_process_tree_containment: false,
     }
+}
+
+#[test]
+fn unnegotiated_request_policy_interface_fails_closed() {
+    let error = NativeProviderConnection::connect_with_required_interface(
+        provider_spec(),
+        &identity(),
+        Arc::new(MapSink::default()),
+        4,
+        REQUEST_POLICY_INTERFACE,
+    )
+    .expect_err("reference echo provider must not receive an unnegotiated policy plane");
+    assert!(matches!(error, NativeHostError::HandshakeFailed { .. }));
 }
 
 #[test]

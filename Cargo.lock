@@ -2704,6 +2704,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "worldline-browser-adblock"
+version = "0.1.0"
+dependencies = [
+ "url",
+ "worldline-browser-contract",
+ "worldline-browser-provider",
+]
+
+[[package]]
 name = "worldline-browser-cef"
 version = "0.1.0"
 dependencies = [
@@ -2837,6 +2846,7 @@ dependencies = [
  "serde",
  "serde_json",
  "windows-sys 0.59.0",
+ "worldline-browser-contract",
  "worldline-plugin-protocol",
 ]
 
@@ -2854,6 +2864,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "worldline-browser-adblock",
  "worldline-browser-cef",
  "worldline-browser-contract",
  "worldline-browser-cookies",

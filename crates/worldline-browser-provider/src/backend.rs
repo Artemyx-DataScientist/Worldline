@@ -1,5 +1,9 @@
 //! Pluggable browser engine backend trait definition.
 
+use std::sync::Arc;
+
+use crate::request_policy::RequestPolicyTransport;
+
 use worldline_browser_contract::{
     action::ActionResult,
     capture::{
@@ -22,12 +26,29 @@ use worldline_browser_contract::{
         SetCookieRequestV0_2, SetCookieResponse, StorageItemRequestV0_2, StorageItemResponseV0_2,
     },
     query::DocumentSnapshot,
+    request_policy::RequestPolicyFailureMode,
 };
 
 /// Engine-neutral interface implemented by concrete browser providers (e.g. Reference, CEF).
 pub trait BrowserBackend: Send + Sync {
     fn initialize(&mut self) -> Result<(), BrowserError>;
     fn shutdown(&mut self) -> Result<(), BrowserError>;
+
+    /// Installs the physical request/result transport used by an engine
+    /// adapter for pre-dispatch policy callbacks. The default keeps reference
+    /// and other adapters transport-neutral; CEF may retain only this
+    /// engine-neutral hook, never the native writer or policy implementation.
+    fn set_request_policy_transport(&mut self, _transport: Arc<dyn RequestPolicyTransport>) {}
+
+    /// Declares the registration/profile that owns engine interception and
+    /// its failure semantics. A concrete engine may ignore this when it does
+    /// not implement interception.
+    fn set_request_policy_profile(
+        &mut self,
+        _registration_id: String,
+        _failure_mode: RequestPolicyFailureMode,
+    ) {
+    }
 
     // Context management
     fn create_context(

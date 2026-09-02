@@ -29,6 +29,7 @@ use worldline_browser_contract::{
 };
 
 use crate::backend::BrowserBackend;
+use crate::request_policy::RequestPolicyBroker;
 
 /// Resource and rate budget limits for the provider.
 #[derive(Clone, Debug)]
@@ -53,6 +54,7 @@ pub struct BrowserProviderCore<B: BrowserBackend> {
     backend: Mutex<B>,
     page_generations: Mutex<BTreeMap<PageId, u64>>,
     limits: ProviderBudgetLimits,
+    request_policy: RequestPolicyBroker,
 }
 
 impl<B: BrowserBackend> BrowserProviderCore<B> {
@@ -61,6 +63,7 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
             backend: Mutex::new(backend),
             page_generations: Mutex::new(BTreeMap::new()),
             limits: ProviderBudgetLimits::default(),
+            request_policy: RequestPolicyBroker::new(),
         }
     }
 
@@ -69,6 +72,7 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
             backend: Mutex::new(backend),
             page_generations: Mutex::new(BTreeMap::new()),
             limits,
+            request_policy: RequestPolicyBroker::new(),
         }
     }
 
@@ -82,13 +86,22 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
         callback(&backend)
     }
 
+    /// Returns the engine-neutral request-policy broker owned by this
+    /// provider core. The broker is separate from the event transport and the
+    /// concrete backend.
+    pub fn request_policy(&self) -> &RequestPolicyBroker {
+        &self.request_policy
+    }
+
     /// Shuts down the concrete backend while the provider still owns it.
     ///
     /// Native provider processes use this lifecycle hook before terminating
     /// so that an engine-backed backend can tear down its UI/message-loop and
     /// subprocess tree on the owning thread.
     pub fn shutdown_backend(&self) -> Result<(), BrowserError> {
-        self.backend.lock().unwrap().shutdown()
+        let result = self.backend.lock().unwrap().shutdown();
+        self.request_policy.invalidate_all();
+        result
     }
 
     /// Reserves a generation for a page under CAS semantics.
@@ -134,6 +147,8 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
                 })?;
                 let mut backend = self.backend.lock().unwrap();
                 let res = backend.close_context(&req)?;
+                drop(backend);
+                self.request_policy.invalidate_context(&req.context_id);
                 Ok(serde_json::to_value(res).unwrap())
             }
             ("browser.context", OP_LIST_CONTEXTS) | ("browser.context", "list_contexts") => {
@@ -161,7 +176,9 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
                 })?;
                 let mut backend = self.backend.lock().unwrap();
                 let res = backend.close_page(&req)?;
+                drop(backend);
                 self.page_generations.lock().unwrap().remove(&req.page_id);
+                self.request_policy.invalidate_page(&req.page_id);
                 Ok(serde_json::to_value(res).unwrap())
             }
             ("browser.page", OP_LIST_PAGES) | ("browser.page", "list_pages") => {

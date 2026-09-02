@@ -52,6 +52,11 @@ pub const OP_STORAGE_GET_V0_2: &str = "storage_get_v0_2";
 
 pub const OP_DOWNLOAD_HOOK: &str = "download_hook";
 
+pub const OP_REQUEST_POLICY_REGISTER: &str = "register";
+pub const OP_REQUEST_POLICY_UNREGISTER: &str = "unregister";
+pub const OP_REQUEST_POLICY_DECIDE: &str = "decide";
+pub const OP_REQUEST_POLICY_OBSERVE: &str = "observe";
+
 /// Logical authority classifications representing security rights.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum BrowserAuthority {
@@ -65,6 +70,8 @@ pub enum BrowserAuthority {
     ManageCookies,
     ManageStorage,
     ControlDownloadHook,
+    ObserveRequestPolicy,
+    DecideRequestPolicy,
 }
 
 impl BrowserAuthority {
@@ -113,6 +120,15 @@ impl BrowserAuthority {
                 &[OP_STORAGE_CLEAR, OP_STORAGE_SET_V0_2, OP_STORAGE_GET_V0_2],
             ),
             Self::ControlDownloadHook => ("browser.engine.download_hook", &[OP_DOWNLOAD_HOOK]),
+            Self::ObserveRequestPolicy => ("browser.request-policy", &[OP_REQUEST_POLICY_OBSERVE]),
+            Self::DecideRequestPolicy => (
+                "browser.request-policy",
+                &[
+                    OP_REQUEST_POLICY_REGISTER,
+                    OP_REQUEST_POLICY_UNREGISTER,
+                    OP_REQUEST_POLICY_DECIDE,
+                ],
+            ),
         }
     }
 

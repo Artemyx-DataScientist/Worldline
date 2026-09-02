@@ -11,6 +11,7 @@ worldline-kernel = { path = "../worldline-kernel" }
 worldline-storage = { path = "../worldline-storage" }
 worldline-browser-contract = { path = "../worldline-browser-contract" }
 worldline-browser-provider = { path = "../worldline-browser-provider" }
+worldline-browser-adblock = { path = "../worldline-browser-adblock" }
 worldline-browser-cef = { path = "../worldline-browser-cef" }
 worldline-browser-services-contract = { path = "../worldline-browser-services-contract" }
 worldline-browser-tabs = { path = "../worldline-browser-tabs" }
