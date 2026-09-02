@@ -10,13 +10,17 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+#[cfg(windows)]
 use sha2::{Digest, Sha256};
+#[cfg(windows)]
 use worldline_browser_contract::identity::{BrowserContextId, DownloadId, PageId};
 use worldline_browser_provider::{BrowserBackend, BrowserProviderCore, ReferenceBrowserBackend};
 use worldline_native_host::{
     NativeHostError, read_frame, read_json_frame, write_frame, write_json_frame,
 };
-use worldline_plugin_protocol::{BlobAction, BlobRequest, Envelope, MessageKind, PROTOCOL_VERSION};
+#[cfg(windows)]
+use worldline_plugin_protocol::{BlobAction, BlobRequest};
+use worldline_plugin_protocol::{Envelope, MessageKind, PROTOCOL_VERSION};
 
 #[cfg(windows)]
 use worldline_browser_cef::CefBrowserBackend;
@@ -29,6 +33,7 @@ struct CapabilityPayload {
     pub payload: Value,
 }
 
+#[cfg(windows)]
 #[derive(Clone, Debug)]
 enum NativeDownloadEvent {
     Started {
@@ -55,6 +60,9 @@ enum NativeDownloadEvent {
         error: String,
     },
 }
+
+#[cfg(not(windows))]
+type NativeDownloadEvent = ();
 
 trait DownloadEventSource {
     fn drain_download_events(&self) -> Vec<NativeDownloadEvent>;
@@ -118,6 +126,9 @@ impl DownloadEventSource for CefBrowserBackend {
 /// Runs the provider entrypoint and returns the process status expected by the
 /// native executable or CEF bootstrap client.
 pub fn run_main(args: Vec<String>, sandbox_info: usize) -> i32 {
+    #[cfg(not(windows))]
+    let _ = sandbox_info;
+
     #[cfg(windows)]
     if args.iter().any(|argument| argument.starts_with("--type=")) {
         // CEF child command lines do not carry Worldline's `--backend cef`
@@ -129,6 +140,7 @@ pub fn run_main(args: Vec<String>, sandbox_info: usize) -> i32 {
     let mut package_id = "worldline.browser.pkg".to_string();
     let mut definition_id = "worldline.browser.provider".to_string();
     let mut backend_kind = "reference".to_string();
+    #[cfg(windows)]
     let mut cache_root = None;
 
     let mut i = 1;
@@ -147,7 +159,10 @@ pub fn run_main(args: Vec<String>, sandbox_info: usize) -> i32 {
                 i += 1;
             }
             "--cache-root" if i + 1 < args.len() => {
-                cache_root = Some(std::path::PathBuf::from(&args[i + 1]));
+                #[cfg(windows)]
+                {
+                    cache_root = Some(std::path::PathBuf::from(&args[i + 1]));
+                }
                 i += 1;
             }
             _ => {}
@@ -333,6 +348,7 @@ pub unsafe extern "C" fn RunConsoleMain(
     run_main(args, sandbox_info as usize)
 }
 
+#[cfg(windows)]
 fn publish_download_events<B: BrowserBackend + DownloadEventSource, W: std::io::Write>(
     core: &BrowserProviderCore<B>,
     stdout: &mut W,
@@ -413,6 +429,18 @@ fn publish_download_events<B: BrowserBackend + DownloadEventSource, W: std::io::
     Ok(())
 }
 
+#[cfg(not(windows))]
+fn publish_download_events<B: BrowserBackend + DownloadEventSource, W: std::io::Write>(
+    core: &BrowserProviderCore<B>,
+    stdout: &mut W,
+    next_correlation: &mut u64,
+) -> Result<(), NativeHostError> {
+    let _ = core.with_backend(DownloadEventSource::drain_download_events);
+    let _ = (core, stdout, next_correlation);
+    Ok(())
+}
+
+#[cfg(windows)]
 fn content_blob_id(content: &[u8]) -> String {
     let digest = Sha256::digest(content);
     let mut encoded = String::with_capacity("sha256-v1-".len() + digest.len() * 2);
