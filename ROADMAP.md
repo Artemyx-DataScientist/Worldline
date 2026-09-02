@@ -241,6 +241,7 @@ plugin**. Это концептуальное родство, а не требо
 | External ABI | Версионированные WIT Component interfaces или stable IPC; никакого public Rust `dylib` ABI |
 | Authority | Default deny и capability broker между каждым principal и ресурсом; process isolation не считается authority isolation |
 | Native providers | Высокопроизводительные trusted providers работают в отдельных restartable processes за versioned IPC |
+| Platform portability | Windows-first implementations остаются за platform-neutral contracts. Win32, Job Object, CEF bootstrap/DLL loading и PowerShell — текущие platform adapters, а не публичная архитектурная граница; неподдерживаемая платформа должна давать explicit `Unsupported`/`Unavailable`, не ломая workspace compilation |
 | Browser engine | CEF/Chromium скрыт за `BrowserEngine` contract; CEF types никогда не пересекают provider boundary |
 | Chromium strategy | Не форкать Chromium, пока физически невозможно решить задачу через upstream CEF/provider layer |
 | State | Один authoritative source, entity revisions и CAS; stale операции всегда отвергаются |
@@ -662,6 +663,17 @@ Exit criterion: CEF/reference provider исполняется в изолиро�
 процессное дерево CEF гарантированно сворачивается при выходе хоста; действия со старыми `ElementRef`
 отклоняются; visual capture стримится через контентно-адресуемые блобы; proving slice S2 постоянно зелёный.
 
+#### Browser engine contingency gate
+
+CEF является первым production browser-engine provider, но не необратимой
+архитектурной зависимостью Worldline. Его дальнейшее использование регулярно
+проверяется по maintenance cost, packaging/upgrade burden, crash isolation,
+security posture и portability. Если эти затраты становятся непропорциональными
+или CEF блокирует поддерживаемую платформу/product journey, запускается spike
+второго provider (например, WebView2 на Windows) за тем же `BrowserEngine`
+contract. Такой переход не должен требовать browser-specific изменений в kernel
+или переписывания shell/workspace consumers.
+
 ### M1.3 — Browser service plugins
 
 CEF provider предоставляет engine primitives, а не монолитный браузер. Поверх
@@ -711,6 +723,10 @@ Desktop host лишь загружает bootstrap composition; продукто
 - `ui.page-surface` и `ui.tab-bar` как заменяемые presentation plugins;
 - `ui.command-palette`, omnibox и extensible commands;
 - downloads, history и permission prompts;
+- plugin trust/permission surface показывает isolation/runtime class,
+  publisher/provenance, requested capabilities и их scope понятными пользователю
+  терминами; native plugin требует заметно более сильного доверия, чем sandboxed
+  WASM, а пользователь может отказать в отдельных permissions или сузить их;
 - `ui.overlay` и extensible context actions для selection/page/link;
 - sidebar допускается как plugin surface, но не является обязательным домом AI;
 - task/activity timeline surface, пока ещё без обязательного agent runtime;
