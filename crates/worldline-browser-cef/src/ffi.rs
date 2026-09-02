@@ -14,6 +14,7 @@ use windows_sys::Win32::Foundation::HWND;
 
 #[cfg(windows)]
 use cef::rc::Rc;
+#[cfg(windows)]
 use cef::{
     App, BrowserProcessHandler, CefString, CommandLine, ImplApp, ImplBrowserProcessHandler,
     ImplCommandLine, WrapApp, WrapBrowserProcessHandler, wrap_app, wrap_browser_process_handler,
@@ -284,15 +285,15 @@ impl Drop for CefRuntime {
 }
 
 /// Non-Windows build surface. The real CEF runtime is currently pinned to the
-/// hosted Windows target; keeping this no-op type preserves cross-target
-/// compilation for contract and static-analysis jobs.
+/// hosted Windows target; this type preserves the public adapter surface while
+/// failing closed when a caller attempts to initialize production CEF.
 #[cfg(not(windows))]
 pub struct CefRuntime;
 
 #[cfg(not(windows))]
 impl CefRuntime {
     pub fn initialize(_settings: &CefSettings) -> Result<Self, String> {
-        Ok(Self)
+        Err("CEF production runtime is only available on Windows".to_string())
     }
 
     pub fn do_message_loop_work(&self) {}
@@ -329,6 +330,7 @@ pub fn early_subprocess_dispatch(sandbox_info: usize) -> Option<i32> {
 
     #[cfg(not(windows))]
     {
+        let _ = sandbox_info;
         let is_subprocess = std::env::args().any(|arg| arg.starts_with("--type="));
         is_subprocess.then_some(0)
     }

@@ -5,11 +5,16 @@
 //! on the CEF UI thread through [`CefLoopRunner`].
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+#[cfg(windows)]
+use std::path::Path;
+use std::path::PathBuf;
+#[cfg(windows)]
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+#[cfg(windows)]
 use std::time::{Duration, Instant};
 
+#[cfg(windows)]
 use sha2::{Digest, Sha256};
 use url::Url;
 use worldline_browser_contract::action::ActionResult;
@@ -17,40 +22,52 @@ use worldline_browser_contract::capture::{
     CapturePageRequest, CapturePageResponse, ReadCaptureArtifactRequest,
     ReadCaptureArtifactResponse,
 };
+#[cfg(windows)]
+use worldline_browser_contract::contracts::DownloadState;
 use worldline_browser_contract::contracts::{
     ActRequest, CloseContextRequest, CloseContextResponse, ClosePageRequest, ClosePageResponse,
     ControlDownloadRequest, CreateContextRequest, CreateContextResponse, CreatePageRequest,
-    CreatePageResponse, DownloadState, DownloadStatusResponse, HistoryNavRequest,
-    HistoryNavResponse, ListContextsResponse, ListPagesRequest, ListPagesResponse, LoadingState,
-    NavigateRequest, NavigateResponse, ObservePageRequest, PageObservation, PermissionResponse,
+    CreatePageResponse, DownloadStatusResponse, HistoryNavRequest, HistoryNavResponse,
+    ListContextsResponse, ListPagesRequest, ListPagesResponse, LoadingState, NavigateRequest,
+    NavigateResponse, ObservePageRequest, PageObservation, PermissionResponse,
     QueryDocumentRequest, QueryPermissionRequest, ReloadRequest, ReloadResponse,
     SetPermissionRequest, StartDownloadRequest, StopRequest, StopResponse, ViewportInfo,
 };
 use worldline_browser_contract::error::BrowserError;
+#[cfg(windows)]
+use worldline_browser_contract::identity::DownloadId;
 use worldline_browser_contract::identity::{
-    BrowserContextId, DocumentRevision, DownloadId, NavigationId, PageId,
+    BrowserContextId, DocumentRevision, NavigationId, PageId,
 };
 use worldline_browser_contract::primitives::{
-    ClearStorageRequest, ClearStorageResponse, CookieV0_2, DeleteCookiesRequest,
-    DeleteCookiesResponse, GetCookiesRequest, GetCookiesResponse, GetCookiesResponseV0_2,
-    SetCookieRequest, SetCookieRequestV0_2, SetCookieResponse, StorageItemRequestV0_2,
-    StorageItemResponseV0_2, StorageType,
+    ClearStorageRequest, ClearStorageResponse, DeleteCookiesRequest, DeleteCookiesResponse,
+    GetCookiesRequest, GetCookiesResponse, GetCookiesResponseV0_2, SetCookieRequest,
+    SetCookieRequestV0_2, SetCookieResponse, StorageItemRequestV0_2, StorageItemResponseV0_2,
 };
+#[cfg(windows)]
+use worldline_browser_contract::primitives::{CookieV0_2, StorageType};
 use worldline_browser_contract::query::DocumentSnapshot;
 use worldline_browser_provider::BrowserBackend;
 
 use crate::ffi::CefSettings;
 use crate::loop_runner::CefLoopRunner;
 
+#[cfg(windows)]
 const CEF_CALLBACK_TIMEOUT: Duration = Duration::from_secs(5);
+#[cfg(windows)]
 const WINDOWS_EPOCH_OFFSET_SECONDS: u64 = 11_644_473_600;
+#[cfg(windows)]
 const MICROSECONDS_PER_SECOND: i64 = 1_000_000;
+#[cfg(windows)]
 static STORAGE_MARKER_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Debug)]
 struct ContextState {
+    #[cfg(windows)]
     incognito: bool,
+    #[cfg(windows)]
     user_agent: Option<String>,
+    #[cfg(windows)]
     cache_path: Option<PathBuf>,
 }
 
@@ -68,6 +85,7 @@ struct PageState {
     crashed: bool,
 }
 
+#[cfg(windows)]
 #[derive(Clone, Debug)]
 struct PendingDownload {
     context_id: BrowserContextId,
@@ -77,12 +95,14 @@ struct PendingDownload {
     suggested_filename: String,
 }
 
+#[cfg(windows)]
 #[derive(Clone, Debug)]
 struct ActiveDownload {
     download_id: DownloadId,
     destination_path: PathBuf,
 }
 
+#[cfg(windows)]
 /// Engine event emitted by the actual CEF download handler.
 ///
 /// The content is retained only until the provider integration transfers it
@@ -115,6 +135,7 @@ pub enum CefDownloadEvent {
     },
 }
 
+#[cfg(windows)]
 struct DownloadShared {
     pages: Arc<Mutex<BTreeMap<PageId, PageState>>>,
     pending: Mutex<BTreeMap<DownloadId, PendingDownload>>,
@@ -123,6 +144,7 @@ struct DownloadShared {
     download_root: PathBuf,
 }
 
+#[cfg(windows)]
 impl DownloadShared {
     fn new(pages: Arc<Mutex<BTreeMap<PageId, PageState>>>, download_root: PathBuf) -> Self {
         Self {
@@ -1169,23 +1191,6 @@ fn native_get_storage_item_start(
     Ok((page_id, marker))
 }
 
-#[cfg(not(windows))]
-fn canonical_origin(value: &str) -> Result<String, String> {
-    let parsed = Url::parse(value).map_err(|error| format!("invalid origin: {error}"))?;
-    if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
-        return Err("origin must be an HTTP(S) origin".to_string());
-    }
-    Ok(format!(
-        "{}://{}{}",
-        parsed.scheme(),
-        parsed.host_str().unwrap_or_default().to_ascii_lowercase(),
-        parsed
-            .port()
-            .map(|port| format!(":{port}"))
-            .unwrap_or_default()
-    ))
-}
-
 #[cfg(windows)]
 fn canonical_origin(value: &str) -> Result<String, String> {
     let parsed = Url::parse(value).map_err(|error| format!("invalid origin: {error}"))?;
@@ -1213,7 +1218,9 @@ pub struct CefBrowserBackend {
     next_id: Mutex<u64>,
     loop_runner: Option<Arc<CefLoopRunner>>,
     startup_error: Option<String>,
+    #[cfg(windows)]
     cache_root: PathBuf,
+    #[cfg(windows)]
     download_shared: Arc<DownloadShared>,
 }
 
@@ -1284,6 +1291,7 @@ impl CefBrowserBackend {
         #[cfg(windows)]
         let native_contexts = Arc::new(Mutex::new(BTreeMap::new()));
         let pages = Arc::new(Mutex::new(BTreeMap::new()));
+        #[cfg(windows)]
         let download_shared = Arc::new(DownloadShared::new(pages.clone(), download_root));
         Self {
             contexts: Mutex::new(BTreeMap::new()),
@@ -1294,7 +1302,9 @@ impl CefBrowserBackend {
             next_id: Mutex::new(1),
             loop_runner,
             startup_error,
+            #[cfg(windows)]
             cache_root,
+            #[cfg(windows)]
             download_shared,
         }
     }
@@ -1314,6 +1324,7 @@ impl CefBrowserBackend {
     }
 
     /// Returns engine events generated by the real CEF download handler.
+    #[cfg(windows)]
     pub fn drain_download_events(&self) -> Vec<CefDownloadEvent> {
         self.download_shared.drain_events()
     }
@@ -1361,6 +1372,7 @@ impl CefBrowserBackend {
             .ok_or_else(|| BrowserError::PageNotFound(id.clone()))
     }
 
+    #[cfg(windows)]
     fn profile_path(&self, context_id: &BrowserContextId, profile_id: Option<&str>) -> PathBuf {
         let key = profile_id.unwrap_or(context_id.as_str());
         let digest = Sha256::digest(key.as_bytes());
@@ -1388,6 +1400,7 @@ impl CefBrowserBackend {
     }
 
     fn shutdown_internal(&mut self) {
+        #[cfg(windows)]
         let browser_ids: Vec<i32> = self
             .pages
             .lock()
@@ -1396,6 +1409,7 @@ impl CefBrowserBackend {
             .map(|page| page.browser_id)
             .filter(|id| *id >= 0)
             .collect();
+        #[cfg(windows)]
         if let Some(runner) = self.loop_runner.as_ref() {
             #[cfg(windows)]
             let native_contexts = Arc::clone(&self.native_contexts);
@@ -1449,8 +1463,11 @@ impl BrowserBackend for CefBrowserBackend {
     ) -> Result<CreateContextResponse, BrowserError> {
         let id = BrowserContextId::new(self.next_id_str("ctx"));
         let state = ContextState {
+            #[cfg(windows)]
             incognito: req.incognito,
+            #[cfg(windows)]
             user_agent: req.user_agent.clone(),
+            #[cfg(windows)]
             cache_path: (!req.incognito).then(|| self.profile_path(&id, req.profile_id.as_deref())),
         };
         let context_for_cef = state.clone();
@@ -1504,6 +1521,7 @@ impl BrowserBackend for CefBrowserBackend {
         req: &CloseContextRequest,
     ) -> Result<CloseContextResponse, BrowserError> {
         let _context = self.context(&req.context_id)?;
+        #[cfg(windows)]
         let browser_ids: Vec<i32> = self
             .pages
             .lock()
@@ -1515,6 +1533,7 @@ impl BrowserBackend for CefBrowserBackend {
         let runner = self.runner()?;
         #[cfg(windows)]
         let native_contexts = Arc::clone(&self.native_contexts);
+        #[cfg(windows)]
         let context_id = req.context_id.clone();
         runner
             .dispatch_sync(move || {
@@ -1578,14 +1597,17 @@ impl BrowserBackend for CefBrowserBackend {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .insert(page_id.clone(), page_state);
+        #[cfg(windows)]
         let callback_state = PageCallbackState {
             page_id: page_id.clone(),
             pages: Arc::clone(&self.pages),
         };
+        #[cfg(windows)]
         let downloads = Arc::clone(&self.download_shared);
         let runner = self.runner()?;
         #[cfg(windows)]
         let native_contexts = Arc::clone(&self.native_contexts);
+        #[cfg(windows)]
         let context_id = req.context_id.clone();
         runner
             .dispatch_sync(move || {
@@ -1602,8 +1624,10 @@ impl BrowserBackend for CefBrowserBackend {
                 }
                 #[cfg(not(windows))]
                 {
-                    let _ = (context, context_id, initial_url, callback_state, downloads);
-                    Err("CEF production backend is only available on Windows".to_string())
+                    let _ = (context, initial_url);
+                    Err::<(), String>(
+                        "CEF production backend is only available on Windows".to_string(),
+                    )
                 }
             })
             .map_err(BrowserError::EngineCrashed)?
@@ -1632,6 +1656,8 @@ impl BrowserBackend for CefBrowserBackend {
                 if page.browser_id >= 0 {
                     native_close_browser(page.browser_id)?;
                 }
+                #[cfg(not(windows))]
+                let _ = page;
                 Ok::<(), String>(())
             })
             .map_err(BrowserError::EngineCrashed)?
@@ -1711,6 +1737,7 @@ impl BrowserBackend for CefBrowserBackend {
 
     fn reload(&mut self, req: &ReloadRequest) -> Result<ReloadResponse, BrowserError> {
         let page = self.page(&req.page_id)?;
+        #[cfg(windows)]
         let ignore_cache = req.ignore_cache;
         let runner = self.runner()?;
         runner
@@ -1789,6 +1816,7 @@ impl BrowserBackend for CefBrowserBackend {
 
     fn history_nav(&mut self, req: &HistoryNavRequest) -> Result<HistoryNavResponse, BrowserError> {
         let page = self.page(&req.page_id)?;
+        #[cfg(windows)]
         let delta = req.delta;
         let runner = self.runner()?;
         runner
@@ -1878,6 +1906,7 @@ impl BrowserBackend for CefBrowserBackend {
         ))
     }
 
+    #[cfg(windows)]
     fn start_download(
         &mut self,
         req: &StartDownloadRequest,
@@ -1947,7 +1976,7 @@ impl BrowserBackend for CefBrowserBackend {
             #[cfg(not(windows))]
             {
                 let _ = (browser_id, url);
-                Err("CEF production backend is only available on Windows".to_string())
+                Err::<(), String>("CEF production backend is only available on Windows".to_string())
             }
         }) {
             self.download_shared
@@ -1966,6 +1995,17 @@ impl BrowserBackend for CefBrowserBackend {
             received_bytes: 0,
             total_bytes: 0,
         })
+    }
+
+    #[cfg(not(windows))]
+    fn start_download(
+        &mut self,
+        req: &StartDownloadRequest,
+    ) -> Result<DownloadStatusResponse, BrowserError> {
+        let _ = req;
+        Err(BrowserError::UnsupportedOperation(
+            "CEF production backend is only available on Windows".to_string(),
+        ))
     }
 
     fn control_download(
@@ -2041,9 +2081,9 @@ impl BrowserBackend for CefBrowserBackend {
         #[cfg(not(windows))]
         {
             let _ = req;
-            return Err(BrowserError::EngineCrashed(
+            Err(BrowserError::EngineCrashed(
                 "CEF production backend is only available on Windows".to_string(),
-            ));
+            ))
         }
 
         #[cfg(windows)]
@@ -2097,9 +2137,9 @@ impl BrowserBackend for CefBrowserBackend {
         #[cfg(not(windows))]
         {
             let _ = req;
-            return Err(BrowserError::EngineCrashed(
+            Err(BrowserError::EngineCrashed(
                 "CEF production backend is only available on Windows".to_string(),
-            ));
+            ))
         }
 
         #[cfg(windows)]
@@ -2134,9 +2174,9 @@ impl BrowserBackend for CefBrowserBackend {
         #[cfg(not(windows))]
         {
             let _ = req;
-            return Err(BrowserError::EngineCrashed(
+            Err(BrowserError::EngineCrashed(
                 "CEF production backend is only available on Windows".to_string(),
-            ));
+            ))
         }
 
         #[cfg(windows)]
@@ -2171,9 +2211,9 @@ impl BrowserBackend for CefBrowserBackend {
         #[cfg(not(windows))]
         {
             let _ = req;
-            return Err(BrowserError::EngineCrashed(
+            Err(BrowserError::EngineCrashed(
                 "CEF production backend is only available on Windows".to_string(),
-            ));
+            ))
         }
 
         #[cfg(windows)]
@@ -2231,9 +2271,9 @@ impl BrowserBackend for CefBrowserBackend {
         #[cfg(not(windows))]
         {
             let _ = req;
-            return Err(BrowserError::EngineCrashed(
+            Err(BrowserError::EngineCrashed(
                 "CEF production backend is only available on Windows".to_string(),
-            ));
+            ))
         }
 
         #[cfg(windows)]
@@ -2262,9 +2302,9 @@ impl BrowserBackend for CefBrowserBackend {
         #[cfg(not(windows))]
         {
             let _ = req;
-            return Err(BrowserError::EngineCrashed(
+            Err(BrowserError::EngineCrashed(
                 "CEF production backend is only available on Windows".to_string(),
-            ));
+            ))
         }
 
         #[cfg(windows)]

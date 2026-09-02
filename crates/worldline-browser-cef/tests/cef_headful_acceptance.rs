@@ -19,9 +19,15 @@ fn cef_loop_runner_requires_bootstrap_sandbox() {
         Ok(_) => panic!("direct CEF initialization must not bypass the bootstrap sandbox"),
         Err(error) => error,
     };
+    #[cfg(windows)]
     assert!(
         error.contains("sandbox"),
         "unexpected initialization error: {error}"
+    );
+    #[cfg(not(windows))]
+    assert!(
+        error.contains("Windows"),
+        "unexpected non-Windows initialization error: {error}"
     );
 }
 
