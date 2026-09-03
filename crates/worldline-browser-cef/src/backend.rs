@@ -53,6 +53,10 @@ use worldline_browser_contract::request_policy::{
     DEFAULT_REQUEST_POLICY_DEADLINE_MS, RequestPolicyAction, RequestPolicyMetadata,
     RequestPolicyRequest, RequestResourceType,
 };
+use worldline_browser_provider::diagnostics::{
+    ProviderConsoleLogLevel, ProviderDiagnosticEvent, ProviderNetworkRequestStatus,
+    SharedDiagnosticSink,
+};
 use worldline_browser_provider::{BrowserBackend, RequestPolicyTransport};
 
 use crate::ffi::CefSettings;
@@ -187,10 +191,51 @@ impl DownloadShared {
 }
 
 #[cfg(windows)]
+#[derive(Debug)]
+struct DiagnosticShared {
+    events: Mutex<Vec<ProviderDiagnosticEvent>>,
+    sink: Mutex<Option<SharedDiagnosticSink>>,
+}
+
+#[cfg(windows)]
+impl DiagnosticShared {
+    fn new() -> Self {
+        Self {
+            events: Mutex::new(Vec::new()),
+            sink: Mutex::new(None),
+        }
+    }
+
+    fn set_sink(&self, sink: Option<SharedDiagnosticSink>) {
+        let mut guard = self.sink.lock().unwrap_or_else(|p| p.into_inner());
+        *guard = sink;
+    }
+
+    fn push_event(&self, event: ProviderDiagnosticEvent) {
+        if let Some(ref sink) = *self.sink.lock().unwrap_or_else(|p| p.into_inner()) {
+            sink.on_diagnostic_event(event.clone());
+        }
+        self.events
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .push(event);
+    }
+
+    fn drain_events(&self) -> Vec<ProviderDiagnosticEvent> {
+        let mut events = self
+            .events
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        std::mem::take(&mut *events)
+    }
+}
+
+#[cfg(windows)]
 #[derive(Clone)]
 struct PageCallbackState {
     page_id: PageId,
     pages: Arc<Mutex<BTreeMap<PageId, PageState>>>,
+    diagnostics: Arc<DiagnosticShared>,
 }
 
 #[cfg(windows)]
@@ -220,18 +265,16 @@ fn frame_url(frame: Option<&mut Frame>) -> Option<String> {
 }
 
 #[cfg(windows)]
-fn update_page<F>(state: &PageCallbackState, update: F)
+fn update_page<F, R>(state: &PageCallbackState, update: F) -> Option<R>
 where
-    F: FnOnce(&mut PageState),
+    F: FnOnce(&mut PageState) -> R,
 {
-    if let Some(page) = state
+    state
         .pages
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .get_mut(&state.page_id)
-    {
-        update(page);
-    }
+        .map(update)
 }
 
 #[cfg(windows)]
@@ -319,15 +362,37 @@ wrap_load_handler! {
         ) {
             if browser_id(browser).is_some() {
                 let url = failed_url.map(ToString::to_string).or_else(|| frame_url(frame));
-                update_page(&self.state, |page| {
+                let page_meta = update_page(&self.state, |page| {
                     page.loading_state = LoadingState::Failed;
                     page.status_code = 0;
-                    if let Some(url) = url {
-                        page.url = url;
+                    if let Some(ref url) = url {
+                        page.url = url.clone();
                     }
                     page.crashed = false;
+                    (page.context_id.clone(), page.revision)
                 });
-                let _ = (error_text, _error_code);
+                if let Some((context_id, revision)) = page_meta {
+                    let now_ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(0);
+                    self.state.diagnostics.push_event(ProviderDiagnosticEvent::Network {
+                        context_id,
+                        page_id: self.state.page_id.clone(),
+                        document_revision: revision,
+                        request_id: format!("load-err-{}", _error_code.get_raw()),
+                        method: "GET".to_string(),
+                        resource_type: RequestResourceType::MainFrame,
+                        url: url.unwrap_or_default(),
+                        status: ProviderNetworkRequestStatus::Failed,
+                        http_status: None,
+                        mime_type: None,
+                        received_bytes: None,
+                        duration_ms: None,
+                        timestamp_epoch_ms: now_ms,
+                    });
+                }
+                let _ = error_text;
             }
         }
     }
@@ -358,6 +423,56 @@ wrap_display_handler! {
                 let title = title.to_string();
                 update_page(&self.state, |page| page.title = title);
             }
+        }
+
+        fn on_console_message(
+            &self,
+            browser: Option<&mut Browser>,
+            level: LogSeverity,
+            message: Option<&CefString>,
+            source: Option<&CefString>,
+            line: ::std::os::raw::c_int,
+        ) -> ::std::os::raw::c_int {
+            if browser_id(browser).is_some() {
+                let page_meta = self
+                    .state
+                    .pages
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .get(&self.state.page_id)
+                    .map(|p| (p.context_id.clone(), p.revision));
+
+                if let Some((context_id, revision)) = page_meta {
+                    let msg_str = message.map(ToString::to_string).unwrap_or_default();
+                    let src_str = source.map(ToString::to_string);
+                    let norm_level = match level {
+                        LogSeverity::DEFAULT | LogSeverity::VERBOSE => {
+                            ProviderConsoleLogLevel::Debug
+                        }
+                        LogSeverity::INFO => ProviderConsoleLogLevel::Info,
+                        LogSeverity::WARNING => ProviderConsoleLogLevel::Warning,
+                        LogSeverity::ERROR | LogSeverity::FATAL => ProviderConsoleLogLevel::Error,
+                        _ => ProviderConsoleLogLevel::Info,
+                    };
+
+                    let now_ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(0);
+
+                    self.state.diagnostics.push_event(ProviderDiagnosticEvent::Console {
+                        context_id,
+                        page_id: self.state.page_id.clone(),
+                        document_revision: revision,
+                        level: norm_level,
+                        message: msg_str,
+                        source: src_str,
+                        line: if line > 0 { Some(line as u32) } else { None },
+                        timestamp_epoch_ms: now_ms,
+                    });
+                }
+            }
+            0
         }
     }
 }
@@ -418,9 +533,9 @@ fn request_policy_metadata(
 wrap_resource_request_handler! {
     struct WorldlineResourceRequestHandler {
         state: PageCallbackState,
-        request_policy: Arc<dyn RequestPolicyTransport>,
-        registration_id: String,
-        failure_mode: RequestPolicyFailureMode,
+        request_policy: Option<Arc<dyn RequestPolicyTransport>>,
+        registration_id: Option<String>,
+        failure_mode: Option<RequestPolicyFailureMode>,
         initiator_origin: Option<String>,
     }
     impl ResourceRequestHandler {
@@ -431,28 +546,68 @@ wrap_resource_request_handler! {
             request: Option<&mut Request>,
             _callback: Option<&mut Callback>,
         ) -> ReturnValue {
-            let action = request
-                .ok_or_else(|| "CEF supplied no request to resource policy callback".to_string())
-                .and_then(|request| {
-                    request_policy_metadata(
-                        &self.state,
-                        request,
-                        self.initiator_origin.as_deref(),
-                    )
-                })
-                .and_then(|metadata| {
-                    let policy_request = RequestPolicyRequest {
-                        registration_id: self.registration_id.clone(),
-                        metadata,
-                        deadline_ms: DEFAULT_REQUEST_POLICY_DEADLINE_MS,
-                    };
-                    policy_request.validate()?;
-                    self.request_policy
-                        .decide(policy_request)
-                        .map(|result| result.action)
-                        .map_err(|error| error.to_string())
-                })
-                .unwrap_or_else(|_| fallback_request_policy_action(self.failure_mode));
+            let mut request = request;
+            let action = if let (Some(policy), Some(reg_id), Some(mode)) = (
+                self.request_policy.as_ref(),
+                self.registration_id.as_ref(),
+                self.failure_mode,
+            ) {
+                request
+                    .as_mut()
+                    .ok_or_else(|| "CEF supplied no request to resource policy callback".to_string())
+                    .and_then(|req| {
+                        request_policy_metadata(
+                            &self.state,
+                            req,
+                            self.initiator_origin.as_deref(),
+                        )
+                    })
+                    .and_then(|metadata| {
+                        let policy_request = RequestPolicyRequest {
+                            registration_id: reg_id.clone(),
+                            metadata,
+                            deadline_ms: DEFAULT_REQUEST_POLICY_DEADLINE_MS,
+                        };
+                        policy_request.validate()?;
+                        policy
+                            .decide(policy_request)
+                            .map(|result| result.action)
+                            .map_err(|error| error.to_string())
+                    })
+                    .unwrap_or_else(|_| fallback_request_policy_action(mode))
+            } else {
+                RequestPolicyAction::Allow
+            };
+
+            if action == RequestPolicyAction::Block
+                && let Some(ref req) = request
+                && let Some(page) = self
+                    .state
+                    .pages
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .get(&self.state.page_id)
+            {
+                let now_ms = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
+                self.state.diagnostics.push_event(ProviderDiagnosticEvent::Network {
+                    context_id: page.context_id.clone(),
+                    page_id: self.state.page_id.clone(),
+                    document_revision: page.revision,
+                    request_id: req.identifier().to_string(),
+                    method: cef_string(&req.method()),
+                    resource_type: map_resource_type(req.resource_type()),
+                    url: cef_string(&req.url()),
+                    status: ProviderNetworkRequestStatus::Blocked,
+                    http_status: None,
+                    mime_type: None,
+                    received_bytes: None,
+                    duration_ms: None,
+                    timestamp_epoch_ms: now_ms,
+                });
+            }
 
             // The policy transport is synchronously bounded by its finite
             // deadline. Return the direct CEF result and do not retain or
@@ -464,6 +619,68 @@ wrap_resource_request_handler! {
                 RequestPolicyAction::Block => ReturnValue::CANCEL,
             }
         }
+
+        fn on_resource_load_complete(
+            &self,
+            _browser: Option<&mut Browser>,
+            _frame: Option<&mut Frame>,
+            request: Option<&mut Request>,
+            response: Option<&mut Response>,
+            status: UrlrequestStatus,
+            received_content_length: i64,
+        ) {
+            let (context_id, revision) = if let Some(page) = self
+                .state
+                .pages
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .get(&self.state.page_id)
+            {
+                (page.context_id.clone(), page.revision)
+            } else {
+                return;
+            };
+
+            let now_ms = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+
+            let net_status = match status {
+                UrlrequestStatus::SUCCESS => ProviderNetworkRequestStatus::Completed,
+                UrlrequestStatus::FAILED | UrlrequestStatus::CANCELED => {
+                    ProviderNetworkRequestStatus::Failed
+                }
+                _ => ProviderNetworkRequestStatus::Failed,
+            };
+
+            let http_status = response.as_ref().map(|r| r.status().clamp(0, u16::MAX as i32) as u16);
+            let mime_type = response.as_ref().map(|r| cef_string(&r.mime_type()));
+            let request_id = request.as_ref().map(|r| r.identifier().to_string()).unwrap_or_default();
+            let method = request.as_ref().map(|r| cef_string(&r.method())).unwrap_or_else(|| "GET".to_string());
+            let resource_type = request.as_ref().map(|r| map_resource_type(r.resource_type())).unwrap_or(RequestResourceType::Other);
+            let url = request.as_ref().map(|r| cef_string(&r.url())).unwrap_or_default();
+
+            self.state.diagnostics.push_event(ProviderDiagnosticEvent::Network {
+                context_id,
+                page_id: self.state.page_id.clone(),
+                document_revision: revision,
+                request_id,
+                method,
+                resource_type,
+                url,
+                status: net_status,
+                http_status,
+                mime_type,
+                received_bytes: if received_content_length >= 0 {
+                    Some(received_content_length as u64)
+                } else {
+                    None
+                },
+                duration_ms: None,
+                timestamp_epoch_ms: now_ms,
+            });
+        }
     }
 }
 
@@ -471,9 +688,9 @@ wrap_resource_request_handler! {
 wrap_request_handler! {
     struct WorldlineRequestHandler {
         state: PageCallbackState,
-        request_policy: Arc<dyn RequestPolicyTransport>,
-        registration_id: String,
-        failure_mode: RequestPolicyFailureMode,
+        request_policy: Option<Arc<dyn RequestPolicyTransport>>,
+        registration_id: Option<String>,
+        failure_mode: Option<RequestPolicyFailureMode>,
     }
     impl RequestHandler {
         fn resource_request_handler(
@@ -527,18 +744,11 @@ wrap_client! {
         }
 
         fn request_handler(&self) -> Option<RequestHandler> {
-            let (Some(request_policy), Some(registration_id), Some(failure_mode)) = (
+            Some(WorldlineRequestHandler::new(
+                self.state.clone(),
                 self.request_policy.clone(),
                 self.request_policy_registration_id.clone(),
                 self.request_policy_failure_mode,
-            ) else {
-                return None;
-            };
-            Some(WorldlineRequestHandler::new(
-                self.state.clone(),
-                request_policy,
-                registration_id,
-                failure_mode,
             ))
         }
     }
@@ -1401,6 +1611,8 @@ pub struct CefBrowserBackend {
     cache_root: PathBuf,
     #[cfg(windows)]
     download_shared: Arc<DownloadShared>,
+    #[cfg(windows)]
+    diagnostic_shared: Arc<DiagnosticShared>,
     request_policy_transport: Option<Arc<dyn RequestPolicyTransport>>,
     request_policy_registration_id: Option<String>,
     request_policy_failure_mode: Option<RequestPolicyFailureMode>,
@@ -1475,6 +1687,8 @@ impl CefBrowserBackend {
         let pages = Arc::new(Mutex::new(BTreeMap::new()));
         #[cfg(windows)]
         let download_shared = Arc::new(DownloadShared::new(pages.clone(), download_root));
+        #[cfg(windows)]
+        let diagnostic_shared = Arc::new(DiagnosticShared::new());
         Self {
             contexts: Mutex::new(BTreeMap::new()),
             #[cfg(windows)]
@@ -1488,6 +1702,8 @@ impl CefBrowserBackend {
             cache_root,
             #[cfg(windows)]
             download_shared,
+            #[cfg(windows)]
+            diagnostic_shared,
             request_policy_transport: None,
             request_policy_registration_id: None,
             request_policy_failure_mode: None,
@@ -1512,6 +1728,26 @@ impl CefBrowserBackend {
     #[cfg(windows)]
     pub fn drain_download_events(&self) -> Vec<CefDownloadEvent> {
         self.download_shared.drain_events()
+    }
+
+    /// Returns engine diagnostic events generated by CEF callbacks.
+    pub fn drain_diagnostic_events(&self) -> Vec<ProviderDiagnosticEvent> {
+        #[cfg(windows)]
+        {
+            self.diagnostic_shared.drain_events()
+        }
+        #[cfg(not(windows))]
+        {
+            Vec::new()
+        }
+    }
+
+    /// Sets an optional diagnostic sink to receive engine diagnostic events.
+    pub fn set_diagnostic_sink(&self, sink: Option<SharedDiagnosticSink>) {
+        #[cfg(windows)]
+        {
+            self.diagnostic_shared.set_sink(sink);
+        }
     }
 
     /// Access the thread-affine loop runner if CEF startup succeeded.
@@ -1653,6 +1889,56 @@ impl BrowserBackend for CefBrowserBackend {
     ) {
         self.request_policy_registration_id = Some(registration_id);
         self.request_policy_failure_mode = Some(failure_mode);
+    }
+
+    fn set_diagnostic_sink(&mut self, sink: Option<SharedDiagnosticSink>) {
+        CefBrowserBackend::set_diagnostic_sink(self, sink);
+    }
+
+    fn drain_diagnostic_events(&mut self) -> Vec<ProviderDiagnosticEvent> {
+        CefBrowserBackend::drain_diagnostic_events(self)
+    }
+
+    fn show_native_devtools(
+        &mut self,
+        context_id: &BrowserContextId,
+        page_id: &PageId,
+    ) -> Result<bool, BrowserError> {
+        #[cfg(windows)]
+        {
+            let browser_id = {
+                let pages = self.pages.lock().unwrap_or_else(|p| p.into_inner());
+                let page = pages
+                    .get(page_id)
+                    .ok_or_else(|| BrowserError::PageNotFound(page_id.clone()))?;
+                if page.context_id != *context_id {
+                    return Err(BrowserError::PermissionDenied(
+                        "page does not belong to context".to_string(),
+                    ));
+                }
+                page.browser_id
+            };
+            if browser_id <= 0 {
+                return Ok(false);
+            }
+            let runner = self.runner()?;
+            runner
+                .dispatch_sync(move || {
+                    if let Ok(browser) = native_browser(browser_id)
+                        && let Some(host) = browser.host()
+                    {
+                        host.show_dev_tools(None, None, None, None);
+                        return Ok(true);
+                    }
+                    Ok(false)
+                })
+                .map_err(BrowserError::EngineCrashed)?
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (context_id, page_id);
+            Ok(false)
+        }
     }
 
     fn create_context(
@@ -1799,6 +2085,7 @@ impl BrowserBackend for CefBrowserBackend {
         let callback_state = PageCallbackState {
             page_id: page_id.clone(),
             pages: Arc::clone(&self.pages),
+            diagnostics: Arc::clone(&self.diagnostic_shared),
         };
         #[cfg(windows)]
         let downloads = Arc::clone(&self.download_shared);

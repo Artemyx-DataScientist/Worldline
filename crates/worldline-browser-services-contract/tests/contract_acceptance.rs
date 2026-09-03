@@ -1,25 +1,33 @@
+use worldline_browser_contract::{LoadingState, request_policy::RequestResourceType};
 use worldline_browser_contract::{
     authority::{OP_CLICK, OP_NAVIGATE, OP_OBSERVE, OP_QUERY_DOCUMENT},
     identity::{BrowserContextId, DocumentRevision, DownloadId, NavigationId, PageId},
 };
 use worldline_browser_services_contract::{
     AUTH_COOKIES_ADMIN, AUTH_COOKIES_METADATA_READ, AUTH_COOKIES_MUTATE, AUTH_COOKIES_VALUE_READ,
-    AUTH_DOWNLOADS_CONTROL, AUTH_DOWNLOADS_READ, AUTH_HISTORY_DELETE, AUTH_HISTORY_READ,
-    AUTH_SITE_DATA_CLEAR, AUTH_TABS_MUTATE, AUTH_TABS_READ, ArtifactRef, CONTRACT_BROWSER_COOKIES,
+    AUTH_DEVTOOLS_CONTROL, AUTH_DEVTOOLS_NATIVE, AUTH_DEVTOOLS_OBSERVE, AUTH_DOWNLOADS_CONTROL,
+    AUTH_DOWNLOADS_READ, AUTH_HISTORY_DELETE, AUTH_HISTORY_READ, AUTH_SITE_DATA_CLEAR,
+    AUTH_TABS_MUTATE, AUTH_TABS_READ, ArtifactRef, CONTRACT_BROWSER_COOKIES,
     CONTRACT_BROWSER_COOKIES_V0_2, CONTRACT_BROWSER_COOKIES_V0_2_VERSION,
-    CONTRACT_BROWSER_COOKIES_VERSION, CONTRACT_BROWSER_DOWNLOADS,
-    CONTRACT_BROWSER_DOWNLOADS_VERSION, CONTRACT_BROWSER_HISTORY, CONTRACT_BROWSER_HISTORY_VERSION,
-    CONTRACT_BROWSER_SITE_DATA, CONTRACT_BROWSER_SITE_DATA_VERSION, CONTRACT_BROWSER_TABS,
-    CONTRACT_BROWSER_TABS_VERSION, CancelDownloadRequest, CancelDownloadResponse,
-    ClearHistoryRequest, ClearSiteDataRequest, ClearSiteDataResponse, CloseTabRequest,
-    CloseTabResponse, CookieMetadata, CookieMetadataV0_2, CookieValue, CreateTabRequest,
-    DeleteCookieServiceRequest, DeleteCookieServiceResponse, DownloadLifecycleStatus,
-    DownloadRecord, DownloadRecordId, GetCookieMetadataRequest, GetCookieMetadataResponse,
+    CONTRACT_BROWSER_COOKIES_VERSION, CONTRACT_BROWSER_DEVTOOLS, CONTRACT_BROWSER_DEVTOOLS_VERSION,
+    CONTRACT_BROWSER_DOWNLOADS, CONTRACT_BROWSER_DOWNLOADS_VERSION, CONTRACT_BROWSER_HISTORY,
+    CONTRACT_BROWSER_HISTORY_VERSION, CONTRACT_BROWSER_SITE_DATA,
+    CONTRACT_BROWSER_SITE_DATA_VERSION, CONTRACT_BROWSER_TABS, CONTRACT_BROWSER_TABS_VERSION,
+    CancelDownloadRequest, CancelDownloadResponse, ClearDiagnosticsRequest,
+    ClearDiagnosticsResponse, ClearHistoryRequest, ClearSiteDataRequest, ClearSiteDataResponse,
+    CloseTabRequest, CloseTabResponse, ConsoleDiagnosticRecord, ConsoleLogLevel, CookieMetadata,
+    CookieMetadataV0_2, CookieValue, CreateTabRequest, DeleteCookieServiceRequest,
+    DeleteCookieServiceResponse, DiagnosticBufferStats, DownloadLifecycleStatus, DownloadRecord,
+    DownloadRecordId, GetCookieMetadataRequest, GetCookieMetadataResponse,
     GetCookieMetadataResponseV0_2, GetCookieValueRequest, GetCookieValueResponse,
-    GetDownloadRecordRequest, GetDownloadRecordResponse, HistoryEntry, HistoryEntryId,
-    ListDownloadRecordsRequest, ListDownloadRecordsResponse, PauseDownloadRequest,
-    PauseDownloadResponse, QueryHistoryRequest, ResumeDownloadRequest, ResumeDownloadResponse,
-    SetCookieServiceRequest, SetCookieServiceRequestV0_2, SetCookieServiceResponse,
+    GetDownloadRecordRequest, GetDownloadRecordResponse, GetRuntimeSnapshotRequest,
+    GetRuntimeSnapshotResponse, HistoryEntry, HistoryEntryId, ListDownloadRecordsRequest,
+    ListDownloadRecordsResponse, NetworkDiagnosticRecord, NetworkRequestStatus,
+    PageRuntimeDiagnosticSnapshot, PauseDownloadRequest, PauseDownloadResponse,
+    QueryConsoleRecordsRequest, QueryConsoleRecordsResponse, QueryHistoryRequest,
+    QueryNetworkRecordsRequest, QueryNetworkRecordsResponse, ResumeDownloadRequest,
+    ResumeDownloadResponse, SetCookieServiceRequest, SetCookieServiceRequestV0_2,
+    SetCookieServiceResponse, ShowNativeDevToolsRequest, ShowNativeDevToolsResponse,
     StartDownloadRequest, StartDownloadResponse, StorageType, TabGroupId, TabId, TabState,
 };
 
@@ -460,6 +468,11 @@ fn authority_separation_invariants() {
         AUTH_COOKIES_ADMIN,
     ];
     let site_data_authorities = [AUTH_SITE_DATA_CLEAR];
+    let devtools_authorities = [
+        AUTH_DEVTOOLS_OBSERVE,
+        AUTH_DEVTOOLS_CONTROL,
+        AUTH_DEVTOOLS_NATIVE,
+    ];
 
     let engine_mutation_authorities = [OP_NAVIGATE, OP_CLICK];
     let engine_observation_authorities = [OP_OBSERVE, OP_QUERY_DOCUMENT];
@@ -471,6 +484,7 @@ fn authority_separation_invariants() {
     all_service_auths.extend_from_slice(&downloads_authorities);
     all_service_auths.extend_from_slice(&cookies_authorities);
     all_service_auths.extend_from_slice(&site_data_authorities);
+    all_service_auths.extend_from_slice(&devtools_authorities);
 
     for (i, auth_a) in all_service_auths.iter().enumerate() {
         for (j, auth_b) in all_service_auths.iter().enumerate() {
@@ -496,4 +510,152 @@ fn authority_separation_invariants() {
             );
         }
     }
+}
+
+#[test]
+fn devtools_contract_wire_fixtures_stability() {
+    assert_eq!(CONTRACT_BROWSER_DEVTOOLS, "browser.devtools");
+    assert_eq!(CONTRACT_BROWSER_DEVTOOLS_VERSION, "0.1");
+
+    let console_req_json = r#"{
+        "context_id": "ctx-1",
+        "page_id": "page-1",
+        "document_revision": 2,
+        "min_level": "warning",
+        "limit": 50,
+        "since_record_id": 10
+    }"#;
+    let query_console: QueryConsoleRecordsRequest = serde_json::from_str(console_req_json).unwrap();
+    assert_eq!(query_console.context_id.as_str(), "ctx-1");
+    assert_eq!(query_console.page_id.as_str(), "page-1");
+    assert_eq!(
+        query_console.document_revision,
+        Some(DocumentRevision::new(2))
+    );
+    assert_eq!(query_console.min_level, Some(ConsoleLogLevel::Warning));
+    assert_eq!(query_console.limit, Some(50));
+    assert_eq!(query_console.since_record_id, Some(10));
+
+    let console_rec = ConsoleDiagnosticRecord::new(
+        1,
+        BrowserContextId::new("ctx-1"),
+        PageId::new("page-1"),
+        DocumentRevision::new(2),
+        ConsoleLogLevel::Error,
+        "Uncaught ReferenceError: foo is not defined",
+        Some("https://example.com/app.js"),
+        Some(123),
+        1700000000000,
+    );
+    let console_resp = QueryConsoleRecordsResponse {
+        records: vec![console_rec.clone()],
+        stats: DiagnosticBufferStats {
+            retained_console_records: 1,
+            dropped_console_records: 0,
+            truncated_console_records: 0,
+            retained_network_records: 0,
+            dropped_network_records: 0,
+            truncated_network_records: 0,
+        },
+    };
+    let json = serde_json::to_string(&console_resp).unwrap();
+    let deserialized: QueryConsoleRecordsResponse = serde_json::from_str(&json).unwrap();
+    assert_eq!(console_resp, deserialized);
+
+    let network_rec = NetworkDiagnosticRecord::new(
+        1,
+        BrowserContextId::new("ctx-1"),
+        PageId::new("page-1"),
+        DocumentRevision::new(2),
+        "req-404",
+        "GET",
+        RequestResourceType::Stylesheet,
+        "https://example.com/missing.css",
+        NetworkRequestStatus::Failed,
+        Some(404),
+        Some("text/html".to_string()),
+        Some(150),
+        Some(25),
+        1700000000000,
+    );
+    let network_resp = QueryNetworkRecordsResponse {
+        records: vec![network_rec.clone()],
+        stats: DiagnosticBufferStats {
+            retained_console_records: 0,
+            dropped_console_records: 0,
+            truncated_console_records: 0,
+            retained_network_records: 1,
+            dropped_network_records: 0,
+            truncated_network_records: 0,
+        },
+    };
+    let json = serde_json::to_string(&network_resp).unwrap();
+    let deserialized: QueryNetworkRecordsResponse = serde_json::from_str(&json).unwrap();
+    assert_eq!(network_resp, deserialized);
+
+    let snapshot = PageRuntimeDiagnosticSnapshot {
+        context_id: BrowserContextId::new("ctx-1"),
+        page_id: PageId::new("page-1"),
+        document_revision: DocumentRevision::new(2),
+        url: "https://example.com/".to_string(),
+        title: "Example Domain".to_string(),
+        loading_state: LoadingState::Complete,
+        status_code: 200,
+        crashed: false,
+        timestamp_epoch_ms: 1700000000000,
+    };
+    let snap_resp = GetRuntimeSnapshotResponse { snapshot };
+    let json = serde_json::to_string(&snap_resp).unwrap();
+    let deserialized: GetRuntimeSnapshotResponse = serde_json::from_str(&json).unwrap();
+    assert_eq!(snap_resp, deserialized);
+
+    let net_req = QueryNetworkRecordsRequest {
+        context_id: BrowserContextId::new("ctx-1"),
+        page_id: PageId::new("page-1"),
+        document_revision: Some(DocumentRevision::new(2)),
+        resource_type: Some(RequestResourceType::Stylesheet),
+        status: Some(NetworkRequestStatus::Failed),
+        limit: Some(10),
+        since_record_id: Some(5),
+    };
+    let json = serde_json::to_string(&net_req).unwrap();
+    let deserialized_net_req: QueryNetworkRecordsRequest = serde_json::from_str(&json).unwrap();
+    assert_eq!(net_req, deserialized_net_req);
+
+    let snap_req = GetRuntimeSnapshotRequest {
+        context_id: BrowserContextId::new("ctx-1"),
+        page_id: PageId::new("page-1"),
+    };
+    let json = serde_json::to_string(&snap_req).unwrap();
+    let deserialized_snap_req: GetRuntimeSnapshotRequest = serde_json::from_str(&json).unwrap();
+    assert_eq!(snap_req, deserialized_snap_req);
+
+    let clear_req = ClearDiagnosticsRequest {
+        context_id: BrowserContextId::new("ctx-1"),
+        page_id: PageId::new("page-1"),
+    };
+    let json = serde_json::to_string(&clear_req).unwrap();
+    let deserialized_clear_req: ClearDiagnosticsRequest = serde_json::from_str(&json).unwrap();
+    assert_eq!(clear_req, deserialized_clear_req);
+
+    let clear_resp = ClearDiagnosticsResponse { cleared: true };
+    let json = serde_json::to_string(&clear_resp).unwrap();
+    let deserialized_clear_resp: ClearDiagnosticsResponse = serde_json::from_str(&json).unwrap();
+    assert_eq!(clear_resp, deserialized_clear_resp);
+
+    let show_req = ShowNativeDevToolsRequest {
+        context_id: BrowserContextId::new("ctx-1"),
+        page_id: PageId::new("page-1"),
+    };
+    let json = serde_json::to_string(&show_req).unwrap();
+    let deserialized_show_req: ShowNativeDevToolsRequest = serde_json::from_str(&json).unwrap();
+    assert_eq!(show_req, deserialized_show_req);
+
+    let show_resp = ShowNativeDevToolsResponse {
+        supported: true,
+        opened: true,
+    };
+    let json = serde_json::to_string(&show_resp).unwrap();
+    let deserialized_show_resp: ShowNativeDevToolsResponse = serde_json::from_str(&json).unwrap();
+    assert_eq!(show_resp, deserialized_show_resp);
 }

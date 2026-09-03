@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="draft">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-BROWSER-DEVTOOLS-DIAGNOSTICS-20260903>
     <Summary>
       Deliver the next bounded M1.3 browser-service slice by adding a replaceable,

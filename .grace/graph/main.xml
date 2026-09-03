@@ -160,8 +160,10 @@
       <M-CI-BASELINE />
     </M-BROWSER-ENGINE-PROVIDER-PROCESS>
     <M-BROWSER-SERVICE-PLUGINS>
-      <Summary>Second M1.3 browser-service slice: independent downloads and cookies/site-data service plugins above engine primitives. Downloads uses durable metadata plus generic content-addressed SHA-256 blobs with independent brokered byte reads; cookies preserve host-only/domain semantics through additive engine contracts and canonical label-boundary matching; site-data clearing is origin-scoped and context-bounded. Deterministic S3B remains separate from the required real native CEF S3B proof.</Summary>
+      <Summary>M1.3 browser-service slices: independent downloads, cookies/site-data, request-policy interception, and devtools diagnostics service plugins above engine primitives. Downloads uses durable metadata plus generic content-addressed SHA-256 blobs with independent brokered byte reads; cookies preserve host-only/domain semantics through additive engine contracts and canonical label-boundary matching; site-data clearing is origin-scoped and context-bounded; request-policy interception provides bounded pre-dispatch policy evaluation with deterministic adblock proving slices S3C and real native CEF interception; devtools diagnostics provides bounded privacy-preserving console and network observation ring buffers with deterministic S3D and hosted real native CEF verification. Proving slices S3B, S3C, and S3D remain separate from their required real native CEF proofs.</Summary>
       <Path>docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md</Path>
+      <Path>docs/adr/ADR-BROWSER-REQUEST-POLICY-INTERCEPTION-V1.md</Path>
+      <Path>docs/adr/ADR-BROWSER-DEVTOOLS-DIAGNOSTICS-V1.md</Path>
       <Path>crates/worldline-browser-services-contract/Cargo.toml</Path>
       <Path>crates/worldline-browser-services-contract/src/lib.rs</Path>
       <Path>crates/worldline-browser-services-contract/src/downloads.rs</Path>
@@ -169,6 +171,7 @@
       <Path>crates/worldline-browser-services-contract/src/site_data.rs</Path>
       <Path>crates/worldline-browser-services-contract/src/tabs.rs</Path>
       <Path>crates/worldline-browser-services-contract/src/history.rs</Path>
+      <Path>crates/worldline-browser-services-contract/src/devtools.rs</Path>
       <Path>crates/worldline-browser-services-contract/tests/contract_acceptance.rs</Path>
       <Path>crates/worldline-browser-downloads/Cargo.toml</Path>
       <Path>crates/worldline-browser-downloads/src/lib.rs</Path>
@@ -182,14 +185,26 @@
       <Path>crates/worldline-browser-cookies/src/policy.rs</Path>
       <Path>crates/worldline-browser-cookies/src/site_data.rs</Path>
       <Path>crates/worldline-browser-cookies/tests/cookies_acceptance.rs</Path>
+      <Path>crates/worldline-browser-adblock/Cargo.toml</Path>
+      <Path>crates/worldline-browser-adblock/src/lib.rs</Path>
+      <Path>crates/worldline-browser-devtools/Cargo.toml</Path>
+      <Path>crates/worldline-browser-devtools/src/lib.rs</Path>
+      <Path>crates/worldline-reference/src/request_policy.rs</Path>
       <Path>crates/worldline-reference/src/s3b.rs</Path>
       <Path>crates/worldline-reference/tests/s3b_acceptance.rs</Path>
       <Path>crates/worldline-reference/tests/s3b_real_acceptance.rs</Path>
+      <Path>crates/worldline-reference/src/s3c.rs</Path>
+      <Path>crates/worldline-reference/tests/s3c_acceptance.rs</Path>
+      <Path>crates/worldline-reference/tests/s3c_real_acceptance.rs</Path>
+      <Path>crates/worldline-reference/src/s3d.rs</Path>
+      <Path>crates/worldline-reference/tests/s3d_acceptance.rs</Path>
+      <Path>crates/worldline-reference/tests/s3d_real_acceptance.rs</Path>
       <Path>crates/worldline-storage/src/blob.rs</Path>
       <M-BROWSER-ENGINE-PROVIDER-PROCESS />
       <M-BROWSER-CONTRACT-ENGINE-SPIKE />
       <M-EXTERNAL-PLUGIN-BOUNDARY />
       <M-PERSISTENCE-RECOVERY />
+      <M-REFERENCE-PROVING-SLICE />
       <M-CI-BASELINE />
     </M-BROWSER-SERVICE-PLUGINS>
   </GD-MAIN>

@@ -1,0 +1,270 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-BROWSER-DEVTOOLS-DIAGNOSTICS-20260903>
+    <IntentSummary>
+      Deliver the bounded M1.3 browser-service devtools diagnostics slice by adding
+      a replaceable, engine-neutral diagnostics capability above the browser provider
+      and proving it against the real CEF path.
+
+      The plan keeps diagnostics above the kernel, rejects raw CDP passthrough and
+      remote debugging server exposure as the primary contract, bounds all diagnostic
+      buffers and field lengths, enforces strict BrowserContextId and PageId
+      isolation, tags records with DocumentRevision, omits sensitive cookie/auth/body
+      payloads by default, and proves both a deterministic reference S3D slice and a
+      real Windows CEF hosted S3D slice.
+
+      Admission is codex_led on the isolated branch
+      codex/browser-devtools-diagnostics-spec-20260903, based on the approved spec.
+      Predecessor change C-BROWSER-REQUEST-POLICY-INTERCEPTION-SCOPE-CORRECTION-20260902
+      has been applied and archived, satisfying the lifecycle gate.
+    </IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-BROWSER-ENGINE-PROVIDER-PROCESS</Value>
+        <Value>M-BROWSER-SERVICE-PLUGINS</Value>
+        <Value>M-BROWSER-CONTRACT-ENGINE-SPIKE</Value>
+        <Value>M-EXTERNAL-PLUGIN-BOUNDARY</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>V-M-BROWSER-ENGINE-PROVIDER-PROCESS</Value>
+        <Value>V-M-BROWSER-SERVICE-PLUGINS</Value>
+        <Value>V-M-REFERENCE-PROVING-SLICE</Value>
+        <Value>V-M-CI-BASELINE</Value>
+        <Value>crates/worldline-browser-contract/Cargo.toml</Value>
+        <Value>crates/worldline-browser-contract/src/lib.rs</Value>
+        <Value>crates/worldline-browser-services-contract/Cargo.toml</Value>
+        <Value>crates/worldline-browser-services-contract/src/lib.rs</Value>
+        <Value>crates/worldline-browser-provider/Cargo.toml</Value>
+        <Value>crates/worldline-browser-provider/src/lib.rs</Value>
+        <Value>crates/worldline-browser-cef/Cargo.toml</Value>
+        <Value>crates/worldline-browser-cef/src/backend.rs</Value>
+        <Value>crates/worldline-reference/Cargo.toml</Value>
+        <Value>crates/worldline-reference/src/lib.rs</Value>
+        <Value>crates/worldline-reference/src/s3c.rs</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>.grace/graph/index.xml</Value>
+        <Value>.grace/verification/index.xml</Value>
+      </MustExist>
+      <MustContain>
+        <File>crates/worldline-browser-cef/src/backend.rs</File>
+        <Text>wrap_display_handler!</Text>
+      </MustContain>
+      <MustContain>
+        <File>crates/worldline-browser-cef/src/backend.rs</File>
+        <Text>wrap_resource_request_handler!</Text>
+      </MustContain>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>docs/adr/ADR-BROWSER-DEVTOOLS-DIAGNOSTICS-V1.md</Value>
+        <Value>crates/worldline-browser-services-contract/src/devtools.rs</Value>
+        <Value>crates/worldline-browser-devtools/Cargo.toml</Value>
+        <Value>crates/worldline-browser-devtools/src/lib.rs</Value>
+        <Value>crates/worldline-reference/src/s3d.rs</Value>
+        <Value>crates/worldline-reference/tests/s3d_acceptance.rs</Value>
+        <Value>crates/worldline-reference/tests/s3d_real_acceptance.rs</Value>
+      </MustExist>
+      <MustPassCommand>
+        <Command>cargo fmt --all -- --check</Command>
+        <Command>cargo check --workspace --all-targets</Command>
+        <Command>cargo clippy --workspace --all-targets --all-features -- -D warnings</Command>
+        <Command>cargo test --workspace</Command>
+        <Command>cargo test -p worldline-browser-services-contract</Command>
+        <Command>cargo test -p worldline-browser-devtools</Command>
+        <Command>cargo test -p worldline-browser-cef</Command>
+        <Command>cargo test -p worldline-reference --test s3d_acceptance</Command>
+        <Command>cargo test -p worldline-reference --test s3d_real_acceptance</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserDevTools</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+        <M-BROWSER-SERVICE-PLUGINS />
+        <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+        <M-EXTERNAL-PLUGIN-BOUNDARY />
+        <M-REFERENCE-PROVING-SLICE />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-BROWSER-ENGINE-PROVIDER-PROCESS />
+        <V-M-BROWSER-SERVICE-PLUGINS />
+        <V-M-REFERENCE-PROVING-SLICE />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>docs/adr/ADR-BROWSER-DEVTOOLS-DIAGNOSTICS-V1.md</File>
+      <File>Cargo.toml</File>
+      <File>Cargo.lock</File>
+      <File>crates/worldline-browser-services-contract/Cargo.toml</File>
+      <File>crates/worldline-browser-services-contract/src/lib.rs</File>
+      <File>crates/worldline-browser-services-contract/src/devtools.rs</File>
+      <File>crates/worldline-browser-services-contract/tests/contract_acceptance.rs</File>
+      <File>crates/worldline-browser-devtools/Cargo.toml</File>
+      <Glob>crates/worldline-browser-devtools/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-devtools/tests/*.rs</Glob>
+      <File>crates/worldline-browser-provider/Cargo.toml</File>
+      <Glob>crates/worldline-browser-provider/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-provider/tests/*.rs</Glob>
+      <File>crates/worldline-browser-cef/Cargo.toml</File>
+      <Glob>crates/worldline-browser-cef/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-cef/tests/*.rs</Glob>
+      <File>crates/worldline-browser-provider-process/Cargo.toml</File>
+      <Glob>crates/worldline-browser-provider-process/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-provider-process/tests/*.rs</Glob>
+      <File>crates/worldline-reference/Cargo.toml</File>
+      <File>crates/worldline-reference/src/lib.rs</File>
+      <File>crates/worldline-reference/src/s3d.rs</File>
+      <File>crates/worldline-reference/tests/s3d_acceptance.rs</File>
+      <File>crates/worldline-reference/tests/s3d_real_acceptance.rs</File>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Draft and freeze the browser devtools diagnostics architecture decision record (ADR)</Title>
+        <DependsOn />
+        <AcceptanceCriteria>
+          <Criterion>Document the engine-neutral diagnostic boundary: CEF/provider extracts facts, maps to normalized DTOs, forwards to bounded worldline-browser-devtools service, which serves authorized consumers.</Criterion>
+          <Criterion>Explicitly record rejection of raw Chrome DevTools frontend, CDP passthrough, and ambient remote debugging server.</Criterion>
+          <Criterion>Specify authority separation: AUTH_DEVTOOLS_OBSERVE (read console/network/runtime diagnostics), AUTH_DEVTOOLS_CONTROL (clear buffers), AUTH_DEVTOOLS_NATIVE (optional native inspector escape hatch).</Criterion>
+          <Criterion>Specify privacy and sensitivity boundaries: cookies, authorization headers, request/response bodies, client certs are excluded from default DTOs. Console text and full URLs are bounded and scoped.</Criterion>
+          <Criterion>Specify bounded retention: per-page ring buffers, field size limits, drop/truncation metadata counters, DocumentRevision tagging, lifecycle cleanup, and failure isolation.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo check --workspace</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Define experimental browser.devtools/0.1 contract and normalized diagnostic DTOs</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Add crates/worldline-browser-services-contract/src/devtools.rs declaring the experimental browser.devtools/0.1 service contract.</Criterion>
+          <Criterion>Define normalized DTOs: ConsoleDiagnosticRecord (level, message, source, line, DocumentRevision, timestamp), NetworkDiagnosticRecord (method, resource_type, url, status, http_status, mime_type, bytes, duration, DocumentRevision), PageRuntimeDiagnosticSnapshot (context_id, page_id, revision, url, title, loading_state), DiagnosticQuery, DiagnosticQueryResult, DiagnosticBufferStats.</Criterion>
+          <Criterion>Declare authority constants AUTH_DEVTOOLS_OBSERVE, AUTH_DEVTOOLS_CONTROL, AUTH_DEVTOOLS_NATIVE disjoint from ordinary page observation authority.</Criterion>
+          <Criterion>Validate serialization and field length truncation/validation in unit tests.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-services-contract</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Implement worldline-browser-devtools service plugin with bounded ring buffers</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Create crates/worldline-browser-devtools containing the diagnostics service plugin.</Criterion>
+          <Criterion>Implement per-(BrowserContextId, PageId) bounded ring buffers with finite entry and byte bounds, enforcing drop-oldest policy and recording dropped_count and truncated_count in buffer stats.</Criterion>
+          <Criterion>Implement query operations requiring AUTH_DEVTOOLS_OBSERVE with strict Context/Page isolation and clear operations requiring AUTH_DEVTOOLS_CONTROL.</Criterion>
+          <Criterion>Implement lifecycle cleanup when a Page or BrowserContext is closed or destroyed.</Criterion>
+          <Criterion>Ensure ephemeral behavior: diagnostics reset on service restart without stale handles surviving across runtimes.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-devtools</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Wire real CEF console and network callbacks to normalized provider diagnostic flow</Title>
+        <DependsOn>
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Wire CefDisplayHandler::on_console_message in worldline-browser-cef to capture log/info, warn, error with source and line.</Criterion>
+          <Criterion>Wire CefResourceRequestHandler (on_before_resource_load, on_resource_response, on_resource_load_complete) and CefLoadHandler (on_load_error) to capture resource lifecycle facts (method, type, url, status, http_status, bytes) without body or sensitive header exposure.</Criterion>
+          <Criterion>Bridge facts across the native provider process boundary using bounded, non-blocking notification messages.</Criterion>
+          <Criterion>If provider-native DevTools is exposed as an escape hatch, gate behind AUTH_DEVTOOLS_NATIVE and fail explicitly when unsupported without returning raw CEF pointers.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-cef</Command>
+          <Command>cargo test -p worldline-browser-provider</Command>
+          <Command>cargo test -p worldline-browser-provider-process</Command>
+        </Verification>
+      </T-004>
+
+      <T-005>
+        <Title>Implement deterministic S3D proving slice and reference acceptance tests</Title>
+        <DependsOn>
+          <T-003 />
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Create crates/worldline-reference/src/s3d.rs and tests/s3d_acceptance.rs with a deterministic loopback fixture emitting known console log/warn/error, successful resource, and 404 resource.</Criterion>
+          <Criterion>Prove console capture (log, warn, error) and network capture (200 OK, 404 Not Found) through the normalized diagnostics service.</Criterion>
+          <Criterion>Prove BrowserContextId and PageId isolation: Context A cannot observe Context B's diagnostics.</Criterion>
+          <Criterion>Prove flood overflow: emitting 1000 console records maintains finite memory, records dropped entries, and preserves page responsiveness.</Criterion>
+          <Criterion>Prove DocumentRevision isolation: navigation tags new entries and old entries are not presented as current document facts.</Criterion>
+          <Criterion>Prove failure isolation: crashing or unloading worldline-browser-devtools does not disrupt browsing, tabs, history, cookies, or request policy.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-reference --test s3d_acceptance</Command>
+        </Verification>
+      </T-005>
+
+      <T-006>
+        <Title>Implement hosted Windows real-CEF S3D acceptance tests</Title>
+        <DependsOn>
+          <T-004 />
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Create crates/worldline-reference/tests/s3d_real_acceptance.rs running the S3D loopback page against the real pinned CEF provider process.</Criterion>
+          <Criterion>Prove that real CEF callbacks generate normalized console and network diagnostic records observable through the Worldline service contract.</Criterion>
+          <Criterion>Record provider and runtime identity in the test report and fail closed if ReferenceBrowserBackend is substituted.</Criterion>
+          <Criterion>Gate execution on Windows and require staged CEF environment variables.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-reference --test s3d_real_acceptance</Command>
+        </Verification>
+      </T-006>
+
+      <T-007>
+        <Title>Add architecture guards and BrowserDevTools CI suite</Title>
+        <DependsOn>
+          <T-005 />
+          <T-006 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Extend scripts/ci/Test-WorldlineArchitecture.ps1 to verify worldline-kernel contains no devtools/CDP/CEF domain types, no raw CDP passthrough exists, and browser-devtools is not a dependency of other browser services.</Criterion>
+          <Criterion>Add BrowserDevTools CI suite to scripts/ci/Invoke-WorldlineCi.ps1 covering contracts, bounds, isolation, S3D reference, and hosted Windows real-CEF tests.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserDevTools</Command>
+        </Verification>
+      </T-007>
+
+      <T-008>
+        <Title>Execute full regression gates and produce completion packet</Title>
+        <DependsOn>
+          <T-006 />
+          <T-007 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Run formatting, workspace check, clippy (-D warnings), workspace tests, architecture guards, and all CI suites.</Criterion>
+          <Criterion>Generate completion packet distinguishing scaffolded, wired, and verified claims with named runs.</Criterion>
+          <Criterion>Do not mutate .grace/graph or .grace/verification until explicit apply confirmation is received from the user.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo fmt --all -- --check</Command>
+          <Command>cargo check --workspace --all-targets</Command>
+          <Command>cargo clippy --workspace --all-targets --all-features -- -D warnings</Command>
+          <Command>cargo test --workspace</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-008>
+    </ImplementationPlan>
+  </C-BROWSER-DEVTOOLS-DIAGNOSTICS-20260903>
+</GraceChangePlan>

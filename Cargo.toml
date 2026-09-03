@@ -19,6 +19,7 @@ members = [
     "crates/worldline-browser-history",
     "crates/worldline-browser-downloads",
     "crates/worldline-browser-cookies",
+    "crates/worldline-browser-devtools",
 ]
 exclude = ["crates/worldline-wasm-host/tests/components"]
 resolver = "3"

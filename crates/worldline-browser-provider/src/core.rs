@@ -20,7 +20,7 @@ use worldline_browser_contract::{
         StartDownloadRequest, StopRequest,
     },
     error::BrowserError,
-    identity::{DocumentRevision, ElementRef, PageId},
+    identity::{BrowserContextId, DocumentRevision, ElementRef, PageId},
     primitives::{
         ClearStorageRequest, DeleteCookiesRequest, GetCookiesRequest, SetCookieRequest,
         SetCookieRequestV0_2, StorageItemRequestV0_2,
@@ -84,6 +84,25 @@ impl<B: BrowserBackend> BrowserProviderCore<B> {
     pub fn with_backend<R>(&self, callback: impl FnOnce(&B) -> R) -> R {
         let backend = self.backend.lock().unwrap();
         callback(&backend)
+    }
+
+    pub fn with_backend_mut<R>(&self, callback: impl FnOnce(&mut B) -> R) -> R {
+        let mut backend = self.backend.lock().unwrap();
+        callback(&mut backend)
+    }
+
+    pub fn drain_diagnostic_events(&self) -> Vec<crate::diagnostics::ProviderDiagnosticEvent> {
+        let mut backend = self.backend.lock().unwrap();
+        backend.drain_diagnostic_events()
+    }
+
+    pub fn show_native_devtools(
+        &self,
+        context_id: &BrowserContextId,
+        page_id: &PageId,
+    ) -> Result<bool, BrowserError> {
+        let mut backend = self.backend.lock().unwrap();
+        backend.show_native_devtools(context_id, page_id)
     }
 
     /// Returns the engine-neutral request-policy broker owned by this

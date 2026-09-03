@@ -444,4 +444,30 @@ foreach ($requiredMatrixToken in @('Max Browser Contexts', 'Max Pages per Contex
     Assert-Condition ($budgetMatrixContent.Contains($requiredMatrixToken)) "Browser-provider budget matrix must contain '${requiredMatrixToken}' entry."
 }
 
+# Browser devtools service boundaries
+$devtoolsManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-devtools/Cargo.toml') -Raw
+Assert-Condition ($devtoolsManifest.Contains('worldline-browser-contract')) 'worldline-browser-devtools must depend on the neutral browser contract.'
+Assert-Condition ($devtoolsManifest.Contains('worldline-browser-services-contract')) 'worldline-browser-devtools must depend on the browser services contract.'
+foreach ($forbiddenToken in @('worldline-browser-cef', 'worldline-kernel', 'cef')) {
+    Assert-Condition (-not $devtoolsManifest.Contains($forbiddenToken)) "worldline-browser-devtools must not depend on '${forbiddenToken}'."
+}
+
+$devtoolsSource = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-devtools/src/lib.rs') -Raw
+foreach ($forbiddenToken in @('worldline_browser_cef', 'cef_', 'RemoteDebuggingPort', 'devtools_remote')) {
+    Assert-Condition (-not $devtoolsSource.Contains($forbiddenToken)) "worldline-browser-devtools source must not reference '${forbiddenToken}'."
+}
+foreach ($requiredToken in @('DEFAULT_BUFFER_CAPACITY', 'PageDiagnosticBuffer', 'dropped_console_records', 'dropped_network_records')) {
+    Assert-Condition ($devtoolsSource.Contains($requiredToken)) "worldline-browser-devtools source must contain '${requiredToken}'."
+}
+
+$devtoolsContractSource = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-services-contract/src/devtools.rs') -Raw
+foreach ($requiredToken in @('AUTH_DEVTOOLS_OBSERVE', 'AUTH_DEVTOOLS_CONTROL', 'AUTH_DEVTOOLS_NATIVE', 'ConsoleDiagnosticRecord', 'NetworkDiagnosticRecord', 'PageRuntimeDiagnosticSnapshot')) {
+    Assert-Condition ($devtoolsContractSource.Contains($requiredToken)) "worldline-browser-services-contract devtools must declare '${requiredToken}'."
+}
+
+$devtoolsAdr = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'docs/adr/ADR-BROWSER-DEVTOOLS-DIAGNOSTICS-V1.md') -Raw
+foreach ($requiredToken in @('AUTH_DEVTOOLS_OBSERVE', 'AUTH_DEVTOOLS_NATIVE', 'S3D', 'EVENT BUS IS NOT RPC', 'Ring buffers')) {
+    Assert-Condition ($devtoolsAdr.Contains($requiredToken)) "DevTools ADR must preserve '${requiredToken}' decision text."
+}
+
 Write-Host 'Architecture guard passed: GRACE layout, dependency direction, browser contracts/services, and request-policy interception boundaries are valid.'

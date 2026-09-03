@@ -12,7 +12,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Source', 'Correctness', 'RealChromium', 'RealS3B', 'BrowserProvider', 'BrowserServices', 'BrowserRequestPolicy', 'ArchitectureSecurity', 'ProvingSlice', 'All')]
+    [ValidateSet('Source', 'Correctness', 'RealChromium', 'RealS3B', 'BrowserProvider', 'BrowserServices', 'BrowserRequestPolicy', 'BrowserDevTools', 'ArchitectureSecurity', 'ProvingSlice', 'All')]
     [string]$Suite
 )
 
@@ -132,8 +132,10 @@ function Invoke-BrowserServicesSuite {
     Invoke-WorldlineCommand -Label 'browser history acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-history')
     Invoke-WorldlineCommand -Label 'browser downloads acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-downloads')
     Invoke-WorldlineCommand -Label 'browser cookies acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-cookies')
+    Invoke-WorldlineCommand -Label 'browser devtools acceptance' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-devtools')
     Invoke-WorldlineCommand -Label 'browser services S3A proving slice' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3a_acceptance')
     Invoke-WorldlineCommand -Label 'browser services S3B proving slice' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3b_acceptance')
+    Invoke-WorldlineCommand -Label 'browser services S3D proving slice' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3d_acceptance')
 }
 
 function Invoke-BrowserRequestPolicySuite {
@@ -162,6 +164,28 @@ function Invoke-BrowserRequestPolicySuite {
     Invoke-WorldlineCommand -Label 'request-policy S3C real-CEF gate' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3c_real_acceptance', '--', '--nocapture')
 }
 
+function Invoke-BrowserDevToolsSuite {
+    Write-Host '--- BrowserDevTools suite ---'
+    if ($env:OS -ne 'Windows_NT') {
+        throw 'BrowserDevTools is a required hosted Windows suite because its real-CEF acceptance path must not be silently downgraded.'
+    }
+    foreach ($requiredEnvironment in @(
+        'CEF_PATH',
+        'WORLDLINE_BROWSER_PROVIDER_BOOTSTRAP',
+        'WORLDLINE_BROWSER_PROVIDER_CLIENT'
+    )) {
+        $environmentValue = [Environment]::GetEnvironmentVariable($requiredEnvironment)
+        if ([string]::IsNullOrWhiteSpace($environmentValue)) {
+            throw "BrowserDevTools requires the verified CEF staging environment variable '$requiredEnvironment'."
+        }
+    }
+    Invoke-WorldlineCommand -Label 'browser devtools contract tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-services-contract', '--test', 'contract_acceptance')
+    Invoke-WorldlineCommand -Label 'browser devtools service tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-devtools')
+    Invoke-WorldlineCommand -Label 'browser devtools provider diagnostics tests' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-provider')
+    Invoke-WorldlineCommand -Label 'browser devtools S3D reference gate' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3d_acceptance')
+    Invoke-WorldlineCommand -Label 'browser devtools S3D real-CEF gate' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3d_real_acceptance', '--', '--nocapture')
+}
+
 function Invoke-ArchitectureSecuritySuite {
     Write-Host '--- Architecture and security suite ---'
     Build-ExternalNativeFixtures
@@ -186,6 +210,7 @@ function Invoke-ProvingSliceSuite {
     Invoke-WorldlineCommand -Label 'worldline-demo S0/S1 proving slice' -FilePath 'cargo' -Arguments @('run', '-p', 'worldline-demo')
     Invoke-WorldlineCommand -Label 'external-provider S1 proving path' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference-external', '--test', 'external_s1_proving')
     Invoke-WorldlineCommand -Label 'browser engine spike proving path' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-browser-spike', '--test', 'spike_acceptance')
+    Invoke-WorldlineCommand -Label 'browser services S3D proving slice' -FilePath 'cargo' -Arguments @('test', '-p', 'worldline-reference', '--test', 's3d_acceptance')
 }
 
 switch ($Suite) {
@@ -217,6 +242,10 @@ switch ($Suite) {
         Invoke-BrowserRequestPolicySuite
         break
     }
+    'BrowserDevTools' {
+        Invoke-BrowserDevToolsSuite
+        break
+    }
     'ArchitectureSecurity' {
         Invoke-ArchitectureSecuritySuite
         break
@@ -233,6 +262,7 @@ switch ($Suite) {
         Invoke-BrowserProviderSuite
         Invoke-BrowserServicesSuite
         Invoke-BrowserRequestPolicySuite
+        Invoke-BrowserDevToolsSuite
         Invoke-ArchitectureSecuritySuite
         Invoke-ProvingSliceSuite
         break

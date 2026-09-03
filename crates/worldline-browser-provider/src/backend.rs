@@ -50,6 +50,25 @@ pub trait BrowserBackend: Send + Sync {
     ) {
     }
 
+    /// Sets an optional diagnostic sink to receive engine diagnostic events.
+    fn set_diagnostic_sink(&mut self, _sink: Option<crate::diagnostics::SharedDiagnosticSink>) {}
+
+    /// Drains any buffered diagnostic events from the engine backend.
+    fn drain_diagnostic_events(&mut self) -> Vec<crate::diagnostics::ProviderDiagnosticEvent> {
+        Vec::new()
+    }
+
+    /// Shows provider-native devtools if supported.
+    fn show_native_devtools(
+        &mut self,
+        _context_id: &worldline_browser_contract::identity::BrowserContextId,
+        _page_id: &worldline_browser_contract::identity::PageId,
+    ) -> Result<bool, BrowserError> {
+        Err(BrowserError::UnsupportedOperation(
+            "show_native_devtools".to_string(),
+        ))
+    }
+
     // Context management
     fn create_context(
         &mut self,

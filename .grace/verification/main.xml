@@ -175,12 +175,23 @@
     <V-M-BROWSER-SERVICE-PLUGINS>
       <TestFiles>
         <File>docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md</File>
+        <File>docs/adr/ADR-BROWSER-REQUEST-POLICY-INTERCEPTION-V1.md</File>
+        <File>docs/adr/ADR-BROWSER-DEVTOOLS-DIAGNOSTICS-V1.md</File>
         <File>crates/worldline-browser-services-contract/tests/contract_acceptance.rs</File>
         <File>crates/worldline-browser-downloads/tests/downloads_acceptance.rs</File>
         <File>crates/worldline-browser-cookies/tests/cookies_acceptance.rs</File>
+        <File>crates/worldline-browser-adblock/src/lib.rs</File>
+        <File>crates/worldline-browser-devtools/src/lib.rs</File>
+        <File>crates/worldline-reference/src/request_policy.rs</File>
         <File>crates/worldline-reference/src/s3b.rs</File>
         <File>crates/worldline-reference/tests/s3b_acceptance.rs</File>
         <File>crates/worldline-reference/tests/s3b_real_acceptance.rs</File>
+        <File>crates/worldline-reference/src/s3c.rs</File>
+        <File>crates/worldline-reference/tests/s3c_acceptance.rs</File>
+        <File>crates/worldline-reference/tests/s3c_real_acceptance.rs</File>
+        <File>crates/worldline-reference/src/s3d.rs</File>
+        <File>crates/worldline-reference/tests/s3d_acceptance.rs</File>
+        <File>crates/worldline-reference/tests/s3d_real_acceptance.rs</File>
         <File>crates/worldline-storage/src/blob.rs</File>
         <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
         <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
@@ -188,13 +199,21 @@
       <Command>cargo test -p worldline-browser-services-contract</Command>
       <Command>cargo test -p worldline-browser-downloads</Command>
       <Command>cargo test -p worldline-browser-cookies</Command>
+      <Command>cargo test -p worldline-browser-adblock</Command>
+      <Command>cargo test -p worldline-browser-devtools</Command>
       <Command>cargo test -p worldline-reference --test s3b_acceptance</Command>
       <Command>cargo test -p worldline-reference --test s3b_real_acceptance</Command>
+      <Command>cargo test -p worldline-reference --test s3c_acceptance</Command>
+      <Command>cargo test -p worldline-reference --test s3c_real_acceptance</Command>
+      <Command>cargo test -p worldline-reference --test s3d_acceptance</Command>
+      <Command>cargo test -p worldline-reference --test s3d_real_acceptance</Command>
       <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
       <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserRequestPolicy</Command>
+      <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserDevTools</Command>
       <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealS3B</Command>
-      <Scenario>Downloads service persists DownloadRecordId intent before issuing non-idempotent engine operations, materializes opaque ArtifactRef without exposing host filesystem paths, reconciles non-terminal records after crash without automatic re-dispatch, and deduplicates redelivered engine events. Cookies service separates metadata inspection from secret-value disclosure, redacts cookie values in all diagnostic and log representations, enforces BrowserContextId isolation for cross-context access, delegates value authority to the engine Chromium profile cookie store, and clears origin-scoped storage without affecting unrelated contexts. Proving slice S3B passes all nine sub-scenarios end-to-end, including service failure isolation verifying that direct page navigation, tabs, and history remain operational after downloads and cookies service termination.</Scenario>
-      <TraceAssertion>Kernel and CEF manifests contain no reference to worldline-browser-downloads, worldline-browser-cookies, DownloadRecordId, or CookieMetadata. CookieValue Debug formatting redacts the secret value. A DownloadRecord or metadata-read authority alone is insufficient to obtain artifact content bytes without independent blob-read authority. Archive-format authority constants AUTH_DOWNLOADS_READ and AUTH_COOKIES_METADATA_READ are disjoint from AUTH_DOWNLOADS_CONTROL, AUTH_COOKIES_VALUE_READ, AUTH_COOKIES_MUTATE, and AUTH_COOKIES_ADMIN.</TraceAssertion>
+      <Scenario>Downloads service persists DownloadRecordId intent before issuing non-idempotent engine operations, materializes opaque ArtifactRef without exposing host filesystem paths, reconciles non-terminal records after crash without automatic re-dispatch, and deduplicates redelivered engine events. Cookies service separates metadata inspection from secret-value disclosure, redacts cookie values in all diagnostic and log representations, enforces BrowserContextId isolation for cross-context access, delegates value authority to the engine Chromium profile cookie store, and clears origin-scoped storage without affecting unrelated contexts. Request-policy interception provides bounded pre-dispatch policy evaluation with deterministic adblock proving slices S3C and real native CEF interception. DevTools diagnostics service captures console and network events into bounded per-page ring buffers with drop/truncation counters, DocumentRevision isolation, and lifecycle cleanup, verified via deterministic S3D and real native CEF tests. Proving slice S3B passes all nine sub-scenarios end-to-end, including service failure isolation verifying that direct page navigation, tabs, and history remain operational after downloads and cookies service termination.</Scenario>
+      <TraceAssertion>Kernel and CEF manifests contain no reference to worldline-browser-downloads, worldline-browser-cookies, worldline-browser-devtools, DownloadRecordId, or CookieMetadata. CookieValue Debug formatting redacts the secret value. Default DevTools records exclude cookies, auth headers, and response bodies. A DownloadRecord or metadata-read authority alone is insufficient to obtain artifact content bytes without independent blob-read authority. Archive-format authority constants AUTH_DOWNLOADS_READ, AUTH_COOKIES_METADATA_READ, and AUTH_DEVTOOLS_OBSERVE are disjoint from AUTH_DOWNLOADS_CONTROL, AUTH_COOKIES_VALUE_READ, AUTH_COOKIES_MUTATE, AUTH_COOKIES_ADMIN, AUTH_DEVTOOLS_CONTROL, and AUTH_DEVTOOLS_NATIVE.</TraceAssertion>
     </V-M-BROWSER-SERVICE-PLUGINS>
   </VD-MAIN>
 </GraceVerificationDocument>

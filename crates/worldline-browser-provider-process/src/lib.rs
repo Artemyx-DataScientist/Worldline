@@ -376,6 +376,9 @@ fn run_provider<B: BrowserBackend + DownloadEventSource>(
                 if publish_download_events(&core, &writer, &mut next_event_correlation).is_err() {
                     return 2;
                 }
+                if publish_diagnostic_events(&core, &writer, &mut next_event_correlation).is_err() {
+                    return 2;
+                }
             }
             MessageKind::LifecycleRequest => {
                 let reply = Envelope::new(
@@ -506,6 +509,9 @@ fn run_provider_without_policy_demux<B: BrowserBackend + DownloadEventSource>(
                     return 2;
                 }
                 if publish_download_events(&core, &writer, &mut next_event_correlation).is_err() {
+                    return 2;
+                }
+                if publish_diagnostic_events(&core, &writer, &mut next_event_correlation).is_err() {
                     return 2;
                 }
             }
@@ -755,6 +761,86 @@ fn publish_download_events<B: BrowserBackend + DownloadEventSource>(
             Envelope::new(MessageKind::EventPublishRequest, event_correlation, payload);
         send_provider_frame(writer, &event_envelope)?;
     }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn publish_diagnostic_events<B: BrowserBackend>(
+    core: &BrowserProviderCore<B>,
+    writer: &SharedProviderWriter,
+    next_correlation: &mut u64,
+) -> Result<(), NativeHostError> {
+    let events = core.drain_diagnostic_events();
+    for event in events {
+        let event_correlation = *next_correlation;
+        *next_correlation = (*next_correlation).saturating_add(1);
+        let payload = match event {
+            worldline_browser_provider::ProviderDiagnosticEvent::Console {
+                context_id,
+                page_id,
+                document_revision,
+                level,
+                message,
+                source,
+                line,
+                timestamp_epoch_ms,
+            } => serde_json::json!({
+                "event": "browser.diagnostics.console",
+                "context_id": context_id,
+                "page_id": page_id,
+                "document_revision": document_revision,
+                "level": level.to_string(),
+                "message": message,
+                "source": source,
+                "line": line,
+                "timestamp_epoch_ms": timestamp_epoch_ms,
+            }),
+            worldline_browser_provider::ProviderDiagnosticEvent::Network {
+                context_id,
+                page_id,
+                document_revision,
+                request_id,
+                method,
+                resource_type,
+                url,
+                status,
+                http_status,
+                mime_type,
+                received_bytes,
+                duration_ms,
+                timestamp_epoch_ms,
+            } => serde_json::json!({
+                "event": "browser.diagnostics.network",
+                "context_id": context_id,
+                "page_id": page_id,
+                "document_revision": document_revision,
+                "request_id": request_id,
+                "method": method,
+                "resource_type": resource_type,
+                "url": url,
+                "status": status.to_string(),
+                "http_status": http_status,
+                "mime_type": mime_type,
+                "received_bytes": received_bytes,
+                "duration_ms": duration_ms,
+                "timestamp_epoch_ms": timestamp_epoch_ms,
+            }),
+        };
+        let event_envelope =
+            Envelope::new(MessageKind::EventPublishRequest, event_correlation, payload);
+        send_provider_frame(writer, &event_envelope)?;
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn publish_diagnostic_events<B: BrowserBackend>(
+    core: &BrowserProviderCore<B>,
+    writer: &SharedProviderWriter,
+    next_correlation: &mut u64,
+) -> Result<(), NativeHostError> {
+    let _ = core.drain_diagnostic_events();
+    let _ = (core, writer, next_correlation);
     Ok(())
 }
 

@@ -8,6 +8,7 @@
 //! - `browser.site-data`: origin-scoped storage clearing.
 
 pub mod cookies;
+pub mod devtools;
 pub mod downloads;
 pub mod history;
 pub mod site_data;
@@ -21,6 +22,18 @@ pub use cookies::{
     GetCookieMetadataResponse, GetCookieMetadataResponseV0_2, GetCookieValueRequest,
     GetCookieValueResponse, OP_DELETE_COOKIE, OP_GET_COOKIE_METADATA, OP_GET_COOKIE_VALUE,
     OP_SET_COOKIE, SetCookieServiceRequest, SetCookieServiceRequestV0_2, SetCookieServiceResponse,
+};
+pub use devtools::{
+    AUTH_DEVTOOLS_CONTROL, AUTH_DEVTOOLS_NATIVE, AUTH_DEVTOOLS_OBSERVE, CONTRACT_BROWSER_DEVTOOLS,
+    CONTRACT_BROWSER_DEVTOOLS_VERSION, ClearDiagnosticsRequest, ClearDiagnosticsResponse,
+    ConsoleDiagnosticRecord, ConsoleLogLevel, DEFAULT_BUFFER_CAPACITY, DiagnosticBufferStats,
+    GetRuntimeSnapshotRequest, GetRuntimeSnapshotResponse, MAX_CONSOLE_MESSAGE_LENGTH,
+    MAX_DIAGNOSTIC_URL_LENGTH, MAX_SOURCE_LENGTH, NetworkDiagnosticRecord, NetworkRequestStatus,
+    OP_CLEAR_DIAGNOSTICS, OP_GET_RUNTIME_SNAPSHOT, OP_QUERY_CONSOLE_RECORDS,
+    OP_QUERY_NETWORK_RECORDS, OP_SHOW_NATIVE_DEVTOOLS, PageRuntimeDiagnosticSnapshot,
+    QueryConsoleRecordsRequest, QueryConsoleRecordsResponse, QueryNetworkRecordsRequest,
+    QueryNetworkRecordsResponse, ShowNativeDevToolsRequest, ShowNativeDevToolsResponse,
+    truncate_string,
 };
 pub use downloads::{
     AUTH_DOWNLOADS_CONTROL, AUTH_DOWNLOADS_READ, ArtifactRef, CONTRACT_BROWSER_DOWNLOADS,

@@ -1,0 +1,14 @@
+[package]
+name = "worldline-browser-devtools"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Engine-neutral browser diagnostics service plugin for Worldline managing bounded console and network observations"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+worldline-browser-contract = { path = "../worldline-browser-contract" }
+worldline-browser-provider = { path = "../worldline-browser-provider" }
+worldline-browser-services-contract = { path = "../worldline-browser-services-contract" }

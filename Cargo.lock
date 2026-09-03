@@ -2748,6 +2748,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "worldline-browser-devtools"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "worldline-browser-contract",
+ "worldline-browser-provider",
+ "worldline-browser-services-contract",
+]
+
+[[package]]
 name = "worldline-browser-downloads"
 version = "0.1.0"
 dependencies = [
@@ -2868,6 +2879,7 @@ dependencies = [
  "worldline-browser-cef",
  "worldline-browser-contract",
  "worldline-browser-cookies",
+ "worldline-browser-devtools",
  "worldline-browser-downloads",
  "worldline-browser-history",
  "worldline-browser-provider",

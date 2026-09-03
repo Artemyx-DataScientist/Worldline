@@ -23,6 +23,7 @@ pub mod s2;
 pub mod s3a;
 pub mod s3b;
 pub mod s3c;
+pub mod s3d;
 pub mod ui_like;
 
 pub use observation::{
