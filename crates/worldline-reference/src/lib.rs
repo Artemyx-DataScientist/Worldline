@@ -13,6 +13,7 @@ use worldline_kernel::{ActivationContext, CapabilityHandle, PluginError};
 pub mod agent_like;
 pub mod browser_like;
 pub mod observation;
+#[cfg(windows)]
 pub(crate) mod real_cef_lock;
 pub mod request_policy;
 pub mod request_policy_feasibility;
