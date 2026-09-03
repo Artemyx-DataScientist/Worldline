@@ -36,7 +36,8 @@ fn cef_backend_rejects_direct_initialization_without_bootstrap_sandbox() {
     let backend = CefBrowserBackend::new();
     let core = BrowserProviderCore::new(backend);
 
-    let result = core.dispatch(
+    let result = core.dispatch_contract(
+        "browser.context",
         OP_CREATE_CONTEXT,
         serde_json::to_value(CreateContextRequest {
             profile_id: Some("cef-direct-without-bootstrap-profile".to_string()),

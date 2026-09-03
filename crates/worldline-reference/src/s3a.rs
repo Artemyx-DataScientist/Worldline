@@ -47,7 +47,8 @@ pub fn run() -> Result<S3AReport, String> {
 
     // 1. Create browser context and page in engine provider
     let ctx_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.context",
             OP_CREATE_CONTEXT,
             serde_json::to_value(CreateContextRequest {
                 profile_id: Some("s3a-profile".to_string()),
@@ -61,7 +62,8 @@ pub fn run() -> Result<S3AReport, String> {
 
     let initial_url = "https://worldline.test/s3a-initial".to_string();
     let page_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.page",
             OP_CREATE_PAGE,
             serde_json::to_value(CreatePageRequest {
                 context_id: ctx.context_id.clone(),
@@ -85,7 +87,8 @@ pub fn run() -> Result<S3AReport, String> {
     // 3. Navigate page
     let target_url = "https://worldline.test/s3a-navigated".to_string();
     let nav_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.navigate",
             OP_NAVIGATE,
             serde_json::to_value(NavigateRequest {
                 page_id: page.page_id.clone(),
@@ -144,7 +147,8 @@ pub fn run() -> Result<S3AReport, String> {
     // 8. Verify the referenced PageId remains alive and operational in the engine provider
     let post_removal_url = "https://worldline.test/s3a-post-removal".to_string();
     let post_nav_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.navigate",
             OP_NAVIGATE,
             serde_json::to_value(NavigateRequest {
                 page_id: page.page_id.clone(),
@@ -157,7 +161,8 @@ pub fn run() -> Result<S3AReport, String> {
         serde_json::from_value(post_nav_val).map_err(|e| e.to_string())?;
 
     let obs_val = core
-        .dispatch(
+        .dispatch_contract(
+            "browser.observe",
             OP_OBSERVE,
             serde_json::to_value(ObservePageRequest {
                 page_id: page.page_id.clone(),
