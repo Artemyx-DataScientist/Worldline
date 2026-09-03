@@ -1,0 +1,589 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-BROWSER-DEVTOOLS-DIAGNOSTICS-20260903>
+    <Summary>
+      Deliver the next bounded M1.3 browser-service slice by adding a replaceable,
+      engine-neutral diagnostics capability above the browser provider and proving
+      it against the real CEF path.
+
+      The primary product of this change is not a second Chrome DevTools frontend
+      and not a raw Chromium debugging tunnel. The primary product is a Worldline
+      diagnostic boundary that can expose bounded, page-scoped console, network and
+      runtime observations to authorized consumers without coupling shell, agents
+      or future tooling to CEF/CDP implementation details.
+
+      A small `worldline-browser-devtools` service plugin is the first proving
+      consumer/owner of normalized diagnostic state. CEF remains responsible only
+      for extracting engine facts through maintained callbacks or other explicitly
+      bounded provider mechanisms. A provider-native DevTools window may exist as
+      an optional high-trust escape hatch, but it is not the Worldline contract and
+      does not grant raw debugging authority to ordinary diagnostic observers.
+    </Summary>
+
+    <Problem>
+      Worldline now has a real browser engine provider, browser service plugins,
+      durable downloads/cookies, and a bounded request-policy interception path,
+      but operational browser diagnosis is still primarily an engineering activity:
+      repository tests, provider logs and direct knowledge of CEF internals are
+      required to understand console failures, resource failures and browser/runtime
+      state.
+
+      That is insufficient for the upcoming shell and later agent/runtime work. A
+      shell diagnostics surface, a support workflow, or an authorized agent should
+      be able to ask what happened on a page without depending on a CEF pointer,
+      Chromium DevTools Protocol object, remote debugging port, provider-local log
+      file or ad hoc parsing of process stdout.
+
+      Exposing raw CDP or embedding Chrome DevTools as the canonical Worldline API
+      would make diagnostics engine-specific, would grant far more mutation power
+      than many observers need, and would make future browser-engine replacement
+      expensive. Conversely, pushing every console/network item through the generic
+      event bus as an unbounded firehose would create avoidable volume, privacy and
+      lifecycle problems and would blur the distinction between observation,
+      transport and persistence.
+
+      Worldline therefore needs a bounded browser diagnostics service with explicit
+      authority, lifecycle ownership, privacy boundaries, truncation semantics and
+      real-provider evidence, while preserving browser availability when the
+      diagnostics plugin is absent, overloaded, crashed or replaced.
+    </Problem>
+
+    <Goals>
+      <Goal>
+        Define an additive experimental `browser.devtools/0.1` service contract for
+        engine-neutral browser diagnostics without changing stable Browser Contract
+        v1.0 semantics.
+      </Goal>
+
+      <Goal>
+        Introduce only the minimal experimental engine/provider diagnostics seam
+        needed to supply the service with normalized console, network and page/runtime
+        observations; no CEF or CDP type may cross that seam.
+      </Goal>
+
+      <Goal>
+        Implement one ordinary replaceable `worldline-browser-devtools` plugin that
+        owns bounded ephemeral diagnostic buffers and query/control behavior above
+        the engine provider.
+      </Goal>
+
+      <Goal>
+        Capture structured console observations sufficient to distinguish at least
+        normal log/info, warning and error records together with safe source/location
+        metadata when the engine supplies it reliably.
+      </Goal>
+
+      <Goal>
+        Capture bounded network/resource lifecycle observations sufficient to show
+        request identity within a page, method, resource type, URL under authorized
+        scope, completion/failure status, HTTP status where available, MIME type and
+        bounded timing/size metadata where the engine can supply them reliably.
+      </Goal>
+
+      <Goal>
+        Provide a bounded page/runtime diagnostic snapshot that can identify the
+        BrowserContextId, PageId, DocumentRevision, loading/navigation state and
+        provider/renderer health facts already available through approved browser
+        boundaries without leaking platform handles or privileged process internals.
+      </Goal>
+
+      <Goal>
+        Keep diagnostic observation authority separate from diagnostic control and
+        from any optional provider-native DevTools authority.
+      </Goal>
+
+      <Goal>
+        Prove exact BrowserContextId/PageId isolation, lifecycle cleanup, bounded
+        retention, overflow/truncation reporting and failure isolation.
+      </Goal>
+
+      <Goal>
+        Add a deterministic S3D proving slice and a real hosted Windows CEF path in
+        which a loopback page emits known console records and known successful and
+        failing resources that are visible through the normal Worldline diagnostics
+        service path.
+      </Goal>
+
+      <Goal>
+        Preserve the ability to replace CEF later without rewriting diagnostic
+        consumers, shell surfaces, agents or the kernel.
+      </Goal>
+    </Goals>
+
+    <Constraints>
+      <Constraint>
+        SPEC APPROVAL AND EXACT PLAN APPROVAL ARE SEPARATE. THIS DRAFT DOES NOT
+        AUTHORIZE IMPLEMENTATION.
+      </Constraint>
+
+      <Constraint>
+        C-BROWSER-REQUEST-POLICY-INTERCEPTION-SCOPE-CORRECTION-20260902 MUST BE
+        APPLIED AND ARCHIVED BEFORE THIS CHANGE'S PLAN IS APPROVED OR EXECUTED.
+      </Constraint>
+
+      <Constraint>
+        DEVTOOLS/DIAGNOSTICS IS AN ORDINARY REPLACEABLE BROWSER SERVICE. NO
+        DEVTOOLS, CONSOLE, NETWORK-INSPECTOR, CDP OR CEF-SPECIFIC DOMAIN POLICY MAY
+        ENTER `worldline-kernel`.
+      </Constraint>
+
+      <Constraint>
+        THE WORLDLINE CONTRACT MUST BE ENGINE-NEUTRAL. CEF OBJECTS, CHROMIUM/CDP
+        TYPES, HWND, RAW POINTERS, PROVIDER-LOCAL FILE PATHS, SOCKET HANDLES AND
+        PLATFORM-SPECIFIC DEBUGGER OBJECTS MUST NOT CROSS THE CONTRACT OR IPC
+        BOUNDARY.
+      </Constraint>
+
+      <Constraint>
+        RAW CHROME DEVTOOLS PROTOCOL PASSTHROUGH IS NOT THE V0.1 WORLDLINE API.
+        DO NOT EXPOSE A GENERIC `send_cdp(method, json)`-STYLE CAPABILITY AS THE
+        PRIMARY IMPLEMENTATION OF THIS SLICE.
+      </Constraint>
+
+      <Constraint>
+        A REMOTE DEBUGGING SERVER/PORT MUST NOT BE ENABLED AS A DEFAULT PRODUCT OR
+        TEST REQUIREMENT FOR THIS SLICE. ANY FUTURE REMOTE DEBUGGING EXPOSURE
+        REQUIRES A SEPARATE SECURITY DESIGN AND EXPLICIT AUTHORITY MODEL.
+      </Constraint>
+
+      <Constraint>
+        AN OPTIONAL PROVIDER-NATIVE DEVTOOLS WINDOW, IF IMPLEMENTED, IS A SEPARATE
+        HIGH-TRUST CONTROL CAPABILITY. POSSESSION OF DIAGNOSTIC OBSERVATION
+        AUTHORITY MUST NOT IMPLY AUTHORITY TO OPEN NATIVE DEVTOOLS, EXECUTE
+        JAVASCRIPT, MUTATE DOM, CHANGE STORAGE OR OTHERWISE CONTROL THE PAGE.
+      </Constraint>
+
+      <Constraint>
+        DIAGNOSTIC OBSERVATION AUTHORITY MUST BE SCOPED TO BrowserContextId AND,
+        WHERE APPLICABLE, PageId. A PRINCIPAL AUTHORIZED FOR CONTEXT/PAGE A MUST
+        NOT OBSERVE DIAGNOSTICS FROM CONTEXT/PAGE B.
+      </Constraint>
+
+      <Constraint>
+        CONSOLE TEXT AND FULL REQUEST URLS ARE POTENTIALLY SENSITIVE. THEY MAY BE
+        RETURNED ONLY TO AN AUTHORIZED DIAGNOSTIC PRINCIPAL FOR THE ADMITTED PAGE
+        OR CONTEXT SCOPE AND MUST NOT BE COPIED INTO GENERIC METRICS, TRAJECTORY,
+        PANIC TEXT OR UNRELATED EVENTS BY DEFAULT.
+      </Constraint>
+
+      <Constraint>
+        RAW Cookie/Authorization/Proxy-Authorization HEADER VALUES, CLIENT
+        CERTIFICATE MATERIAL, REQUEST/RESPONSE BODIES, UPLOAD BYTES, FORM DATA,
+        RESPONSE CONTENT AND ARBITRARY STORAGE VALUES ARE NOT PART OF THE DEFAULT
+        DIAGNOSTIC DTOs IN THIS SLICE.
+      </Constraint>
+
+      <Constraint>
+        DIAGNOSTIC STORAGE IS BOUNDED AND EPHEMERAL BY DEFAULT. PERSISTING RAW
+        CONSOLE OR NETWORK DATA REQUIRES A LATER EXPLICIT RECORDER/PERSISTENCE
+        DESIGN WITH RETENTION, REDACTION AND AUTHORITY; EVENT PUBLICATION DOES NOT
+        AUTOMATICALLY MAKE DIAGNOSTICS DURABLE.
+      </Constraint>
+
+      <Constraint>
+        EVERY PER-PAGE/PER-CONTEXT BUFFER HAS FINITE ENTRY, BYTE AND FIELD-SIZE
+        BOUNDS. OVERRUN MUST BE OBSERVABLE THROUGH DROP/TRUNCATION METADATA AND
+        MUST NOT CREATE UNBOUNDED MEMORY GROWTH.
+      </Constraint>
+
+      <Constraint>
+        HIGH-VOLUME RAW DIAGNOSTIC DATA MUST NOT USE THE GENERIC EVENT BUS AS AN
+        UNBOUNDED FIREHOSE. A METADATA-ONLY `updated`/`dropped` OBSERVATION MAY BE
+        PUBLISHED IF USEFUL, BUT EVENT DELIVERY IS NOT A QUERY RESULT, NOT
+        PERSISTENCE AND NOT AUTHORITY. EVENT BUS IS NOT RPC.
+      </Constraint>
+
+      <Constraint>
+        DIAGNOSTICS MUST NOT BLOCK NAVIGATION, NETWORK DISPATCH, CEF IO THREADS OR
+        RENDERER PROGRESS ON A SLOW/FAILED DIAGNOSTICS CONSUMER. CAPTURE AND
+        DELIVERY MECHANISMS MUST HAVE BOUNDED WORK AND BACKPRESSURE/DROP POLICY.
+      </Constraint>
+
+      <Constraint>
+        FAILURE, ABSENCE, UNLOAD, QUARANTINE OR RESTART OF THE OPTIONAL
+        `worldline-browser-devtools` SERVICE MUST DEGRADE DIAGNOSTICS, NOT ORDINARY
+        BROWSING OR UNRELATED TABS/HISTORY/DOWNLOADS/COOKIES/REQUEST-POLICY
+        SERVICES.
+      </Constraint>
+
+      <Constraint>
+        DIAGNOSTIC ENTRIES MUST CARRY ENOUGH PAGE/DOCUMENT IDENTITY TO PREVENT A
+        STALE RECORD FROM BEING MISREPRESENTED AS BELONGING TO A NEW
+        DocumentRevision AFTER NAVIGATION.
+      </Constraint>
+
+      <Constraint>
+        STABLE Browser Contract v1.0 AND EXISTING EXPERIMENTAL ENGINE 0.1/0.2 AND
+        request-policy/0.1 CONTRACTS MUST NOT BE INCOMPATIBLY REDEFINED. NEW
+        DEVTOOLS/DIAGNOSTICS CONTRACTS START EXPERIMENTAL.
+      </Constraint>
+
+      <Constraint>
+        REAL CEF EVIDENCE MUST USE THE PINNED PRODUCTION PROVIDER PATH AND MUST
+        REJECT ReferenceBrowserBackend SUBSTITUTION. REFERENCE FIXTURES MAY REMAIN
+        AS SEPARATELY LABELLED DETERMINISTIC LOWER-LEVEL TESTS.
+      </Constraint>
+
+      <Constraint>
+        THE PLAN MUST INSPECT THE PINNED CEF BINDING AND SELECT MAINTAINED,
+        THREAD-SAFE CALLBACKS OR PROVIDER MECHANISMS FOR CONSOLE/NETWORK FACTS.
+        IF REQUIRED DATA CAN ONLY BE OBTAINED THROUGH AN UNBOUNDED RAW CDP TUNNEL,
+        PUBLIC REMOTE DEBUGGING PORT OR UNSAFE CALLBACK LIFETIME, STOP AND REPLAN.
+      </Constraint>
+
+      <Constraint>
+        WINDOWS-FIRST CEF IMPLEMENTATION REMAINS BEHIND PLATFORM-NEUTRAL
+        CONTRACTS. NON-WINDOWS WORKSPACE COMPILATION MUST REMAIN GREEN AND
+        UNSUPPORTED NATIVE DEVTOOLS OPERATIONS MUST FAIL EXPLICITLY.
+      </Constraint>
+
+      <Constraint>
+        EXISTING M0, M1.1, M1.2, S3A, S3B, S3C, BrowserProvider,
+        BrowserServices, BrowserRequestPolicy AND REAL-S3B GATES ARE NOT WEAKENED,
+        SKIPPED OR REWRITTEN TO MAKE THIS CHANGE GREEN.
+      </Constraint>
+    </Constraints>
+
+    <NonGoals>
+      <NonGoal>Building a full replacement for Chrome DevTools, Firefox DevTools or Edge DevTools.</NonGoal>
+      <NonGoal>Exposing raw CDP as Worldline's stable or primary diagnostics API.</NonGoal>
+      <NonGoal>Arbitrary JavaScript evaluation or a programmable page console.</NonGoal>
+      <NonGoal>DOM editing, CSS editing, element-inspector authoring tools or live style mutation.</NonGoal>
+      <NonGoal>Debugger breakpoints, stepping, source-map debugging or script instrumentation.</NonGoal>
+      <NonGoal>Heap snapshots, allocation profiling, CPU profiling or full performance tracing.</NonGoal>
+      <NonGoal>Response-body capture, HAR export, arbitrary request/response header capture or packet capture.</NonGoal>
+      <NonGoal>Persistent raw diagnostics history or cloud synchronization.</NonGoal>
+      <NonGoal>Final DevTools shell/UI design.</NonGoal>
+      <NonGoal>Search provider implementation.</NonGoal>
+      <NonGoal>Crypto/trust compatibility implementation.</NonGoal>
+      <NonGoal>Worldline Shell or M1.4 renderer/compositor work.</NonGoal>
+      <NonGoal>Final full M1.3 closure.</NonGoal>
+    </NonGoals>
+
+    <AcceptanceCriteria>
+      <Criterion>
+        A companion ADR documents the diagnostic contract, authority classes,
+        sensitivity model, buffer/drop semantics, lifecycle behavior, CEF adapter
+        boundary, native DevTools escape-hatch policy and rejected raw-CDP design.
+      </Criterion>
+
+      <Criterion>
+        An additive experimental `browser.devtools/0.1` service contract exists
+        without changing stable Browser Contract v1.0 wire semantics.
+      </Criterion>
+
+      <Criterion>
+        Any new engine-side diagnostics primitive or provider callback contract is
+        additive/experimental and contains only engine-neutral DTOs.
+      </Criterion>
+
+      <Criterion>
+        The service contract has separate authority for diagnostic observation and
+        diagnostic control; any optional native DevTools/open-inspector authority
+        is separate again and is never implied by ordinary page observation.
+      </Criterion>
+
+      <Criterion>
+        Possession of BrowserContextId, PageId, DocumentRevision, diagnostic cursor,
+        entry ID or URL alone does not grant diagnostic access.
+      </Criterion>
+
+      <Criterion>
+        A diagnostic observer admitted for Context/Page A cannot query console,
+        network or runtime diagnostics for Context/Page B, including when both use
+        the same loopback origin.
+      </Criterion>
+
+      <Criterion>
+        Diagnostic records are associated with PageId and DocumentRevision where
+        applicable so records from an old document are not silently presented as
+        records from the current document after navigation.
+      </Criterion>
+
+      <Criterion>
+        Console observations support deterministic log/info, warning and error
+        fixtures and preserve bounded message/source/location metadata supplied by
+        the real engine.
+      </Criterion>
+
+      <Criterion>
+        Network observations support deterministic successful and failing resource
+        fixtures and expose only the approved bounded metadata, including HTTP
+        status/MIME/timing/size fields only where the real provider supplies them
+        reliably.
+      </Criterion>
+
+      <Criterion>
+        Raw cookies, authorization credentials, client certificate material,
+        request/response bodies, upload bytes and response content do not enter the
+        default diagnostic DTOs, generic metrics, panic output or Debug output in
+        the proving path.
+      </Criterion>
+
+      <Criterion>
+        Console/network field sizes and per-page/per-context retained entry counts
+        are finite and tested. Oversized fields are rejected or explicitly
+        truncated with metadata; buffer overflow increments a bounded drop/overflow
+        counter rather than allocating without limit.
+      </Criterion>
+
+      <Criterion>
+        A deterministic flood fixture proves diagnostics remain bounded and the page
+        remains usable while old/extra diagnostic entries are dropped according to
+        the documented policy.
+      </Criterion>
+
+      <Criterion>
+        Diagnostic buffers are ephemeral by default and service restart does not
+        make an accidental durability claim; a fresh runtime does not inherit stale
+        authority or mutable handles from the previous runtime generation.
+      </Criterion>
+
+      <Criterion>
+        Page/context close and provider/service restart invalidate relevant live
+        cursors/subscriptions/handles and no callback targets a dead RuntimeId.
+      </Criterion>
+
+      <Criterion>
+        The real CEF provider captures the required console/network facts before
+        normalization using maintained pinned-binding callbacks or provider
+        mechanisms selected by the approved plan, without a raw CDP passthrough in
+        the Worldline contract.
+      </Criterion>
+
+      <Criterion>
+        No remote debugging port is required for the normal diagnostics proving
+        path and no broadly reachable remote-debugging endpoint is enabled by the
+        test fixture.
+      </Criterion>
+
+      <Criterion>
+        If an optional provider-native DevTools operation is implemented, it is
+        capability-negotiated, separately authorized, fails explicitly when
+        unsupported, and does not leak a CEF/browser handle to the caller.
+      </Criterion>
+
+      <Criterion>
+        The diagnostics plugin may be absent, unloaded, crashed, quarantined or
+        replaced without failing ordinary navigation or unrelated browser services.
+      </Criterion>
+
+      <Criterion>
+        A metadata-only diagnostic-update event, if implemented, is observational
+        only; the diagnostic query result is obtained through the explicit service
+        contract and is not determined by an event subscriber.
+      </Criterion>
+
+      <Criterion>
+        A deterministic S3D reference fixture uses repository-owned loopback pages
+        and proves console capture, success/failure network capture, exact scope,
+        overflow semantics, lifecycle cleanup and failure isolation without public
+        Internet dependencies.
+      </Criterion>
+
+      <Criterion>
+        A hosted Windows real-CEF S3D acceptance path uses the pinned native
+        provider process and proves at least one known console marker, one warning
+        or error, one successful loopback resource and one failed/404 loopback
+        resource are observable through the Worldline diagnostics service.
+      </Criterion>
+
+      <Criterion>
+        Real S3D evidence records selected provider/runtime identity and rejects
+        ReferenceBrowserBackend substitution as production proof.
+      </Criterion>
+
+      <Criterion>
+        Static architecture checks prove `worldline-kernel` contains no devtools,
+        console-inspector, CDP or CEF diagnostic domain types and prove the
+        `worldline-browser-devtools` service does not become a dependency of tabs,
+        history, downloads, cookies or request-policy services.
+      </Criterion>
+
+      <Criterion>
+        Static architecture checks prove raw CEF/CDP/platform handles do not enter
+        service contracts, IPC payloads or generic events.
+      </Criterion>
+
+      <Criterion>
+        A separately named BrowserDevTools CI suite covers contracts, authority
+        isolation, bounds, lifecycle cleanup, failure isolation, deterministic S3D
+        and the real hosted Windows CEF path; hosted real evidence fails closed when
+        required pinned CEF staging variables are absent.
+      </Criterion>
+
+      <Criterion>
+        Source, Correctness, ArchitectureSecurity, ProvingSlice, RealChromium,
+        BrowserProvider, BrowserServices, BrowserRequestPolicy, BrowserDevTools,
+        RealS3B and All are green for the final implementation state, with local
+        and hosted evidence reported separately.
+      </Criterion>
+
+      <Criterion>
+        Completion reporting distinguishes scaffolded contract/service files,
+        wired real-provider diagnostic flow and verified named real-CEF evidence.
+      </Criterion>
+
+      <Criterion>
+        This change is neither transitioned to applied nor archived as successfully
+        applied until fresh required evidence is green and the owner explicitly
+        confirms GRACE apply.
+      </Criterion>
+    </AcceptanceCriteria>
+
+    <AffectedAreas>
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-BROWSER-SERVICE-PLUGINS />
+      <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+      <M-GRACE-CONTROL-LAYER />
+    </AffectedAreas>
+
+    <VerificationIntent>
+      <ExpectedCommand>
+        cargo fmt --all -- --check
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo check --workspace --all-targets
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo clippy --workspace --all-targets --all-features -- -D warnings
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test --workspace
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-contract
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-services-contract
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-provider
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-provider-process
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-cef
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-browser-devtools
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-reference --test s3d_acceptance
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        cargo test -p worldline-reference --test s3d_real_acceptance
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserRequestPolicy
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserDevTools
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealS3B
+      </ExpectedCommand>
+
+      <ExpectedCommand>
+        pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All
+      </ExpectedCommand>
+
+      <ExpectedEvidence>
+        Fresh evidence names the experimental diagnostics contract revision,
+        separate diagnostic authorities, bounded/drop semantics, privacy omissions,
+        exact context/page/document isolation, real CEF console and network capture,
+        optional native-DevTools authority behavior where implemented, failure
+        isolation, deterministic and hosted S3D runs, architecture guards and a
+        successful hosted master run. Local/reference and hosted real-browser
+        evidence are reported separately.
+      </ExpectedEvidence>
+    </VerificationIntent>
+
+    <Assumptions>
+      <Assumption>
+        The current pinned CEF binding exposes maintained callbacks or provider
+        mechanisms sufficient to obtain the minimal console and network facts in
+        this spec without making raw CDP or a remote debugging server the Worldline
+        contract; the approved plan must verify this assumption before relying on it.
+      </Assumption>
+
+      <Assumption>
+        Existing browser identity, lifecycle and authority vocabulary is sufficient
+        to scope diagnostics without adding browser-specific privileged kernel state.
+      </Assumption>
+
+      <Assumption>
+        Bounded in-memory diagnostic buffers are sufficient for the first M1.3
+        proving slice; persistence and long-term support bundles can be designed
+        later from measured use rather than assumed now.
+      </Assumption>
+
+      <Assumption>
+        Existing request-policy metadata may be reused where its semantics match a
+        diagnostic fact, but diagnostics do not depend on adblock policy execution
+        and do not gain interception authority through that reuse.
+      </Assumption>
+
+      <Assumption>
+        A provider-native DevTools window is useful as an operator escape hatch but
+        is not required to define the neutral diagnostic service; the plan may keep
+        it optional if deterministic automated evidence cannot prove it without
+        expanding security scope.
+      </Assumption>
+
+      <Assumption>
+        Search providers, crypto/trust compatibility and M1.4 shell composition
+        remain separate changes after this bounded diagnostics slice.
+      </Assumption>
+    </Assumptions>
+  </C-BROWSER-DEVTOOLS-DIAGNOSTICS-20260903>
+</GraceChangeSpec>
