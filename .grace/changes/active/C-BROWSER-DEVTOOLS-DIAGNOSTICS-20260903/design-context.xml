@@ -1,0 +1,209 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-BROWSER-DEVTOOLS-DIAGNOSTICS-20260903</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+
+  <Rationale>
+    Worldline has reached the point where browser failures should become
+    inspectable through product contracts instead of requiring knowledge of CEF
+    internals, provider stdout or bespoke test fixtures. The next shell will need
+    a diagnostic surface, later agents may need narrowly authorized observations,
+    and support/debug workflows need a stable vocabulary that survives browser
+    provider replacement.
+
+    The design deliberately separates three things that conventional Chromium
+    tooling often combines: engine fact extraction, Worldline diagnostic state,
+    and a developer UI. CEF may know how a console message or resource event is
+    emitted. The `worldline-browser-devtools` service owns the normalized bounded
+    diagnostic view. A future shell plugin decides how to render it. None of those
+    responsibilities belongs in the kernel.
+
+    The intended topology is therefore conceptually:
+
+      browser engine callback / provider fact
+                    -> engine-neutral diagnostic DTO
+                    -> bounded browser diagnostics service
+                    -> authorized query / optional metadata notification
+                    -> shell, support tool or agent consumer
+
+    A native CEF DevTools window can still be useful when a human operator needs
+    deep engine-specific inspection. It is treated as an optional privileged
+    escape hatch rather than as the Worldline API, because its semantics and
+    authority are much broader than ordinary diagnostic observation.
+  </Rationale>
+
+  <Alternatives>
+    <Alternative>
+      Embed Chrome/CEF DevTools as the canonical Worldline diagnostics feature.
+      This is not selected because it couples product contracts and future shell
+      behavior to Chromium, makes second-engine support expensive, and exposes a
+      large mutation surface when many consumers only need observation.
+    </Alternative>
+
+    <Alternative>
+      Expose raw Chrome DevTools Protocol through a generic method/json passthrough.
+      This is not selected for v0.1 because it leaks Chromium vocabulary across the
+      provider boundary, makes authority nearly all-or-nothing, and creates a
+      difficult security and compatibility contract before Worldline has evidence
+      that such power is required.
+    </Alternative>
+
+    <Alternative>
+      Enable a remote debugging port and let tools connect directly to Chromium.
+      This is not selected because it creates a separate network-facing control
+      plane, bypasses normal Worldline capability admission, and is unnecessary for
+      the bounded diagnostic proving slice.
+    </Alternative>
+
+    <Alternative>
+      Publish every console and network record directly onto the generic event bus.
+      This is not selected because page diagnostics are potentially high-volume and
+      sensitive. A bounded service-owned buffer with explicit queries provides
+      clearer retention, overflow and authority semantics. Metadata-only update
+      events may still be useful later without making the event bus the data store.
+    </Alternative>
+
+    <Alternative>
+      Store diagnostics durably from the first version so users can inspect old
+      sessions after restart. This is not selected because console text and full
+      URLs can contain sensitive information and because a durable recorder needs
+      its own retention, deletion, redaction and data-ownership policy. The first
+      slice should measure usefulness and volume with bounded ephemeral state.
+    </Alternative>
+
+    <Alternative>
+      Put browser diagnostic buffers in the kernel so every provider gets them for
+      free. This is not selected because diagnostic entries are browser-domain
+      entities and nothing about their semantics is required for generic plugin
+      lifecycle, authority or transport enforcement.
+    </Alternative>
+  </Alternatives>
+
+  <DeferredDecisions>
+    <Decision>
+      The approved plan must inspect the pinned CEF 151 binding and identify the
+      maintained callbacks or provider mechanisms for console and resource/network
+      facts, including callback thread affinity and object lifetime. The spec does
+      not assume a particular CEF callback name where repository evidence has not
+      yet established it.
+    </Decision>
+
+    <Decision>
+      The plan will choose the smallest engine-side seam. A separately versioned
+      experimental `browser.engine.diagnostics/0.1` primitive is acceptable if a
+      provider-facing trait is insufficient, but the public service remains
+      `browser.devtools/0.1` and no CEF/CDP object crosses it.
+    </Decision>
+
+    <Decision>
+      The plan will select concrete per-page/per-context entry counts, aggregate
+      byte budgets, maximum message/URL/source lengths and cursor page sizes from a
+      bounded test workload. Those numbers become measured plan/ADR parameters,
+      not hidden implementation defaults.
+    </Decision>
+
+    <Decision>
+      The exact network record shape depends on what the real provider can report
+      reliably without response-body/header capture or raw CDP. HTTP status, MIME,
+      transfer size and timing fields may be optional and presence-qualified rather
+      than fabricated when unavailable.
+    </Decision>
+
+    <Decision>
+      Console source URLs and network URLs may need different normalization or
+      display projections. Full values remain available only inside the admitted
+      diagnostic scope; generic metrics and update events should carry counts,
+      categories or opaque IDs instead of sensitive query strings.
+    </Decision>
+
+    <Decision>
+      The plan will decide whether a diagnostic buffer starts a fresh logical
+      segment on every DocumentRevision or retains a bounded tail of older
+      revisions. In either case every record must retain explicit document identity
+      and queries must not present old records as current-page facts.
+    </Decision>
+
+    <Decision>
+      The optional provider-native DevTools window remains deliberately separable.
+      If the pinned CEF provider exposes a safe local show/open operation that can
+      be automated without remote debugging exposure, the plan may include it with
+      a stronger authority. If proving it expands the security scope materially,
+      it remains deferred without blocking the normalized diagnostics service.
+    </Decision>
+
+    <Decision>
+      The plan will determine whether diagnostic update notifications add enough UI
+      value to justify an ephemeral metadata event. Raw console/network payloads do
+      not need to be copied to the generic event bus simply to make a future panel
+      feel live.
+    </Decision>
+
+    <Decision>
+      The S3D fixture should reuse deterministic loopback infrastructure where
+      possible but remain a separately named proving slice. It must exercise the
+      service through the normal native provider path rather than by injecting
+      normalized records directly as the sole production evidence.
+    </Decision>
+  </DeferredDecisions>
+
+  <Scenarios>
+    <Scenario>
+      A loopback page logs one normal marker, one warning and one error. An
+      authorized diagnostic consumer for that PageId reads all three through the
+      Worldline service with document identity and bounded source/location data.
+    </Scenario>
+
+    <Scenario>
+      The same page loads one successful resource and one deterministic 404 or
+      failed resource. The diagnostic network view reports their distinct outcomes
+      without exposing cookies, authorization headers, bodies or response content.
+    </Scenario>
+
+    <Scenario>
+      Two BrowserContexts load the same loopback URL. A principal authorized only
+      for Context A cannot read console or network entries from Context B even if
+      it knows B's PageId or an entry identifier.
+    </Scenario>
+
+    <Scenario>
+      A fixture emits thousands of console records. The service reaches a declared
+      bound, drops/truncates according to policy, increments visible overflow
+      metadata and leaves navigation and rendering usable instead of growing memory
+      without limit.
+    </Scenario>
+
+    <Scenario>
+      A page navigates to a new document. Old diagnostic entries remain explicitly
+      tagged with the prior DocumentRevision or are discarded according to the
+      chosen bounded policy; they are never silently attributed to the new page
+      content.
+    </Scenario>
+
+    <Scenario>
+      The diagnostics service crashes or is unloaded while browsing continues. The
+      page, request-policy plugin, downloads, cookies, tabs and history continue to
+      operate; after restart the diagnostics runtime has fresh authority and no
+      stale cursor/handle from the previous RuntimeId is accepted.
+    </Scenario>
+
+    <Scenario>
+      An agent or plugin with ordinary page observation authority attempts to read
+      raw console text. Access is denied until a separately admitted diagnostic
+      observation grant is present.
+    </Scenario>
+
+    <Scenario>
+      A trusted local operator requests provider-native DevTools. If the provider
+      advertises that optional capability and the caller has its stronger grant,
+      Worldline may open the native tool locally. Unsupported providers fail
+      explicitly; ordinary diagnostic readers never receive a raw CEF handle or
+      remote-debugging endpoint.
+    </Scenario>
+
+    <Scenario>
+      The real hosted S3D run records provider identity and demonstrates that the
+      console/network facts came through the pinned CEF/native provider path. A
+      separately labelled reference fixture remains useful but cannot satisfy the
+      real-provider claim.
+    </Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>
