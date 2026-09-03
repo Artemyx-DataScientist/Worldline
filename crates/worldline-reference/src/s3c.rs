@@ -396,7 +396,16 @@ mod real {
                                 thread::sleep(Duration::from_millis(2));
                             }
                             Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
-                            Err(_) => break,
+                            Err(error)
+                                if error.kind() == std::io::ErrorKind::ConnectionAborted
+                                    || error.kind() == std::io::ErrorKind::ConnectionReset =>
+                            {
+                                thread::sleep(Duration::from_millis(2));
+                            }
+                            Err(error) => {
+                                eprintln!("S3C loopback server accept error: {error:?}");
+                                break;
+                            }
                         }
                     }
                 })
@@ -464,6 +473,7 @@ mod real {
         index_body: Arc<String>,
         hits: Arc<Mutex<Vec<String>>>,
     ) {
+        let _ = stream.set_nonblocking(false);
         let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
         let mut request = Vec::with_capacity(4096);
         let mut chunk = [0_u8; 1024];
@@ -747,6 +757,39 @@ mod real {
         serde_json::from_value(value).map_err(|error| error.to_string())
     }
 
+    fn call_contract_op(
+        connection: &NativeProviderConnection,
+        contract: &str,
+        operation: &str,
+        payload: Value,
+    ) -> Result<Value, String> {
+        let response = connection
+            .call_with_deadline(
+                serde_json::json!({
+                    "contract": contract,
+                    "operation": operation,
+                    "payload": payload,
+                }),
+                Duration::from_secs(5),
+            )
+            .map_err(|error| {
+                let stderr = connection.stderr_text();
+                if stderr.trim().is_empty() {
+                    format!("S3C native call '{contract}/{operation}' failed: {error}")
+                } else {
+                    format!("S3C native call '{contract}/{operation}' failed: {error}; stderr:\n{stderr}")
+                }
+            })?;
+        if let Some(error) = response.get("error").and_then(Value::as_str) {
+            return Err(format!(
+                "S3C provider operation '{contract}/{operation}' failed: {error}"
+            ));
+        }
+        response.get("result").cloned().ok_or_else(|| {
+            format!("S3C provider operation '{contract}/{operation}' omitted result")
+        })
+    }
+
     fn call_op(
         connection: &NativeProviderConnection,
         operation: &str,
@@ -952,8 +995,9 @@ mod real {
         }
 
         let page_url = format!("{}/index.html?run={nonce}", server.base_url);
-        let context: CreateContextResponse = decode(call_op(
+        let context: CreateContextResponse = decode(call_contract_op(
             &connection,
+            "browser.context",
             OP_CREATE_CONTEXT,
             serde_json::to_value(CreateContextRequest {
                 profile_id: Some(format!("s3c-{}-{nonce}", configuration.label)),
@@ -962,8 +1006,9 @@ mod real {
             })
             .map_err(|error| error.to_string())?,
         )?)?;
-        let page: CreatePageResponse = decode(call_op(
+        let page: CreatePageResponse = decode(call_contract_op(
             &connection,
+            "browser.page",
             OP_CREATE_PAGE,
             serde_json::to_value(CreatePageRequest {
                 context_id: context.context_id,
