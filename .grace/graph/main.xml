@@ -118,6 +118,7 @@
     <M-BROWSER-ENGINE-PROVIDER-PROCESS>
       <Summary>Supervised native browser engine provider process on Windows using a pinned Chromium Embedded Framework (CEF) runtime, Windows Job Object tree containment, thread-affine UI message loop runner, early subprocess dispatch, revision-guarded action validation, bounded AX tree projection, content-addressed visual capture, cookie/storage partitioning, and real native S2/S3B proving paths.</Summary>
       <Path>docs/adr/ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1.md</Path>
+      <Path>docs/browser-provider-budget-matrix.md</Path>
       <Path>crates/worldline-browser-contract/Cargo.toml</Path>
       <Path>crates/worldline-browser-contract/src/lib.rs</Path>
       <Path>crates/worldline-browser-contract/src/identity.rs</Path>

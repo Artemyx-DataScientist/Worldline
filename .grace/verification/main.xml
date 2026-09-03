@@ -141,6 +141,7 @@
     <V-M-BROWSER-ENGINE-PROVIDER-PROCESS>
       <TestFiles>
         <File>docs/adr/ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1.md</File>
+        <File>docs/browser-provider-budget-matrix.md</File>
         <File>crates/worldline-browser-contract/tests/contract_acceptance.rs</File>
         <File>crates/worldline-native-host/tests/containment_acceptance.rs</File>
         <File>crates/worldline-browser-provider/tests/provider_core_acceptance.rs</File>

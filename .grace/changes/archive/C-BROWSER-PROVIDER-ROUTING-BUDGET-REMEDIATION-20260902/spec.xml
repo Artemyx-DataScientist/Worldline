@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-BROWSER-PROVIDER-ROUTING-BUDGET-REMEDIATION-20260902>
     <Summary>
       Remediate two audit findings at the M1.2 browser provider boundary without
