@@ -54,11 +54,7 @@ fn context_profile_isolation_and_lifecycle() {
 
     // 3. List contexts contains both
     let list_val = core
-        .dispatch_contract(
-            "browser.context",
-            OP_LIST_CONTEXTS,
-            serde_json::json!({}),
-        )
+        .dispatch_contract("browser.context", OP_LIST_CONTEXTS, serde_json::json!({}))
         .unwrap();
     let list_resp: ListContextsResponse = serde_json::from_value(list_val).unwrap();
     assert_eq!(list_resp.contexts.len(), 2);
@@ -77,11 +73,7 @@ fn context_profile_isolation_and_lifecycle() {
     .unwrap();
 
     let list_val2 = core
-        .dispatch_contract(
-            "browser.context",
-            OP_LIST_CONTEXTS,
-            serde_json::json!({}),
-        )
+        .dispatch_contract("browser.context", OP_LIST_CONTEXTS, serde_json::json!({}))
         .unwrap();
     let list_resp2: ListContextsResponse = serde_json::from_value(list_val2).unwrap();
     assert_eq!(list_resp2.contexts.len(), 1);

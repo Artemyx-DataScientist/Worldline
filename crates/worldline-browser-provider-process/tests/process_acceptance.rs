@@ -297,18 +297,30 @@ fn out_of_process_browser_provider_bare_ambiguous_operations_rejected() {
     .expect("must connect to browser provider process");
 
     // Bare "create" must fail closed
-    let err_create = call_op(&connection, "create", serde_json::json!({"context_id": "ctx-1"}))
-        .expect_err("bare create must fail closed");
+    let err_create = call_op(
+        &connection,
+        "create",
+        serde_json::json!({"context_id": "ctx-1"}),
+    )
+    .expect_err("bare create must fail closed");
     assert!(err_create.contains("ambiguous bare operation"));
 
     // Bare "close" must fail closed
-    let err_close = call_op(&connection, "close", serde_json::json!({"page_id": "page-1"}))
-        .expect_err("bare close must fail closed");
+    let err_close = call_op(
+        &connection,
+        "close",
+        serde_json::json!({"page_id": "page-1"}),
+    )
+    .expect_err("bare close must fail closed");
     assert!(err_close.contains("ambiguous bare operation"));
 
     // Bare "list" must fail closed
-    let err_list = call_op(&connection, "list", serde_json::json!({"context_id": "ctx-1"}))
-        .expect_err("bare list must fail closed");
+    let err_list = call_op(
+        &connection,
+        "list",
+        serde_json::json!({"context_id": "ctx-1"}),
+    )
+    .expect_err("bare list must fail closed");
     assert!(err_list.contains("ambiguous bare operation"));
 
     connection
@@ -398,13 +410,8 @@ fn out_of_process_browser_provider_payload_shape_does_not_drive_routing() {
         "initial_url": "about:blank",
         "profile_id": "rogue-profile-id"
     });
-    let page_val = call_contract_op(
-        &connection,
-        "browser.page",
-        OP_CREATE_PAGE,
-        page_payload,
-    )
-    .expect("page creation with rogue context fields must succeed via explicit page routing");
+    let page_val = call_contract_op(&connection, "browser.page", OP_CREATE_PAGE, page_payload)
+        .expect("page creation with rogue context fields must succeed via explicit page routing");
     let page_resp: CreatePageResponse = serde_json::from_value(page_val).unwrap();
     assert!(!page_resp.page_id.as_str().is_empty());
 
@@ -419,7 +426,9 @@ fn out_of_process_browser_provider_payload_shape_does_not_drive_routing() {
         invalid_ctx_req,
     )
     .expect_err("page payload to context contract must fail closed");
-    assert!(ctx_err.contains("create_context payload invalid") || ctx_err.contains("unknown operation"));
+    assert!(
+        ctx_err.contains("create_context payload invalid") || ctx_err.contains("unknown operation")
+    );
 
     connection
         .close(Duration::from_millis(500))

@@ -792,10 +792,9 @@ mod real {
                 "native provider operation '{contract}/{operation}' failed: {error}"
             ));
         }
-        response
-            .get("result")
-            .cloned()
-            .ok_or_else(|| format!("native provider operation '{contract}/{operation}' omitted result"))
+        response.get("result").cloned().ok_or_else(|| {
+            format!("native provider operation '{contract}/{operation}' omitted result")
+        })
     }
 
     fn call_op(
@@ -847,7 +846,12 @@ mod real {
             if Instant::now() >= deadline {
                 return Err(format!("timed out waiting for native event '{event_name}'"));
             }
-            let _ = call_contract_op(connection, "browser.context", OP_LIST_CONTEXTS, serde_json::json!({}))?;
+            let _ = call_contract_op(
+                connection,
+                "browser.context",
+                OP_LIST_CONTEXTS,
+                serde_json::json!({}),
+            )?;
             thread::sleep(Duration::from_millis(25));
         }
     }

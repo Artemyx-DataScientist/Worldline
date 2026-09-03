@@ -410,7 +410,7 @@ fn provider_budget_limits_action_text_len_enforcement() {
         .dispatch_contract(
             "browser.act",
             OP_INPUT,
-            serde_json::to_value(input_huge).unwrap()
+            serde_json::to_value(input_huge).unwrap(),
         )
         .expect_err("huge input text must be rejected");
     assert!(matches!(huge_err, BrowserError::InvalidRequest(_)));
@@ -442,4 +442,3 @@ fn provider_ambiguous_bare_operations_rejected() {
     assert!(matches!(err_list, BrowserError::InvalidRequest(_)));
     assert!(err_list.to_string().contains("ambiguous bare operation"));
 }
-
