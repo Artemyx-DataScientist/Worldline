@@ -1,5 +1,6 @@
 //! Hosted Windows real-CEF S3C request-policy acceptance.
 
+#[cfg(windows)]
 #[test]
 fn s3c_real_native_provider_uses_adblock_contract_before_origin() {
     let report = worldline_reference::s3c::run()

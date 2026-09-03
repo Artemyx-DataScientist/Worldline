@@ -1,5 +1,6 @@
 //! Hosted Windows real-CEF evidence for the T-004 early feasibility gate.
 
+#[cfg(windows)]
 #[test]
 fn request_policy_real_cef_feasibility_is_explicitly_separate_from_reference() {
     let report = worldline_reference::request_policy_feasibility::run_real()
