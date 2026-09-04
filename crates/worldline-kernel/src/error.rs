@@ -60,7 +60,7 @@ pub enum CapabilityError {
     TargetUnavailable {
         request_id: RpcRequestId,
         invocation: InvocationId,
-        capability: CapabilityId,
+        capability: Box<CapabilityId>,
         target: InstallationId,
     },
     PrincipalUnavailable {
@@ -143,9 +143,10 @@ impl CapabilityError {
         match self {
             Self::Unavailable { capability }
             | Self::NoCompatibleProvider { capability, .. }
-            | Self::TargetUnavailable { capability, .. }
             | Self::InvocationFailed { capability, .. } => Some(capability),
-            Self::Denied { capability, .. } => Some(capability),
+            Self::Denied { capability, .. } | Self::TargetUnavailable { capability, .. } => {
+                Some(capability)
+            }
             Self::UndeclaredDependency { capability, .. } => Some(capability),
             Self::PrincipalUnavailable { .. } => None,
             Self::RpcDeadlineExceeded { .. }

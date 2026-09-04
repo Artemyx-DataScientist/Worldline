@@ -727,7 +727,7 @@ impl InvocationBroker {
                     CapabilityError::TargetUnavailable {
                         request_id,
                         invocation,
-                        capability,
+                        capability: Box::new(capability),
                         target: target_installation,
                     }
                 }

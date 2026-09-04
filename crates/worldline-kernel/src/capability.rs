@@ -150,18 +150,13 @@ impl fmt::Display for CapabilityId {
 }
 
 /// Target resolution policy for capability discovery and invocation.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum CapabilityTarget {
     /// Select any compatible active provider according to deterministic resolution order.
+    #[default]
     AnyCompatible,
     /// Explicitly target an active provider published by the specified installation.
     Installation(InstallationId),
-}
-
-impl Default for CapabilityTarget {
-    fn default() -> Self {
-        Self::AnyCompatible
-    }
 }
 
 impl From<InstallationId> for CapabilityTarget {
@@ -491,7 +486,8 @@ impl CapabilityRegistry {
         required: &CapabilityId,
         target: &CapabilityTarget,
     ) -> bool {
-        self.resolve_target(required, target, &BTreeSet::new()).is_some()
+        self.resolve_target(required, target, &BTreeSet::new())
+            .is_some()
     }
 
     pub(crate) fn provider_runtime_for(&self, required: &CapabilityId) -> Option<RuntimeId> {
@@ -536,10 +532,12 @@ impl CapabilityRegistry {
                 if excluded.contains(provider_id) {
                     continue;
                 }
-                if let CapabilityTarget::Installation(target_installation) = target {
-                    if &service.descriptor.installation_id != target_installation {
-                        continue;
-                    }
+                if matches!(
+                    target,
+                    CapabilityTarget::Installation(target_installation)
+                        if &service.descriptor.installation_id != target_installation
+                ) {
+                    continue;
                 }
                 candidates.push((provided_id.clone(), *provider_id, service));
             }
@@ -591,7 +589,9 @@ impl CapabilityRegistry {
         let resolved = self.resolve_target(required, target, excluded);
         let candidate_count = self.target_candidate_count(required, target, excluded);
         let policy = match target {
-            CapabilityTarget::AnyCompatible => "highest-compatible-minor; installation-id; runtime-id",
+            CapabilityTarget::AnyCompatible => {
+                "highest-compatible-minor; installation-id; runtime-id"
+            }
             CapabilityTarget::Installation(_) => "explicit-installation-targeting",
         };
         let reason = match (resolved.is_some(), target) {
@@ -636,10 +636,12 @@ impl CapabilityRegistry {
                         if excluded.contains(runtime_id) {
                             return false;
                         }
-                        if let CapabilityTarget::Installation(target_installation) = target {
-                            if &registered.descriptor.installation_id != target_installation {
-                                return false;
-                            }
+                        if matches!(
+                            target,
+                            CapabilityTarget::Installation(target_installation)
+                                if &registered.descriptor.installation_id != target_installation
+                        ) {
+                            return false;
                         }
                         true
                     })
@@ -706,7 +708,9 @@ mod tests {
         );
 
         // Untargeted resolve picks lowest installation_id (inst-a)
-        let untargeted = registry.resolve(&cap_v1, &BTreeSet::new()).expect("resolved");
+        let untargeted = registry
+            .resolve(&cap_v1, &BTreeSet::new())
+            .expect("resolved");
         assert_eq!(untargeted.descriptor.installation_id(), &inst_a);
 
         // Targeted resolve inst-b explicitly selects inst-b even though inst-a has lower ID
@@ -766,7 +770,10 @@ mod tests {
         assert_eq!(diag.compatible_candidate_count(), 1);
         assert_eq!(diag.selected_installation_id(), Some(&inst_b));
         assert_eq!(diag.policy(), "explicit-installation-targeting");
-        assert_eq!(diag.reason(), "selected explicitly targeted active provider");
+        assert_eq!(
+            diag.reason(),
+            "selected explicitly targeted active provider"
+        );
 
         let (resolved_unavail, diag_unavail) = registry.selection_target(
             &cap_v1,

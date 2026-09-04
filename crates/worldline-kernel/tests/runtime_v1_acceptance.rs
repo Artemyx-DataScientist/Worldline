@@ -1374,7 +1374,10 @@ fn multi_installation_provider_targeting_caller_authorization_enforced() {
     let inst_b = install(&mut kernel, "auth-provider-b");
 
     kernel
-        .register_for_installation(provider("auth-provider-b", cap.clone(), "provider-b"), &inst_b)
+        .register_for_installation(
+            provider("auth-provider-b", cap.clone(), "provider-b"),
+            &inst_b,
+        )
         .expect("inst_b must register");
 
     let unprivileged_caller = kernel
@@ -1400,7 +1403,10 @@ fn multi_installation_provider_targeting_trajectory_audit() {
     let inst_b = install(&mut kernel, "audit-provider-b");
 
     kernel
-        .register_for_installation(provider("audit-provider-b", cap.clone(), "provider-b"), &inst_b)
+        .register_for_installation(
+            provider("audit-provider-b", cap.clone(), "provider-b"),
+            &inst_b,
+        )
         .expect("inst_b must register");
 
     let caller = kernel
