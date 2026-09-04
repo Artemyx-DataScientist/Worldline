@@ -32,7 +32,7 @@ mod upgrade;
 pub use bisect::{BisectEngine, BisectOutcome, BisectTrialRecord};
 pub use capability::{
     CapabilityDependency, CapabilityDiscoveryDescriptor, CapabilityId, CapabilityService,
-    ContractStability, DependencyKind, InterfaceVersion, ProviderDescriptor,
+    CapabilityTarget, ContractStability, DependencyKind, InterfaceVersion, ProviderDescriptor,
     ProviderSelectionDiagnostic,
 };
 pub use diagnostics::{

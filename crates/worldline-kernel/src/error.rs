@@ -57,6 +57,12 @@ pub enum CapabilityError {
         invocation: InvocationId,
         capability: CapabilityId,
     },
+    TargetUnavailable {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+        capability: CapabilityId,
+        target: InstallationId,
+    },
     PrincipalUnavailable {
         principal: PrincipalId,
     },
@@ -137,6 +143,7 @@ impl CapabilityError {
         match self {
             Self::Unavailable { capability }
             | Self::NoCompatibleProvider { capability, .. }
+            | Self::TargetUnavailable { capability, .. }
             | Self::InvocationFailed { capability, .. } => Some(capability),
             Self::Denied { capability, .. } => Some(capability),
             Self::UndeclaredDependency { capability, .. } => Some(capability),
@@ -155,6 +162,7 @@ impl CapabilityError {
     pub fn request_id(&self) -> Option<&RpcRequestId> {
         match self {
             Self::NoCompatibleProvider { request_id, .. }
+            | Self::TargetUnavailable { request_id, .. }
             | Self::RpcDeadlineExceeded { request_id, .. }
             | Self::RpcCancelled { request_id, .. }
             | Self::RpcProviderBusy { request_id, .. }
@@ -170,6 +178,7 @@ impl CapabilityError {
         match self {
             Self::Denied { invocation, .. }
             | Self::NoCompatibleProvider { invocation, .. }
+            | Self::TargetUnavailable { invocation, .. }
             | Self::RpcDeadlineExceeded { invocation, .. }
             | Self::RpcCancelled { invocation, .. }
             | Self::RpcProviderBusy { invocation, .. }
@@ -178,6 +187,13 @@ impl CapabilityError {
             | Self::RpcInvalidRetry { invocation, .. }
             | Self::RpcMissingIdempotencyKey { invocation, .. }
             | Self::RpcStaleCompletion { invocation, .. } => Some(invocation),
+            _ => None,
+        }
+    }
+
+    pub fn target_installation(&self) -> Option<&InstallationId> {
+        match self {
+            Self::TargetUnavailable { target, .. } => Some(target),
             _ => None,
         }
     }
@@ -203,6 +219,15 @@ impl fmt::Display for CapabilityError {
             } => write!(
                 formatter,
                 "RPC request '{request_id}' invocation '{invocation}' has no compatible provider for capability '{capability}'"
+            ),
+            Self::TargetUnavailable {
+                request_id,
+                invocation,
+                capability,
+                target,
+            } => write!(
+                formatter,
+                "RPC request '{request_id}' invocation '{invocation}' target installation '{target}' is unavailable or incompatible for capability '{capability}'"
             ),
             Self::PrincipalUnavailable { principal } => {
                 write!(formatter, "principal '{principal}' is unavailable")
@@ -379,6 +404,10 @@ pub enum KernelError {
     NoCompatibleProvider {
         capability: CapabilityId,
     },
+    TargetUnavailable {
+        capability: CapabilityId,
+        target: InstallationId,
+    },
     ProviderSelectionFailed {
         capability: CapabilityId,
         reason: String,
@@ -470,6 +499,10 @@ impl fmt::Display for KernelError {
             Self::NoCompatibleProvider { capability } => write!(
                 formatter,
                 "no compatible provider exists for capability '{capability}'"
+            ),
+            Self::TargetUnavailable { capability, target } => write!(
+                formatter,
+                "target installation '{target}' is unavailable or incompatible for capability '{capability}'"
             ),
             Self::ProviderSelectionFailed { capability, reason } => write!(
                 formatter,
