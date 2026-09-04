@@ -1,0 +1,262 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-BROWSER-SEARCH-PROVIDERS-20260904</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+
+  <Rationale>
+    Search is intentionally modeled as a provider capability rather than as a
+    property of the omnibox or browser engine. The future shell decides whether
+    text is a URL, command or search query. A selected search provider receives
+    only the already-classified query and returns a navigation target. A separate
+    browser.navigate call performs the mutation.
+
+    This preserves two important Worldline boundaries. First, CEF does not own
+    product policy such as which search engine is preferred. Second, a plugin
+    allowed to see search text does not automatically receive authority to mutate
+    a page. Search resolution and browser navigation therefore remain separate
+    admissions with separate outcomes.
+
+    The first provider implementation should be deliberately boring: a structured
+    fixed web origin/path plus one query parameter and bounded static parameters.
+    That covers the common browser-search case while avoiding arbitrary URL
+    templating and string concatenation. Multiple installations of the same plugin
+    definition can represent different search engines, which directly exercises
+    the runtime's existing multiple-installation and provider-selection model.
+  </Rationale>
+
+  <ArchitectureSketch>
+    <![CDATA[
+      shell / command surface / agent
+                 |
+                 | browser.search/resolve
+                 v
+      generic capability broker + provider selection
+                 |
+                 v
+      selected worldline-browser-search installation
+                 |
+                 | returns SearchNavigationTarget
+                 v
+      caller chooses whether to invoke browser.navigate
+                 |
+                 v
+      BrowserEngineProvider / CEF
+
+      Important: the search provider never receives implicit NavigatePage
+      authority and never calls CEF directly.
+    ]]>
+  </ArchitectureSketch>
+
+  <KeyDesignDecisions>
+    <Decision>
+      `browser.search/0.1` is a target-resolution capability, not a navigation
+      capability and not a structured SERP/search-results API.
+    </Decision>
+
+    <Decision>
+      Address-versus-search classification belongs to the later shell/command
+      layer. The provider must not guess whether `localhost:3000`, `rust book` or
+      `2+2` is an address, command or search.
+    </Decision>
+
+    <Decision>
+      Provider selection should reuse generic capability provider discovery and
+      selection. Search does not justify a browser-specific registry in the
+      kernel. If durable explicit user selection cannot be expressed by the
+      current generic mechanism, that is a platform design question to surface
+      during planning rather than something to hide in CEF or UI code.
+    </Decision>
+
+    <Decision>
+      The first provider is installation-configurable. Multiple installations of
+      one definition are preferable to duplicating nearly identical binaries for
+      every conventional URL-based search engine. Provider branding/catalog
+      metadata can remain installation/plugin metadata and does not need to enter
+      the engine-neutral search DTO.
+    </Decision>
+
+    <Decision>
+      The first URL builder is structural rather than template-string based. A
+      provider owns a fixed parsed origin/path, one explicit query parameter name
+      and bounded static query parameters. User search text is inserted only as
+      the value of that query parameter through a URL library.
+    </Decision>
+
+    <Decision>
+      Production providers use HTTPS. Loopback HTTP exists solely to make
+      deterministic and real-CEF acceptance tests independent of the public
+      Internet.
+    </Decision>
+
+    <Decision>
+      Search query text is treated as sensitive payload. Generic Worldline audit
+      may record provider identity, operation name, timing and outcome, but not
+      the query body by default.
+    </Decision>
+  </KeyDesignDecisions>
+
+  <Alternatives>
+    <Alternative>
+      Hard-code the selected search URL in the omnibox. Rejected because it makes
+      shell code depend on a vendor, prevents ordinary provider replacement and
+      mixes future UI parsing with search-provider policy.
+    </Alternative>
+
+    <Alternative>
+      Add search to CEF or BrowserEngineProvider. Rejected because CEF already
+      provides navigation primitives; choosing a search engine is product policy,
+      not an engine primitive.
+    </Alternative>
+
+    <Alternative>
+      Let a search provider navigate directly. Rejected because query disclosure
+      and page mutation have different authority and failure semantics. Returning
+      a target also keeps the provider useful to non-browser consumers and tests.
+    </Alternative>
+
+    <Alternative>
+      Make v0.1 a remote JSON search API returning titles, snippets and ranked
+      results. Rejected for the first slice because that introduces network
+      credentials, provider-specific schemas, ranking semantics, pagination,
+      result provenance, privacy and rate-limit policy that are unnecessary for
+      the basic browser-search journey.
+    </Alternative>
+
+    <Alternative>
+      Use arbitrary `{searchTerms}` URL templates. Not selected initially because
+      raw templating creates more parser/injection surface than the common case
+      requires. A later additive provider implementation can support path or
+      richer templates if actual provider needs justify it.
+    </Alternative>
+
+    <Alternative>
+      Store a browser-specific default provider table in the kernel. Rejected
+      because provider identity/selection is already a generic plugin-runtime
+      concern and because the kernel must remain browser-agnostic.
+    </Alternative>
+  </Alternatives>
+
+  <SecurityAndPrivacy>
+    <Point>
+      The caller needs explicit search-resolution authority because invocation
+      discloses user-entered text to the selected provider installation.
+    </Point>
+    <Point>
+      The search provider does not need NavigatePage, ActOnPage, cookies, storage,
+      download, request-policy or DevTools authority for the v0.1 operation.
+    </Point>
+    <Point>
+      The provider response is data, not authority. Possessing a URL does not
+      bypass normal navigation admission.
+    </Point>
+    <Point>
+      Query-derived bytes cannot influence target scheme, credentials, hostname or
+      path in the first implementation. Only the query-parameter value varies.
+    </Point>
+    <Point>
+      Oversized input/config/result values fail before navigation and before
+      unbounded allocation or logging.
+    </Point>
+    <Point>
+      Provider crash or quarantine must not degrade direct URL navigation. Search
+      is optional composition, not browser availability infrastructure.
+    </Point>
+  </SecurityAndPrivacy>
+
+  <ProviderSelectionModel>
+    The preferred proving topology is two installations of
+    `worldline-browser-search` with the same capability contract and different
+    installation-owned configuration. The generic broker/provider-selection layer
+    selects installation A or B. The caller contains no `if google`, `if yandex`
+    or equivalent provider-name branching.
+
+    Provider provenance should come from the invocation/provider-selection
+    metadata that Worldline already owns rather than from a self-asserted provider
+    name embedded in the result DTO. This keeps audit identity authoritative and
+    prevents response data from impersonating another provider.
+  </ProviderSelectionModel>
+
+  <TestingModel>
+    S3E should use two deterministic loopback provider configurations. Resolving a
+    query must cause zero origin requests. The test then separately invokes normal
+    browser navigation with the returned target and verifies exactly one expected
+    request with the decoded query value.
+
+    The real Windows variant should stage the pinned CEF runtime, use the native
+    provider process, reject ReferenceBrowserBackend substitution and prove that
+    the same engine-neutral search result feeds the ordinary navigation path. No
+    public search service is contacted by acceptance tests.
+  </TestingModel>
+
+  <DeferredDecisions>
+    <Decision>
+      The exact persistent mechanism for a user-selected preferred provider is
+      deferred to the plan after inspecting current generic provider-selection
+      state. If the generic mechanism is sufficient, search adds no selector
+      store. If it is insufficient, the plan must stop/replan rather than silently
+      introduce browser-specific selection into the kernel or CEF.
+    </Decision>
+
+    <Decision>
+      A seed catalog of conventional providers may be shipped after the neutral
+      capability is proven. The exact provider list and default are product policy,
+      not normative architecture in this change.
+    </Decision>
+
+    <Decision>
+      Remote suggestions/autocomplete may later become a separate capability with
+      its own privacy, cancellation, debounce and network policy.
+    </Decision>
+
+    <Decision>
+      Structured web-search result APIs may later use a separate `search.results`
+      family rather than overloading `browser.search/resolve`.
+    </Decision>
+
+    <Decision>
+      Workspace/history/semantic retrieval remains separate. A future unified
+      command surface may aggregate many providers, but aggregation is a shell or
+      higher-level search-composition concern, not a reason to merge their source
+      of truth or authority.
+    </Decision>
+
+    <Decision>
+      The current branch still exposes a stale active request-policy correction
+      bundle while later state treats that slice as completed. That lifecycle
+      inconsistency is an explicit prerequisite for plan approval/execution and is
+      not silently repaired by this design context.
+    </Decision>
+  </DeferredDecisions>
+
+  <Scenarios>
+    <Scenario>
+      A caller with search-resolution authority asks provider A to resolve
+      `rust async book`. The provider returns an HTTPS navigation target but no
+      page changes until the caller separately receives navigation authority and
+      invokes browser.navigate.
+    </Scenario>
+
+    <Scenario>
+      The user switches from provider A to provider B. The same consumer invokes
+      the same `browser.search/0.1` operation and receives B's target without code
+      changes or a new browser-engine path.
+    </Scenario>
+
+    <Scenario>
+      A malicious query containing percent signs, ampersands, fragments, Unicode
+      and text resembling a new scheme remains data inside the configured query
+      parameter and cannot replace the fixed scheme/host/path.
+    </Scenario>
+
+    <Scenario>
+      The selected provider crashes. Search becomes unavailable or is reselected by
+      generic provider policy, while direct navigation and unrelated browser
+      services continue working.
+    </Scenario>
+
+    <Scenario>
+      A deterministic real-CEF S3E run resolves a loopback target, records zero
+      requests before navigation, performs a separate authorized navigation and
+      records exactly the expected origin request afterward.
+    </Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>
