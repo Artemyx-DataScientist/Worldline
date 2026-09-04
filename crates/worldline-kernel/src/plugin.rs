@@ -295,6 +295,25 @@ impl ActivationContext {
         ))
     }
 
+    pub fn capability_for_installation(
+        &self,
+        capability: &CapabilityId,
+        installation_id: impl Into<InstallationId>,
+    ) -> Result<CapabilityHandle, CapabilityError> {
+        if !self.dependencies.contains_key(capability) {
+            return Err(CapabilityError::UndeclaredDependency {
+                capability: capability.clone(),
+                consumer: self.plugin_id.clone(),
+            });
+        }
+        Ok(CapabilityHandle::targeted(
+            capability.clone(),
+            self.principal.clone(),
+            crate::CapabilityTarget::Installation(installation_id.into()),
+            Arc::clone(&self.broker),
+        ))
+    }
+
     pub fn own_effect(&mut self, effect: OwnedEffect) {
         self.effects.push(effect);
     }

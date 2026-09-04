@@ -6,8 +6,8 @@ use std::{
 };
 
 use crate::{
-    CapabilityId, CorrelationId, DEFAULT_RPC_DEADLINE, RpcCancellationToken, RpcRequestId,
-    RpcRetryClass, RuntimeId, TraceContext,
+    CapabilityId, CapabilityTarget, CorrelationId, DEFAULT_RPC_DEADLINE, RpcCancellationToken,
+    RpcRequestId, RpcRetryClass, RuntimeId, TraceContext,
 };
 
 /// The category of a subject in the kernel security model.
@@ -528,6 +528,7 @@ pub struct InvocationRequest {
     retry: bool,
     idempotency_key: Option<String>,
     trace_context: Option<TraceContext>,
+    target: CapabilityTarget,
 }
 
 impl InvocationRequest {
@@ -558,6 +559,7 @@ impl InvocationRequest {
             retry: false,
             idempotency_key: None,
             trace_context: None,
+            target: CapabilityTarget::AnyCompatible,
         }
     }
 
@@ -615,6 +617,15 @@ impl InvocationRequest {
 
     pub fn idempotency_key(&self) -> Option<&str> {
         self.idempotency_key.as_deref()
+    }
+
+    pub fn target(&self) -> &CapabilityTarget {
+        &self.target
+    }
+
+    pub fn with_target(mut self, target: impl Into<CapabilityTarget>) -> Self {
+        self.target = target.into();
+        self
     }
 
     pub fn trace_context(&self) -> Option<&TraceContext> {
@@ -700,9 +711,11 @@ impl InvocationRequest {
         mut self,
         caller: PrincipalId,
         capability: CapabilityId,
+        target: CapabilityTarget,
     ) -> Self {
         self.caller = caller;
         self.capability = capability;
+        self.target = target;
         self
     }
 
@@ -726,6 +739,7 @@ impl InvocationRequest {
         bool,
         Option<String>,
         Option<TraceContext>,
+        CapabilityTarget,
     ) {
         (
             self.caller,
@@ -744,6 +758,7 @@ impl InvocationRequest {
             self.retry,
             self.idempotency_key,
             self.trace_context,
+            self.target,
         )
     }
 }

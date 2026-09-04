@@ -1281,6 +1281,24 @@ impl Kernel {
         ))
     }
 
+    pub fn capability_for_installation(
+        &self,
+        caller: impl Into<PrincipalId>,
+        capability: impl Into<crate::CapabilityId>,
+        installation_id: impl Into<InstallationId>,
+    ) -> Result<CapabilityHandle, crate::CapabilityError> {
+        let caller = caller.into();
+        if !self.security.principal_exists(&caller) {
+            return Err(crate::CapabilityError::PrincipalUnavailable { principal: caller });
+        }
+        Ok(CapabilityHandle::targeted(
+            capability.into(),
+            caller,
+            crate::CapabilityTarget::Installation(installation_id.into()),
+            Arc::clone(&self.broker),
+        ))
+    }
+
     /// Submits an invocation to the broker. Authorization is admission-time.
     pub fn invoke(
         &self,

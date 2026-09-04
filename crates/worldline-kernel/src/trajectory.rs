@@ -282,6 +282,17 @@ pub enum TrajectoryEventKind {
         invocation: InvocationId,
         causal_parent: Option<InvocationId>,
     },
+    CapabilityProviderSelected {
+        request_id: RpcRequestId,
+        invocation: InvocationId,
+        capability: CapabilityContract,
+        target_installation: Option<InstallationId>,
+        selected_installation: Option<InstallationId>,
+        selected_runtime: Option<RuntimeId>,
+        candidate_count: usize,
+        policy: String,
+        outcome: String,
+    },
     RpcRequestCreated {
         request_id: RpcRequestId,
         invocation: InvocationId,

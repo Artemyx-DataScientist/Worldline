@@ -7,10 +7,10 @@ use std::{
 };
 
 use crate::{
-    CapabilityError, CapabilityId, CausationRef, CorrelationId, EventContract, EventError,
-    EventPublishOptions, InvocationId, InvocationRequest, OperationId, PrincipalId, PublishReport,
-    ResourceId, RpcCallOptions, RpcCancellationToken, RpcOperationContract, RpcOutcomeClass,
-    RpcRequestId, RpcRetryClass, TraceContext,
+    CapabilityError, CapabilityId, CapabilityTarget, CausationRef, CorrelationId, EventContract,
+    EventError, EventPublishOptions, InvocationId, InvocationRequest, OperationId, PrincipalId,
+    PublishReport, ResourceId, RpcCallOptions, RpcCancellationToken, RpcOperationContract,
+    RpcOutcomeClass, RpcRequestId, RpcRetryClass, TraceContext,
     capability::CapabilityRegistry,
     error::panic_message,
     events::EventTransport,
@@ -81,6 +81,7 @@ impl Drop for InvocationFrameGuard {
 pub struct CapabilityHandle {
     required: CapabilityId,
     caller: PrincipalId,
+    target: CapabilityTarget,
     broker: Arc<InvocationBroker>,
 }
 
@@ -90,9 +91,19 @@ impl CapabilityHandle {
         caller: PrincipalId,
         broker: Arc<InvocationBroker>,
     ) -> Self {
+        Self::targeted(required, caller, CapabilityTarget::AnyCompatible, broker)
+    }
+
+    pub(crate) fn targeted(
+        required: CapabilityId,
+        caller: PrincipalId,
+        target: CapabilityTarget,
+        broker: Arc<InvocationBroker>,
+    ) -> Self {
         Self {
             required,
             caller,
+            target,
             broker,
         }
     }
@@ -105,8 +116,14 @@ impl CapabilityHandle {
         &self.caller
     }
 
+    pub fn target(&self) -> &CapabilityTarget {
+        &self.target
+    }
+
     pub fn is_available(&self) -> bool {
-        self.broker.registry.has_provider(&self.required)
+        self.broker
+            .registry
+            .has_targeted_provider(&self.required, &self.target)
     }
 
     /// Invokes against the capability's namespace root resource.
@@ -159,6 +176,7 @@ impl CapabilityHandle {
         let request = request_with_options(
             self.caller.clone(),
             self.required.clone(),
+            self.target.clone(),
             operation,
             resource,
             payload,
@@ -170,8 +188,11 @@ impl CapabilityHandle {
     /// Sends a request through this handle while replacing its caller and
     /// capability fields with the handle's trusted identity.
     pub fn invoke_request(&self, request: InvocationRequest) -> Result<Vec<u8>, CapabilityError> {
-        self.broker
-            .invoke(request.with_handle_identity(self.caller.clone(), self.required.clone()))
+        self.broker.invoke(request.with_handle_identity(
+            self.caller.clone(),
+            self.required.clone(),
+            self.target.clone(),
+        ))
     }
 
     pub fn invoke_with_authority(
@@ -188,6 +209,7 @@ impl CapabilityHandle {
             resource,
             payload,
         )
+        .with_target(self.target.clone())
         .with_authority(AuthoritySource::Delegated(authority));
         self.broker.invoke(request)
     }
@@ -196,6 +218,7 @@ impl CapabilityHandle {
 fn request_with_options(
     caller: PrincipalId,
     capability: CapabilityId,
+    target: CapabilityTarget,
     operation: impl Into<OperationId>,
     resource: impl Into<ResourceId>,
     payload: &[u8],
@@ -204,6 +227,7 @@ fn request_with_options(
     let (request_id, deadline, cancellation, retry_class, retry, idempotency_key, trace_context) =
         options.into_parts();
     let mut request = InvocationRequest::new(caller, capability, operation, resource, payload)
+        .with_target(target)
         .with_cancellation(cancellation)
         .with_retry_classification(retry_class);
     if let Some(request_id) = request_id {
@@ -232,6 +256,7 @@ impl std::fmt::Debug for CapabilityHandle {
             .debug_struct("CapabilityHandle")
             .field("required", &self.required)
             .field("caller", &self.caller)
+            .field("target", &self.target)
             .finish_non_exhaustive()
     }
 }
@@ -502,6 +527,7 @@ impl InvocationBroker {
             retry,
             idempotency_key,
             supplied_trace,
+            target,
         ) = request.into_parts();
         let invocation = self.security.allocate_invocation();
         let request_id = supplied_request_id
@@ -656,7 +682,29 @@ impl InvocationBroker {
                 causal_parent: causal_parent.clone(),
             });
 
-        let Some(resolved) = self.registry.resolve(&capability, &BTreeSet::new()) else {
+        let (resolved, selection_diag) =
+            self.registry
+                .selection_target(&capability, &target, &BTreeSet::new());
+        self.trajectory
+            .push_security(TrajectoryEventKind::CapabilityProviderSelected {
+                request_id: request_id.clone(),
+                invocation: invocation.clone(),
+                capability: contract.clone(),
+                target_installation: target.target_installation().cloned(),
+                selected_installation: resolved
+                    .as_ref()
+                    .map(|p| p.descriptor.installation_id().clone()),
+                selected_runtime: resolved.as_ref().map(|p| p.descriptor.runtime_id()),
+                candidate_count: selection_diag.compatible_candidate_count(),
+                policy: selection_diag.policy().to_owned(),
+                outcome: if resolved.is_some() {
+                    "Selected".to_owned()
+                } else {
+                    "Unavailable".to_owned()
+                },
+            });
+
+        let Some(resolved) = resolved else {
             self.trajectory
                 .push_security(TrajectoryEventKind::InvocationFailed {
                     invocation: invocation.clone(),
@@ -669,10 +717,20 @@ impl InvocationBroker {
                     runtime_id: None,
                     outcome: RpcOutcomeClass::NoCompatibleProvider,
                 });
-            return Err(CapabilityError::NoCompatibleProvider {
-                request_id,
-                invocation,
-                capability,
+            return Err(match target {
+                CapabilityTarget::AnyCompatible => CapabilityError::NoCompatibleProvider {
+                    request_id,
+                    invocation,
+                    capability,
+                },
+                CapabilityTarget::Installation(target_installation) => {
+                    CapabilityError::TargetUnavailable {
+                        request_id,
+                        invocation,
+                        capability,
+                        target: target_installation,
+                    }
+                }
             });
         };
         let declared_contract: RpcOperationContract =
