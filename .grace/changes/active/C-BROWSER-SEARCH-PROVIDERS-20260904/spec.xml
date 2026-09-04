@@ -1,0 +1,411 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-BROWSER-SEARCH-PROVIDERS-20260904>
+    <Summary>
+      Deliver the next bounded M1.3 browser-service slice by introducing
+      replaceable web-search providers behind an engine-neutral Worldline
+      capability.
+
+      The primary product of this change is not an omnibox implementation and
+      not a built-in search engine hard-coded into CEF. The primary product is a
+      small `browser.search/0.1` contract whose provider receives already
+      classified search text and resolves it into a safe navigation target.
+      Navigation remains a separate `browser.navigate` capability invocation.
+
+      The first proving provider is a generic structured URL-search plugin that
+      can have multiple installations with different provider configuration.
+      Provider discovery and selection reuse the generic Worldline capability
+      provider-selection machinery rather than creating a browser-specific
+      registry in the kernel.
+    </Summary>
+
+    <Problem>
+      M1.3 now has browser engine primitives, tabs/history, downloads/cookies,
+      request-policy/adblock and DevTools diagnostics, but there is still no
+      product contract for user-selected web search providers.
+
+      Hard-coding a search URL into the future omnibox would couple shell policy
+      to one vendor and would bypass Worldline's provider replacement model.
+      Putting search selection in CEF would make the browser engine own product
+      policy it does not need. Letting a search provider navigate directly would
+      also collapse two distinct authorities: disclosure of query text to a
+      selected provider and mutation of browser page state.
+
+      Search queries are potentially sensitive user input. A provider boundary
+      therefore needs explicit authority, bounded input/output, deterministic URL
+      construction, safe scheme/origin rules, payload-free generic telemetry and
+      failure isolation. The architecture must also preserve future room for
+      search suggestions, structured search APIs and semantic/workspace retrieval
+      without pretending those are the same capability as basic web-search
+      navigation.
+    </Problem>
+
+    <Goals>
+      <Goal>
+        Define an additive experimental `browser.search/0.1` capability contract
+        without changing stable Browser Contract v1.0 semantics.
+      </Goal>
+
+      <Goal>
+        Define a minimal resolve operation that accepts bounded search text and
+        returns one bounded `SearchNavigationTarget` suitable for a later,
+        separately authorized `browser.navigate` call.
+      </Goal>
+
+      <Goal>
+        Keep omnibox/address classification outside the search provider. The
+        caller decides that input is search text before invoking
+        `browser.search/resolve`.
+      </Goal>
+
+      <Goal>
+        Implement one ordinary replaceable `worldline-browser-search` provider
+        plugin whose installation configuration uses a structured fixed base URL,
+        one explicit query parameter name and bounded static parameters rather
+        than arbitrary string concatenation.
+      </Goal>
+
+      <Goal>
+        Prove multiple installations of the same provider definition can represent
+        different search engines and can be selected/replaced through generic
+        capability provider-selection without changing the consumer.
+      </Goal>
+
+      <Goal>
+        Prove the search provider itself has no browser navigation, page-action,
+        cookie, storage, download or request-policy authority.
+      </Goal>
+
+      <Goal>
+        Preserve query privacy: raw query text is visible only to the admitted
+        caller/provider path and is not copied into generic metrics, trajectory,
+        panic text or unrelated events by default.
+      </Goal>
+
+      <Goal>
+        Add a deterministic S3E proving slice and a real Windows CEF integration
+        proving that a resolved loopback target can be navigated only through a
+        separate authorized browser navigation invocation.
+      </Goal>
+    </Goals>
+
+    <Constraints>
+      <Constraint>
+        SPEC APPROVAL AND EXACT PLAN APPROVAL ARE SEPARATE. THIS DRAFT DOES NOT
+        AUTHORIZE IMPLEMENTATION.
+      </Constraint>
+
+      <Constraint>
+        THE CURRENT BASE BRANCH STILL CONTAINS
+        C-BROWSER-REQUEST-POLICY-INTERCEPTION-SCOPE-CORRECTION-20260902 UNDER
+        `.grace/changes/active` EVEN THOUGH LATER DURABLE PROJECTIONS TREAT THE
+        REQUEST-POLICY SLICE AS COMPLETED. THAT LIFECYCLE INCONSISTENCY MUST BE
+        RECONCILED THROUGH NORMAL GRACE PROCEDURE BEFORE THIS CHANGE'S PLAN IS
+        APPROVED OR EXECUTED. THIS DRAFT DOES NOT AUTHORIZE DIRECT CLEANUP OF THE
+        PREDECESSOR BUNDLE.
+      </Constraint>
+
+      <Constraint>
+        SEARCH IS AN ORDINARY REPLACEABLE PLUGIN CAPABILITY. NO SEARCH-ENGINE,
+        PROVIDER-NAME, QUERY-TEMPLATE OR OMNIBOX DOMAIN POLICY MAY ENTER
+        `worldline-kernel`.
+      </Constraint>
+
+      <Constraint>
+        CEF AND THE BROWSER ENGINE PROVIDER MUST NOT OWN SEARCH PROVIDER
+        SELECTION OR SEARCH-URL POLICY.
+      </Constraint>
+
+      <Constraint>
+        `browser.search/resolve` MUST NOT NAVIGATE A PAGE, OPEN A WINDOW, EXECUTE
+        SCRIPT, MUTATE DOM, READ COOKIES/STORAGE, START DOWNLOADS OR OTHERWISE
+        EXERCISE BROWSER MUTATION AUTHORITY.
+      </Constraint>
+
+      <Constraint>
+        RESOLVING SEARCH TEXT AND NAVIGATING TO THE RESULT ARE SEPARATE
+        AUTHORIZED CAPABILITY INVOCATIONS. POSSESSION OF SEARCH RESOLUTION
+        AUTHORITY MUST NOT IMPLY `NavigatePage` OR ANY OTHER BROWSER AUTHORITY.
+      </Constraint>
+
+      <Constraint>
+        EVENT BUS IS NOT RPC. SEARCH RESOLUTION RETURNS THROUGH THE NORMAL
+        CAPABILITY REQUEST/RESULT PATH; EVENTS MAY OBSERVE BOUNDED METADATA AFTER
+        AN OUTCOME BUT MAY NOT DETERMINE OR REPLACE THE RESULT.
+      </Constraint>
+
+      <Constraint>
+        PROVIDER DISCOVERY AND SELECTION MUST REUSE GENERIC CAPABILITY
+        DISCOVERY/SELECTION. DO NOT ADD A SEARCH-SPECIFIC REGISTRY OR SPECIAL
+        PROVIDER-SELECTION PATH TO THE KERNEL. IF THE EXISTING GENERIC MECHANISM
+        CANNOT EXPRESS THE REQUIRED EXPLICIT/DURABLE SELECTION SEMANTICS, STOP
+        AND REPLAN RATHER THAN HIDING SEARCH SELECTION IN CEF OR SHELL CODE.
+      </Constraint>
+
+      <Constraint>
+        THE V0.1 PROVING PROVIDER MUST CONSTRUCT TARGET URLS STRUCTURALLY. SEARCH
+        TEXT MUST NOT BE CONCATENATED INTO RAW URL STRINGS, SCHEMES, AUTHORITIES,
+        HOSTNAMES OR PATHS.
+      </Constraint>
+
+      <Constraint>
+        PRODUCTION SEARCH TARGET CONFIGURATION MUST USE HTTPS. HTTP IS PERMITTED
+        ONLY FOR DETERMINISTIC LOOPBACK TEST FIXTURES. `javascript:`, `data:`,
+        `file:`, `about:` AND OTHER NON-WEB EXECUTION/LOCAL-RESOURCE SCHEMES ARE
+        OUT OF SCOPE AND MUST BE REJECTED.
+      </Constraint>
+
+      <Constraint>
+        SEARCH PROVIDER CONFIGURATION MUST REJECT URL USERINFO/CREDENTIALS,
+        MALFORMED HOSTS, UNBOUNDED STATIC PARAMETERS, EMPTY QUERY-PARAMETER NAMES
+        AND OUTPUTS THAT EXCEED DECLARED SIZE LIMITS.
+      </Constraint>
+
+      <Constraint>
+        SEARCH TEXT, STATIC PARAMETER VALUES AND RESULT URLS HAVE FINITE BYTE AND
+        CHARACTER BOUNDS. OVERSIZED INPUT OR OUTPUT FAILS EXPLICITLY WITHOUT
+        PANIC OR PARTIAL NAVIGATION.
+      </Constraint>
+
+      <Constraint>
+        SEARCH QUERY TEXT IS POTENTIALLY SENSITIVE. RAW QUERY TEXT MUST NOT ENTER
+        GENERIC METRICS, TRAJECTORY, PANIC TEXT, DEBUG FORMATTING OR UNRELATED
+        EVENTS BY DEFAULT. EXISTING PAYLOAD-FREE INVOCATION AUDIT MAY RECORD
+        OPERATION/PROVIDER/OUTCOME METADATA WITHOUT THE QUERY BODY.
+      </Constraint>
+
+      <Constraint>
+        FAILURE, ABSENCE, UNLOAD, QUARANTINE, TIMEOUT OR REPLACEMENT OF A SEARCH
+        PROVIDER MUST DEGRADE SEARCH ONLY. DIRECT URL NAVIGATION, TABS, HISTORY,
+        DOWNLOADS, COOKIES, REQUEST POLICY AND DEVTOOLS MUST REMAIN AVAILABLE.
+      </Constraint>
+
+      <Constraint>
+        STABLE Browser Contract v1.0 AND EXISTING EXPERIMENTAL BROWSER-SERVICE,
+        ENGINE, REQUEST-POLICY AND DEVTOOLS CONTRACTS MUST NOT BE INCOMPATIBLY
+        REDEFINED. SEARCH STARTS AS A NEW EXPERIMENTAL CONTRACT.
+      </Constraint>
+
+      <Constraint>
+        NO PUBLIC-INTERNET DEPENDENCY IS ALLOWED IN ACCEPTANCE TESTS. REAL CEF
+        EVIDENCE MUST USE LOOPBACK TARGETS WITH STAGED/PINNED CEF RUNTIME.
+      </Constraint>
+
+      <Constraint>
+        NON-WINDOWS WORKSPACE COMPILATION MUST REMAIN GREEN. REAL CEF S3E MAY BE
+        WINDOWS-ONLY AND MUST REPORT EXPLICIT Unsupported/Unavailable ELSEWHERE.
+      </Constraint>
+
+      <Constraint>
+        GRACE LINT IS A LIFECYCLE PREFLIGHT AND FINAL OUTER GATE; DO NOT NEST
+        `grace lint` INSIDE PRODUCT `MustPassCommand` OR TREAT IT AS RUNTIME
+        ACCEPTANCE EVIDENCE.
+      </Constraint>
+    </Constraints>
+
+    <NonGoals>
+      <NonGoal>Worldline Shell or omnibox UI.</NonGoal>
+      <NonGoal>Address-versus-search text classification.</NonGoal>
+      <NonGoal>Remote search suggestions or autocomplete APIs.</NonGoal>
+      <NonGoal>Structured SERP result parsing or a search-results API.</NonGoal>
+      <NonGoal>Search-engine scraping.</NonGoal>
+      <NonGoal>Safe-search enforcement policy.</NonGoal>
+      <NonGoal>Image, news, shopping or other vertical-search contracts.</NonGoal>
+      <NonGoal>Bang/keyword shortcut syntax.</NonGoal>
+      <NonGoal>Workspace semantic retrieval or history search.</NonGoal>
+      <NonGoal>AI-generated search answers.</NonGoal>
+      <NonGoal>Provider-specific authentication or paid search APIs.</NonGoal>
+      <NonGoal>Choosing a permanent product default search vendor.</NonGoal>
+      <NonGoal>Crypto/trust compatibility work.</NonGoal>
+      <NonGoal>Closing M1.3 as a whole.</NonGoal>
+    </NonGoals>
+
+    <AcceptanceCriteria>
+      <Criterion>
+        An experimental `browser.search/0.1` contract exists in the browser
+        service contract layer and contains no CEF, Chromium, HWND, raw pointer,
+        filesystem-path or platform-specific types.
+      </Criterion>
+
+      <Criterion>
+        The contract defines one bounded resolve operation with an explicit search
+        authority and a bounded result carrying a navigation target, while
+        navigation remains outside the contract.
+      </Criterion>
+
+      <Criterion>
+        The search authority is disjoint from page observation, navigation,
+        actions, cookies, storage, downloads, request-policy and DevTools
+        authorities.
+      </Criterion>
+
+      <Criterion>
+        A principal holding only search resolution authority can resolve a target
+        but receives AccessDenied if it attempts browser navigation through the
+        normal browser capability boundary.
+      </Criterion>
+
+      <Criterion>
+        `worldline-browser-search` can be installed more than once with distinct
+        structured provider configuration and each installation exposes the same
+        `browser.search/0.1` capability contract.
+      </Criterion>
+
+      <Criterion>
+        Generic provider selection can select provider installation A or B and an
+        unchanged consumer receives the corresponding target without provider-name
+        branching in consumer code.
+      </Criterion>
+
+      <Criterion>
+        Provider replacement/unload invalidates old runtime authority/handles and
+        a replacement provider does not inherit stale runtime authority.
+      </Criterion>
+
+      <Criterion>
+        Search target construction uses a parsed fixed web origin/path, one
+        validated query parameter name and bounded static parameters. Search text
+        is encoded as a query-parameter value using deterministic URL encoding.
+      </Criterion>
+
+      <Criterion>
+        Unicode, spaces, reserved characters, percent signs and fragment-looking
+        input cannot escape the query parameter or alter scheme/authority/host.
+      </Criterion>
+
+      <Criterion>
+        Production configuration rejects non-HTTPS remote targets, URL userinfo,
+        malformed hosts and forbidden schemes; loopback HTTP is accepted only in
+        explicitly test-scoped configuration.
+      </Criterion>
+
+      <Criterion>
+        Oversized queries, static parameters or output URLs fail explicitly and
+        deterministically without panic, allocation growth or browser mutation.
+      </Criterion>
+
+      <Criterion>
+        Raw query text is absent from generic metrics, trajectory payloads, panic
+        text and unrelated events in acceptance evidence.
+      </Criterion>
+
+      <Criterion>
+        A deterministic S3E fixture proves two configured search providers produce
+        distinct loopback navigation targets for the same input and proves
+        provider selection/replacement without consumer changes.
+      </Criterion>
+
+      <Criterion>
+        S3E proves search resolution alone causes zero loopback origin hits;
+        a subsequent separately authorized `browser.navigate` invocation produces
+        the expected origin hit and encoded query value.
+      </Criterion>
+
+      <Criterion>
+        A hosted/staged Windows real-CEF S3E path uses the normal native provider
+        process and rejects ReferenceBrowserBackend substitution while proving the
+        separately authorized navigation reaches the resolved loopback target.
+      </Criterion>
+
+      <Criterion>
+        Search-provider crash/unload/unavailability does not break direct URL
+        navigation or existing M1.3 service proving slices.
+      </Criterion>
+
+      <Criterion>
+        Architecture checks prevent search-provider/vendor/configuration domain
+        types from entering worldline-kernel or worldline-browser-cef and prevent
+        worldline-browser-search from becoming a dependency of unrelated browser
+        services.
+      </Criterion>
+
+      <Criterion>
+        A dedicated BrowserSearch CI suite or an explicitly separated extension of
+        BrowserServices covers contract bounds, authority separation, provider
+        replacement, privacy, deterministic S3E and staged real-CEF S3E evidence.
+      </Criterion>
+
+      <Criterion>
+        Existing Source, Correctness, ArchitectureSecurity, ProvingSlice,
+        RealChromium, BrowserProvider, BrowserServices, BrowserRequestPolicy,
+        BrowserDevTools, RealS3B and All gates are preserved and not weakened.
+      </Criterion>
+
+      <Criterion>
+        Completion evidence distinguishes scaffolded, wired and verified claims,
+        reports local versus hosted evidence separately and does not apply GRACE
+        graph/verification projections until explicit owner apply confirmation.
+      </Criterion>
+    </AcceptanceCriteria>
+
+    <AffectedAreas>
+      <M-BROWSER-SERVICE-PLUGINS />
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+
+    <VerificationIntent>
+      <ExpectedCommand>cargo fmt --all -- --check</ExpectedCommand>
+      <ExpectedCommand>cargo check --workspace --all-targets</ExpectedCommand>
+      <ExpectedCommand>cargo clippy --workspace --all-targets --all-features -- -D warnings</ExpectedCommand>
+      <ExpectedCommand>cargo test --workspace</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-services-contract</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-search</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-reference --test s3e_acceptance</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-reference --test s3e_real_acceptance</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserSearch</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+      <ExpectedEvidence>
+        Fresh evidence names the experimental search contract, the selected
+        provider/runtime topology, authority separation, deterministic URL
+        encoding and bounds, provider replacement, query privacy, zero-origin-hit
+        proof before navigation, separately authorized loopback navigation, real
+        staged CEF provider identity, failure isolation and preserved existing
+        browser-service gates. Local and hosted evidence are reported separately.
+      </ExpectedEvidence>
+    </VerificationIntent>
+
+    <Assumptions>
+      <Assumption>
+        Generic Worldline capability discovery/provider selection can select among
+        multiple installations that expose the same search capability. The plan
+        must inspect and prove this assumption before introducing any
+        search-specific selection store.
+      </Assumption>
+
+      <Assumption>
+        The initial useful browser-search capability only needs to resolve already
+        classified text to a navigation target; remote suggestions and structured
+        search results can be separate later capabilities.
+      </Assumption>
+
+      <Assumption>
+        A structured fixed base URL plus one query parameter and bounded static
+        parameters is sufficient for the first proving providers. More exotic
+        path-template providers require a later additive design if real product
+        need appears.
+      </Assumption>
+
+      <Assumption>
+        Existing browser navigation and real CEF loopback proving infrastructure
+        can consume a resolved target without requiring a browser-engine search
+        primitive.
+      </Assumption>
+
+      <Assumption>
+        Search provider configuration is installation-owned configuration/state and
+        does not need to become part of stable Browser Contract v1.0.
+      </Assumption>
+
+      <Assumption>
+        Exact seed provider presets and any eventual default search choice are
+        product/configuration decisions that may follow after the engine-neutral
+        capability is proven.
+      </Assumption>
+    </Assumptions>
+  </C-BROWSER-SEARCH-PROVIDERS-20260904>
+</GraceChangeSpec>
