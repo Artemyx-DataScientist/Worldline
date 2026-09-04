@@ -1,0 +1,304 @@
+<GraceChangePlan graceVersion="4.0" status="draft">
+  <C-BROWSER-SEARCH-PROVIDERS-20260904>
+    <IntentSummary>
+      Deliver the approved bounded M1.3 browser-search provider slice by adding an
+      engine-neutral `browser.search/0.1` resolve capability, one ordinary
+      replaceable structured URL-search provider implementation, generic
+      multi-installation provider selection evidence, deterministic S3E proving,
+      and staged Windows real-CEF evidence.
+
+      Search resolution and browser navigation remain separate admissions. The
+      search provider receives already-classified query text and returns bounded
+      data only; it does not navigate pages and receives no implicit browser
+      mutation authority. Query text is sensitive payload and must not appear in
+      generic diagnostics, panic/debug output, trajectory payloads, or unrelated
+      events by default.
+
+      Admission is codex_led on isolated branch
+      codex/browser-search-providers-spec-20260904. The approved spec is the
+      normative change boundary; design-context.xml is non-normative rationale.
+
+      PLAN APPROVAL/EXECUTION IS BLOCKED until
+      C-BROWSER-REQUEST-POLICY-INTERCEPTION-SCOPE-CORRECTION-20260902 is reconciled
+      through normal GRACE lifecycle and is no longer an active predecessor. This
+      draft plan does not authorize direct cleanup of that predecessor bundle.
+    </IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-BROWSER-SERVICE-PLUGINS</Value>
+        <Value>M-BROWSER-ENGINE-PROVIDER-PROCESS</Value>
+        <Value>M-EXTERNAL-PLUGIN-BOUNDARY</Value>
+        <Value>M-OPERABILITY-COMPATIBILITY-UPGRADE</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>V-M-BROWSER-SERVICE-PLUGINS</Value>
+        <Value>V-M-BROWSER-ENGINE-PROVIDER-PROCESS</Value>
+        <Value>V-M-REFERENCE-PROVING-SLICE</Value>
+        <Value>V-M-CI-BASELINE</Value>
+        <Value>crates/worldline-browser-services-contract/Cargo.toml</Value>
+        <Value>crates/worldline-browser-services-contract/src/lib.rs</Value>
+        <Value>crates/worldline-browser-contract/Cargo.toml</Value>
+        <Value>crates/worldline-browser-provider/Cargo.toml</Value>
+        <Value>crates/worldline-browser-provider-process/Cargo.toml</Value>
+        <Value>crates/worldline-browser-cef/Cargo.toml</Value>
+        <Value>crates/worldline-browser-devtools/Cargo.toml</Value>
+        <Value>crates/worldline-browser-adblock/Cargo.toml</Value>
+        <Value>crates/worldline-reference/Cargo.toml</Value>
+        <Value>crates/worldline-reference/src/lib.rs</Value>
+        <Value>crates/worldline-reference/src/s3d.rs</Value>
+        <Value>crates/worldline-reference/src/real_cef_lock.rs</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>.github/workflows/master.yml</Value>
+        <Value>.grace/graph/index.xml</Value>
+        <Value>.grace/verification/index.xml</Value>
+      </MustExist>
+      <MustContain>
+        <File>AGENTS.md</File>
+        <Text>EVENT BUS IS NOT RPC</Text>
+      </MustContain>
+      <MustContain>
+        <File>ROADMAP.md</File>
+        <Text>`search` — выбранные search providers</Text>
+      </MustContain>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>docs/adr/ADR-BROWSER-SEARCH-PROVIDERS-V1.md</Value>
+        <Value>crates/worldline-browser-services-contract/src/search.rs</Value>
+        <Value>crates/worldline-browser-search/Cargo.toml</Value>
+        <Value>crates/worldline-browser-search/src/lib.rs</Value>
+        <Value>crates/worldline-reference/src/s3e.rs</Value>
+        <Value>crates/worldline-reference/tests/s3e_acceptance.rs</Value>
+        <Value>crates/worldline-reference/tests/s3e_real_acceptance.rs</Value>
+      </MustExist>
+      <MustPassCommand>
+        <Command>cargo fmt --all -- --check</Command>
+        <Command>cargo check --workspace --all-targets</Command>
+        <Command>cargo clippy --workspace --all-targets --all-features -- -D warnings</Command>
+        <Command>cargo test --workspace</Command>
+        <Command>cargo test -p worldline-browser-services-contract</Command>
+        <Command>cargo test -p worldline-browser-search</Command>
+        <Command>cargo test -p worldline-reference --test s3e_acceptance</Command>
+        <Command>cargo test -p worldline-reference --test s3e_real_acceptance</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserSearch</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserRequestPolicy</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserDevTools</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-BROWSER-SERVICE-PLUGINS />
+        <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+        <M-EXTERNAL-PLUGIN-BOUNDARY />
+        <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+        <M-REFERENCE-PROVING-SLICE />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-BROWSER-SERVICE-PLUGINS />
+        <V-M-BROWSER-ENGINE-PROVIDER-PROCESS />
+        <V-M-REFERENCE-PROVING-SLICE />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>docs/adr/ADR-BROWSER-SEARCH-PROVIDERS-V1.md</File>
+      <File>docs/adr/ADR-BROWSER-SERVICE-PLUGINS-V1.md</File>
+      <File>Cargo.toml</File>
+      <File>Cargo.lock</File>
+      <File>crates/worldline-browser-services-contract/Cargo.toml</File>
+      <File>crates/worldline-browser-services-contract/src/lib.rs</File>
+      <File>crates/worldline-browser-services-contract/src/search.rs</File>
+      <File>crates/worldline-browser-services-contract/tests/contract_acceptance.rs</File>
+      <File>crates/worldline-browser-search/Cargo.toml</File>
+      <Glob>crates/worldline-browser-search/src/*.rs</Glob>
+      <Glob>crates/worldline-browser-search/tests/*.rs</Glob>
+      <File>crates/worldline-reference/Cargo.toml</File>
+      <File>crates/worldline-reference/src/lib.rs</File>
+      <File>crates/worldline-reference/src/s3e.rs</File>
+      <File>crates/worldline-reference/src/real_cef_lock.rs</File>
+      <File>crates/worldline-reference/tests/s3e_acceptance.rs</File>
+      <File>crates/worldline-reference/tests/s3e_real_acceptance.rs</File>
+      <File>scripts/ci/Invoke-WorldlineCi.ps1</File>
+      <File>scripts/ci/Test-WorldlineArchitecture.ps1</File>
+      <File>.github/workflows/master.yml</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Prove generic multi-installation provider selection and freeze the search-provider ADR</Title>
+        <DependsOn />
+        <AcceptanceCriteria>
+          <Criterion>Inspect the current generic capability discovery/provider-selection path and document the exact existing mechanism used to distinguish and select multiple active installations exposing the same capability contract.</Criterion>
+          <Criterion>Prove with a minimal search-neutral or search-provider test fixture that two installations of one PluginDefinition can expose the same capability and that an explicit selection chooses installation A or B without provider-name branching in the consumer.</Criterion>
+          <Criterion>Prove replacement/unload invalidates stale RuntimeId-bound handles/authority and that the replacement installation does not inherit live authority from the replaced runtime.</Criterion>
+          <Criterion>Do not modify worldline-kernel to make the proving case pass. If the current generic mechanism cannot express the required explicit selection semantics, STOP and create a superseding spec/plan before any search-specific selector store, kernel exception, CEF policy, or shell-side provider branching is introduced.</Criterion>
+          <Criterion>Create ADR-BROWSER-SEARCH-PROVIDERS-V1.md recording search-as-resolution, navigation separation, generic selection, privacy, structural URL construction, lifecycle failure isolation, rejected alternatives, and the T-001 feasibility evidence.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-search</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Define the experimental browser.search/0.1 contract and authority boundary</Title>
+        <DependsOn>
+          <T-001 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Add crates/worldline-browser-services-contract/src/search.rs and export a new experimental `browser.search/0.1` capability without changing stable Browser Contract v1.0 or existing experimental service wire forms.</Criterion>
+          <Criterion>Define one bounded resolve request carrying already-classified search text and one bounded SearchNavigationTarget result carrying data only. The contract contains no PageId mutation operation, CEF/Chromium/platform type, raw pointer, filesystem path, provider-vendor enum, or omnibox classification policy.</Criterion>
+          <Criterion>Declare a dedicated search-resolution authority that is disjoint from NavigatePage, ActOnPage, page observation, cookies, storage, downloads, request-policy, DevTools, and unrelated browser service authorities.</Criterion>
+          <Criterion>Give sensitive query-bearing DTOs redacted or payload-free Debug/error behavior so raw search text is not copied into generic logging or panic formatting by default.</Criterion>
+          <Criterion>Declare finite request/result byte and character bounds and deterministic explicit errors for empty/oversized/invalid input without any browser mutation.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-services-contract</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Implement the ordinary replaceable structured URL-search provider</Title>
+        <DependsOn>
+          <T-001 />
+          <T-002 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Create worldline-browser-search as an ordinary provider plugin with installation-owned configuration: parsed fixed web origin/path, one validated query-parameter name, and bounded static query parameters.</Criterion>
+          <Criterion>Construct targets through a URL parser/builder. Search text may vary only the designated query-parameter value and cannot alter scheme, authority, credentials, hostname, port, path, fragment, or static parameter keys.</Criterion>
+          <Criterion>Reject production non-HTTPS remote configuration, URL userinfo, malformed/empty hosts, forbidden schemes, empty query parameter names, duplicate/oversized static configuration, and result URLs beyond the declared bound. Permit HTTP only for an explicit test-scoped loopback configuration path.</Criterion>
+          <Criterion>Cover Unicode, spaces, reserved characters, percent signs, ampersands, equals signs, question/fragment-looking input, and malformed/oversized values with deterministic tests proving correct encoding and no structure escape.</Criterion>
+          <Criterion>The provider has no dependency on worldline-browser-cef and requires no NavigatePage, page-action, cookie, storage, download, request-policy, or DevTools grant to resolve a target.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-search</Command>
+          <Command>cargo test -p worldline-browser-services-contract</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Wire search installations through generic capability composition and prove authority/lifecycle separation</Title>
+        <DependsOn>
+          <T-002 />
+          <T-003 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Compose two installations of the same search provider definition with different installation-owned loopback configurations through the existing generic plugin/capability runtime; do not add a browser-specific search registry.</Criterion>
+          <Criterion>Prove an unchanged consumer can explicitly invoke installation A or B and receives the corresponding SearchNavigationTarget without checking provider names or concrete crate types.</Criterion>
+          <Criterion>Prove a principal with only search-resolution authority succeeds at resolve but receives AccessDenied when attempting normal browser navigation; a separately admitted principal/navigation grant is required to mutate a page.</Criterion>
+          <Criterion>Prove unload, replacement, crash/quarantine, absence, and timeout degrade only search. Existing browser navigation and unrelated M1.3 service composition remain available.</Criterion>
+          <Criterion>Generic invocation/selection telemetry may record installation/runtime identity, operation, timing, and outcome, but acceptance evidence must prove raw query text is absent from generic trajectory/metrics/events/panic/debug output.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-browser-search</Command>
+          <Command>cargo test -p worldline-browser-services-contract</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        </Verification>
+      </T-004>
+
+      <T-005>
+        <Title>Build deterministic S3E search-resolution and separate-navigation proving slice</Title>
+        <DependsOn>
+          <T-003 />
+          <T-004 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Create crates/worldline-reference/src/s3e.rs and s3e_acceptance.rs with a deterministic loopback origin and two configured search-provider installations exposing the same engine-neutral contract.</Criterion>
+          <Criterion>For one bounded query, prove provider A and provider B produce distinct expected loopback targets through generic provider selection while the consumer code is unchanged.</Criterion>
+          <Criterion>Prove `browser.search/resolve` alone produces zero loopback origin hits. Then separately admit and invoke normal browser.navigate with the returned target and prove exactly one expected origin hit whose decoded query parameter equals the original query.</Criterion>
+          <Criterion>Prove search-only authority cannot navigate, and navigation-only authority does not reveal or invoke the search provider without search-resolution authority.</Criterion>
+          <Criterion>Prove provider replacement/unload and search failure leave direct URL navigation, tabs, history, downloads, cookies, request policy, and DevTools proving paths operational.</Criterion>
+          <Criterion>Use loopback only; no acceptance path contacts a public search engine or external Internet dependency.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-reference --test s3e_acceptance</Command>
+        </Verification>
+      </T-005>
+
+      <T-006>
+        <Title>Prove S3E against the staged Windows native real-CEF provider path</Title>
+        <DependsOn>
+          <T-005 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Create s3e_real_acceptance.rs using the staged pinned CEF runtime and the normal native browser-provider process. Reject ReferenceBrowserBackend substitution and record selected provider/runtime identity.</Criterion>
+          <Criterion>Resolve the loopback target through the same engine-neutral browser.search provider path used by deterministic S3E; do not add a CEF search primitive or CEF-specific search DTO.</Criterion>
+          <Criterion>Prove resolution causes zero origin hits, then a separately authorized real browser.navigate invocation reaches exactly the expected loopback target and preserves encoded query semantics.</Criterion>
+          <Criterion>Serialize real-CEF evidence through the existing real_cef_lock helper where required, without changing S3B/S3C/S3D functional semantics.</Criterion>
+          <Criterion>Windows real-CEF execution must require the staged runtime variables; non-Windows behavior remains explicit Unsupported/Unavailable while workspace compilation remains green.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-reference --test s3e_real_acceptance</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</Command>
+        </Verification>
+      </T-006>
+
+      <T-007>
+        <Title>Add architecture/privacy guards and a BrowserSearch CI gate</Title>
+        <DependsOn>
+          <T-004 />
+          <T-005 />
+          <T-006 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Extend Test-WorldlineArchitecture.ps1 to reject search-engine/vendor/query-template/omnibox policy in worldline-kernel, reject search selection or URL policy in worldline-browser-cef/provider, reject CEF dependencies from worldline-browser-search, and reject worldline-browser-search as a dependency of unrelated browser services.</Criterion>
+          <Criterion>Add a BrowserSearch CI suite covering contract bounds, structural URL construction, authority separation, multi-installation selection/replacement, privacy assertions, deterministic S3E, and staged Windows real-CEF S3E.</Criterion>
+          <Criterion>Wire hosted Windows execution only through existing staged CEF/bootstrap conventions. If master workflow receives a dedicated BrowserSearch job, keep local and hosted evidence distinct and do not weaken existing jobs.</Criterion>
+          <Criterion>Preserve Source, Correctness, ArchitectureSecurity, ProvingSlice, RealChromium, BrowserProvider, BrowserServices, BrowserRequestPolicy, BrowserDevTools, RealS3B, and All behavior without deleting/skipping protected tests.</Criterion>
+          <Criterion>Update the browser-service ADR contract inventory only to reflect the new experimental search capability; do not claim shell/omnibox completion or M1.3 closure.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserSearch</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+        </Verification>
+      </T-007>
+
+      <T-008>
+        <Title>Run complete regression/final evidence and hand off without applying GRACE projections</Title>
+        <DependsOn>
+          <T-006 />
+          <T-007 />
+        </DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Run formatting, workspace check, clippy with warnings denied, workspace tests, targeted search/service/reference tests, architecture guards, BrowserSearch, BrowserServices, BrowserRequestPolicy, BrowserDevTools, and All; preserve every previously promoted proving gate.</Criterion>
+          <Criterion>Report scaffolded, wired, and verified claims separately with exact commands, exact implementation HEAD, provider/runtime identity, local versus hosted environment, named CI run identifiers where applicable, unrun checks, unresolved gaps, and rollback notes.</Criterion>
+          <Criterion>Explicitly report T-001 generic provider-selection feasibility outcome and any stop/replan decision; do not disguise a generic-runtime limitation with search-specific state or provider-name branching.</Criterion>
+          <Criterion>Do not mutate .grace/graph, .grace/verification, shared context, or the approved plan during implementation. Projection reconciliation remains a separate operation-root action after fresh evidence and explicit owner apply confirmation.</Criterion>
+          <Criterion>If authority separation, query privacy, URL structural safety, lifecycle isolation, generic selection, real-provider identity, or any protected security/architecture gate fails, stop verification, preserve evidence, leave M1.3 active, and create a superseding spec/plan before changing the approved architecture.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo fmt --all -- --check</Command>
+          <Command>cargo check --workspace --all-targets</Command>
+          <Command>cargo clippy --workspace --all-targets --all-features -- -D warnings</Command>
+          <Command>cargo test --workspace</Command>
+          <Command>cargo test -p worldline-browser-services-contract</Command>
+          <Command>cargo test -p worldline-browser-search</Command>
+          <Command>cargo test -p worldline-reference --test s3e_acceptance</Command>
+          <Command>cargo test -p worldline-reference --test s3e_real_acceptance</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Source</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealChromium</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserRequestPolicy</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserDevTools</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserSearch</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite RealS3B</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</Command>
+        </Verification>
+      </T-008>
+    </ImplementationPlan>
+  </C-BROWSER-SEARCH-PROVIDERS-20260904>
+</GraceChangePlan>
