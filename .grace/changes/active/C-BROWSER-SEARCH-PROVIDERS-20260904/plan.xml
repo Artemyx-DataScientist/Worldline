@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="draft">
+<GraceChangePlan graceVersion="4.0" status="approved">
   <C-BROWSER-SEARCH-PROVIDERS-20260904>
     <IntentSummary>
       Deliver the approved bounded M1.3 browser-search provider slice by adding an
@@ -18,10 +18,10 @@
       codex/browser-search-providers-spec-20260904. The approved spec is the
       normative change boundary; design-context.xml is non-normative rationale.
 
-      PLAN APPROVAL/EXECUTION IS BLOCKED until
-      C-BROWSER-REQUEST-POLICY-INTERCEPTION-SCOPE-CORRECTION-20260902 is reconciled
-      through normal GRACE lifecycle and is no longer an active predecessor. This
-      draft plan does not authorize direct cleanup of that predecessor bundle.
+      Predecessor change
+      C-BROWSER-REQUEST-POLICY-INTERCEPTION-SCOPE-CORRECTION-20260902 has been
+      reconciled and archived through normal GRACE lifecycle, satisfying the
+      predecessor gate.
     </IntentSummary>
 
     <BaselineAssertions>
