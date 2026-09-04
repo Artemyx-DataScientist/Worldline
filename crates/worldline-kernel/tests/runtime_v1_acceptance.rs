@@ -9,10 +9,10 @@ use std::{
 
 use worldline_kernel::{
     ActivationContext, ActivationMode, CapabilityError, CapabilityId, CapabilityService,
-    InterfaceVersion, Kernel, LifecycleContext, NoopRuntime, Plugin, PluginDefinition, PluginError,
-    PluginRuntime, ResourceId, ResourceScope, RestartPolicy, RuntimeCriticality,
-    RuntimeFailureClass, RuntimeLaunchPolicy, RuntimeState, StartupBudget, StateSchemaVersion,
-    TrajectoryEventKind,
+    CapabilityTarget, InstallationId, InterfaceVersion, Kernel, LifecycleContext, NoopRuntime,
+    Plugin, PluginDefinition, PluginError, PluginRuntime, ResourceId, ResourceScope, RestartPolicy,
+    RuntimeCriticality, RuntimeFailureClass, RuntimeLaunchPolicy, RuntimeState, StartupBudget,
+    StateSchemaVersion, TrajectoryEventKind,
 };
 
 fn capability(name: &str, version: InterfaceVersion) -> CapabilityId {
@@ -1134,4 +1134,364 @@ fn provider_self_authority_stays_bound_to_replaced_runtime() {
         handle.invoke("echo", b"after-replacement"),
         Err(CapabilityError::InvocationFailed { .. })
     ));
+}
+
+#[test]
+fn multi_installation_provider_targeting_coexistence() {
+    let cap = capability("search-coexist", InterfaceVersion::new(1, 0));
+    let mut kernel = Kernel::new();
+    let inst_a = install(&mut kernel, "search-provider-a");
+    let inst_b = install(&mut kernel, "search-provider-b");
+
+    kernel
+        .register_for_installation(
+            provider("search-provider-a", cap.clone(), "provider-a"),
+            &inst_a,
+        )
+        .expect("inst_a must register and activate");
+    kernel
+        .register_for_installation(
+            provider("search-provider-b", cap.clone(), "provider-b"),
+            &inst_b,
+        )
+        .expect("inst_b must register and activate");
+
+    let caller = kernel
+        .register_principal_id("search-caller", worldline_kernel::PrincipalKind::User)
+        .expect("caller principal must register");
+
+    kernel
+        .create_root_grant(
+            caller.clone(),
+            cap.contract(),
+            ["echo"],
+            ResourceScope::Any,
+            false,
+            worldline_kernel::GrantLifetime::Persistent,
+        )
+        .expect("grant must be created");
+
+    // Untargeted handle defaults to lowest InstallationId (inst_a)
+    let untargeted_handle = kernel
+        .capability_for(caller.clone(), cap.clone())
+        .expect("untargeted handle must construct");
+    assert_eq!(untargeted_handle.target(), &CapabilityTarget::AnyCompatible);
+    assert!(untargeted_handle.is_available());
+    let default_res = untargeted_handle
+        .invoke("echo", b"query")
+        .expect("default invocation must succeed");
+    assert_eq!(default_res, b"provider-a:query");
+
+    // Targeted handle to inst_a explicitly resolves inst_a
+    let targeted_a = kernel
+        .capability_for_installation(caller.clone(), cap.clone(), &inst_a)
+        .expect("targeted handle A must construct");
+    assert_eq!(
+        targeted_a.target(),
+        &CapabilityTarget::Installation(inst_a.clone())
+    );
+    assert!(targeted_a.is_available());
+    let res_a = targeted_a
+        .invoke("echo", b"query")
+        .expect("targeted A invocation must succeed");
+    assert_eq!(res_a, b"provider-a:query");
+
+    // Targeted handle to inst_b explicitly resolves inst_b (not shadowed!)
+    let targeted_b = kernel
+        .capability_for_installation(caller.clone(), cap.clone(), &inst_b)
+        .expect("targeted handle B must construct");
+    assert_eq!(
+        targeted_b.target(),
+        &CapabilityTarget::Installation(inst_b.clone())
+    );
+    assert!(targeted_b.is_available());
+    let res_b = targeted_b
+        .invoke("echo", b"query")
+        .expect("targeted B invocation must succeed");
+    assert_eq!(res_b, b"provider-b:query");
+}
+
+#[test]
+fn multi_installation_provider_targeting_restart_and_authority_isolation() {
+    let cap = capability("search-restart", InterfaceVersion::new(1, 0));
+    let mut kernel = Kernel::new();
+    let inst_b = install(&mut kernel, "search-restart-b");
+
+    kernel
+        .register_for_installation(
+            provider("search-restart-b", cap.clone(), "provider-b-v1"),
+            &inst_b,
+        )
+        .expect("inst_b must register");
+
+    let runtime_b_old = kernel
+        .runtime_id_for_installation(&inst_b)
+        .expect("runtime_b must exist");
+
+    let caller = kernel
+        .register_principal_id("restart-caller", worldline_kernel::PrincipalKind::User)
+        .expect("caller principal must register");
+
+    kernel
+        .create_root_grant(
+            caller.clone(),
+            cap.contract(),
+            ["echo"],
+            ResourceScope::Any,
+            false,
+            worldline_kernel::GrantLifetime::Persistent,
+        )
+        .expect("grant must be created");
+
+    let targeted_b = kernel
+        .capability_for_installation(caller.clone(), cap.clone(), &inst_b)
+        .expect("targeted handle B must construct");
+
+    let res_old = targeted_b
+        .invoke("echo", b"first")
+        .expect("first call must succeed");
+    assert_eq!(res_old, b"provider-b-v1:first");
+
+    // Unregister and re-register inst_b (simulating restart/replacement)
+    kernel
+        .unregister_installation(&inst_b)
+        .expect("inst_b must unregister");
+
+    assert!(!targeted_b.is_available());
+
+    kernel
+        .register_for_installation(
+            provider("search-restart-b", cap.clone(), "provider-b-v2"),
+            &inst_b,
+        )
+        .expect("inst_b replacement must register");
+
+    let runtime_b_new = kernel
+        .runtime_id_for_installation(&inst_b)
+        .expect("new runtime_b must exist");
+    assert_ne!(runtime_b_old, runtime_b_new);
+
+    assert!(targeted_b.is_available());
+    let res_new = targeted_b
+        .invoke("echo", b"second")
+        .expect("second call must succeed with fresh runtime");
+    assert_eq!(res_new, b"provider-b-v2:second");
+}
+
+#[test]
+fn multi_installation_provider_targeting_fail_closed_without_fallback() {
+    let cap = capability("search-fail-closed", InterfaceVersion::new(1, 0));
+    let mut kernel = Kernel::new();
+    let inst_a = install(&mut kernel, "active-provider-a");
+
+    kernel
+        .register_for_installation(
+            provider("active-provider-a", cap.clone(), "provider-a"),
+            &inst_a,
+        )
+        .expect("inst_a must register");
+
+    let caller = kernel
+        .register_principal_id("fail-closed-caller", worldline_kernel::PrincipalKind::User)
+        .expect("caller must register");
+
+    kernel
+        .create_root_grant(
+            caller.clone(),
+            cap.contract(),
+            ["echo"],
+            ResourceScope::Any,
+            false,
+            worldline_kernel::GrantLifetime::Persistent,
+        )
+        .expect("grant must be created");
+
+    // Case 1: Target unknown/uninstalled installation -> fail-closed TargetUnavailable without fallback
+    let unknown_inst = InstallationId::new("non-existent-inst");
+    let unknown_handle = kernel
+        .capability_for_installation(caller.clone(), cap.clone(), &unknown_inst)
+        .expect("handle constructs");
+    assert!(!unknown_handle.is_available());
+    let err_unknown = unknown_handle.invoke("echo", b"test");
+    assert!(
+        matches!(
+            err_unknown,
+            Err(CapabilityError::TargetUnavailable { ref target, .. }) if target == &unknown_inst
+        ),
+        "expected TargetUnavailable for unknown installation, got {err_unknown:?}"
+    );
+
+    // Case 2: Target stopped installation -> fail-closed TargetUnavailable without fallback to inst_a
+    let inst_stopped = install(&mut kernel, "stopped-provider");
+    kernel
+        .register_for_installation(
+            provider("stopped-provider", cap.clone(), "stopped"),
+            &inst_stopped,
+        )
+        .expect("inst_stopped must register");
+    kernel
+        .unregister_installation(&inst_stopped)
+        .expect("inst_stopped unregisters");
+
+    let stopped_handle = kernel
+        .capability_for_installation(caller.clone(), cap.clone(), &inst_stopped)
+        .expect("handle constructs");
+    assert!(!stopped_handle.is_available());
+    let err_stopped = stopped_handle.invoke("echo", b"test");
+    assert!(
+        matches!(
+            err_stopped,
+            Err(CapabilityError::TargetUnavailable { ref target, .. }) if target == &inst_stopped
+        ),
+        "expected TargetUnavailable for stopped installation, got {err_stopped:?}"
+    );
+
+    // Case 3: Target incompatible version installation -> fail-closed TargetUnavailable without fallback
+    let cap_v2 = capability("search-fail-closed", InterfaceVersion::new(2, 0));
+    let inst_v2 = install(&mut kernel, "v2-provider");
+    kernel
+        .register_for_installation(provider("v2-provider", cap_v2, "v2"), &inst_v2)
+        .expect("v2 provider must register");
+
+    let v2_handle = kernel
+        .capability_for_installation(caller.clone(), cap.clone(), &inst_v2)
+        .expect("handle constructs");
+    assert!(!v2_handle.is_available());
+    let err_incompatible = v2_handle.invoke("echo", b"test");
+    assert!(
+        matches!(
+            err_incompatible,
+            Err(CapabilityError::TargetUnavailable { ref target, .. }) if target == &inst_v2
+        ),
+        "expected TargetUnavailable for incompatible installation, got {err_incompatible:?}"
+    );
+}
+
+#[test]
+fn multi_installation_provider_targeting_caller_authorization_enforced() {
+    let cap = capability("search-auth", InterfaceVersion::new(1, 0));
+    let mut kernel = Kernel::new();
+    let inst_b = install(&mut kernel, "auth-provider-b");
+
+    kernel
+        .register_for_installation(provider("auth-provider-b", cap.clone(), "provider-b"), &inst_b)
+        .expect("inst_b must register");
+
+    let unprivileged_caller = kernel
+        .register_principal_id("unprivileged", worldline_kernel::PrincipalKind::User)
+        .expect("principal must register");
+
+    // Do NOT create grant for unprivileged_caller
+    let targeted_handle = kernel
+        .capability_for_installation(unprivileged_caller, cap, &inst_b)
+        .expect("handle constructs");
+
+    let result = targeted_handle.invoke("echo", b"forbidden");
+    assert!(
+        matches!(result, Err(CapabilityError::Denied { .. })),
+        "expected Denied without capability grant, got {result:?}"
+    );
+}
+
+#[test]
+fn multi_installation_provider_targeting_trajectory_audit() {
+    let cap = capability("search-audit", InterfaceVersion::new(1, 0));
+    let mut kernel = Kernel::new();
+    let inst_b = install(&mut kernel, "audit-provider-b");
+
+    kernel
+        .register_for_installation(provider("audit-provider-b", cap.clone(), "provider-b"), &inst_b)
+        .expect("inst_b must register");
+
+    let caller = kernel
+        .register_principal_id("audit-caller", worldline_kernel::PrincipalKind::User)
+        .expect("principal must register");
+
+    kernel
+        .create_root_grant(
+            caller.clone(),
+            cap.contract(),
+            ["echo"],
+            ResourceScope::Any,
+            false,
+            worldline_kernel::GrantLifetime::Persistent,
+        )
+        .expect("grant must be created");
+
+    let targeted_handle = kernel
+        .capability_for_installation(caller.clone(), cap.clone(), &inst_b)
+        .expect("handle constructs");
+
+    let _ = targeted_handle.invoke("echo", b"sensitive-payload-body");
+
+    // Verify trajectory events
+    let trajectory = kernel.trajectory();
+    let selection_event = trajectory
+        .iter()
+        .find(|event| {
+            matches!(
+                event.kind(),
+                TrajectoryEventKind::CapabilityProviderSelected {
+                    target_installation,
+                    ..
+                } if target_installation == &Some(inst_b.clone())
+            )
+        })
+        .expect("CapabilityProviderSelected trajectory event must exist");
+
+    match selection_event.kind() {
+        TrajectoryEventKind::CapabilityProviderSelected {
+            target_installation,
+            selected_installation,
+            selected_runtime,
+            candidate_count,
+            outcome,
+            ..
+        } => {
+            assert_eq!(target_installation, &Some(inst_b.clone()));
+            assert_eq!(selected_installation, &Some(inst_b.clone()));
+            assert!(selected_runtime.is_some());
+            assert_eq!(*candidate_count, 1);
+            assert_eq!(outcome, "Selected");
+        }
+        _ => unreachable!(),
+    }
+
+    // Verify failed targeting also produces trajectory event
+    let unknown_inst = InstallationId::new("audit-unknown");
+    let unknown_handle = kernel
+        .capability_for_installation(caller, cap, &unknown_inst)
+        .expect("handle constructs");
+    let _ = unknown_handle.invoke("echo", b"sensitive-payload-body");
+
+    let failure_trajectory = kernel.trajectory();
+    let failed_event = failure_trajectory
+        .iter()
+        .find(|event| {
+            matches!(
+                event.kind(),
+                TrajectoryEventKind::CapabilityProviderSelected {
+                    target_installation,
+                    outcome,
+                    ..
+                } if target_installation == &Some(unknown_inst.clone()) && outcome == "Unavailable"
+            )
+        })
+        .expect("CapabilityProviderSelected failure event must exist");
+
+    match failed_event.kind() {
+        TrajectoryEventKind::CapabilityProviderSelected {
+            selected_installation,
+            selected_runtime,
+            candidate_count,
+            outcome,
+            ..
+        } => {
+            assert_eq!(selected_installation, &None);
+            assert_eq!(selected_runtime, &None);
+            assert_eq!(*candidate_count, 0);
+            assert_eq!(outcome, "Unavailable");
+        }
+        _ => unreachable!(),
+    }
 }
