@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="draft">
+<GraceChangeSpec graceVersion="4.0" status="approved">
   <C-BROWSER-SEARCH-PROVIDERS-20260904>
     <Summary>
       Deliver the next bounded M1.3 browser-service slice by introducing
