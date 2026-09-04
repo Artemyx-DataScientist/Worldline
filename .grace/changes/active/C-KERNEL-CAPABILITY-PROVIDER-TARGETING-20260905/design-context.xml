@@ -1,0 +1,133 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-KERNEL-CAPABILITY-PROVIDER-TARGETING-20260905</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+
+  <Rationale>
+    Worldline's capability model separates contract definition, provider publication,
+    capability discovery, authorization, and invocation. Multiple installations of a single
+    PluginDefinition can exist with separate installation-owned configuration.
+
+    During the early feasibility gate (Task T-001) of C-BROWSER-SEARCH-PROVIDERS-20260904,
+    an architectural gap in `worldline-kernel` was verified: while `discover_capabilities_for`
+    enumerates all active installations, `CapabilityRegistry::resolve` and `InvocationBroker::invoke`
+    unconditionally execute default deterministic resolution ("highest-compatible-minor;
+    installation-id; runtime-id"). As a result, when two installations of the same capability
+    are simultaneously active, the candidate with the higher InstallationId is shadowed and
+    cannot be invoked.
+
+    Rather than adding search-specific or browser-specific router workarounds, the project
+    exercises the early feasibility STOP/REPLAN gate to enhance the generic platform primitive
+    in `worldline-kernel`.
+  </Rationale>
+
+  <ArchitectureSketch>
+    <![CDATA[
+      Caller
+        |
+        +---> capability_for(caller, cap)
+        |       |
+        |       v
+        |     CapabilityTarget::AnyCompatible
+        |       |
+        |       v
+        |     Deterministic default resolution (minor -> installation_id -> runtime_id)
+        |
+        +---> capability_for_installation(caller, cap, target_installation)
+                |
+                v
+              CapabilityTarget::Installation(target_installation)
+                |
+                v
+              Exact matching active provider for target_installation
+                |
+                +---> if active & compatible: invoke current live RuntimeId
+                +---> if missing / stopped / incompatible / quarantined: fail closed (TargetUnavailable)
+    ]]>
+  </ArchitectureSketch>
+
+  <KeyDesignDecisions>
+    <Decision>
+      Target durable InstallationId, not ephemeral RuntimeId. RuntimeId changes upon restart,
+      crash, or reload. The broker must resolve the live RuntimeId at invocation admission time.
+    </Decision>
+    <Decision>
+      No preferred-provider table or selection persistence in the microkernel. The kernel
+      provides the generic mechanism ("invoke capability X on installation Y"); policy and
+      preference persistence belong to caller/shell/profile layers.
+    </Decision>
+    <Decision>
+      Strict failure semantics with zero silent fallback. If a targeted installation is absent,
+      stopped, quarantined, or incompatible, the invocation must fail explicitly. A silent fallback
+      to the default provider would break caller assumptions and security boundaries.
+    </Decision>
+    <Decision>
+      Targeting conveys zero authority. The caller must possess standard capability authorization
+      for the capability contract and operation.
+    </Decision>
+    <Decision>
+      Clean backward compatibility: the existing `capability_for(caller, capability)` maps to
+      `CapabilityTarget::AnyCompatible` and preserves unchanged deterministic resolution.
+    </Decision>
+  </KeyDesignDecisions>
+
+  <Alternatives>
+    <Alternative>
+      Add a preferred-provider table / set_preferred_provider API in the kernel.
+      Rejected because default provider selection is user/profile/shell policy.
+      The microkernel must remain policy-free and generic.
+    </Alternative>
+    <Alternative>
+      Target ephemeral RuntimeId directly.
+      Rejected because RuntimeId is transient and does not survive restart or crash recovery.
+      Durable targeting must use InstallationId.
+    </Alternative>
+    <Alternative>
+      Silent fallback to default provider on target failure.
+      Rejected because explicit targeting must be deterministic and failure-transparent.
+      Silent fallback could lead to unexpected behavior and confused-deputy issues.
+    </Alternative>
+    <Alternative>
+      Intermediary router/proxy plugin in userland.
+      Rejected because multi-install invocation is a fundamental platform primitive.
+      Hiding it behind an ad-hoc router would create architectural debt and obscure the contract.
+    </Alternative>
+  </Alternatives>
+
+  <SecurityAndPrivacy>
+    <Point>
+      Targeting does not grant privilege. Invocations targeted to a specific installation still require
+      ordinary capability authorization grants.
+    </Point>
+    <Point>
+      Restart or replacement of a target installation produces a fresh RuntimeId. Ephemeral security
+      tokens and live authorities are never inherited from the old runtime.
+    </Point>
+    <Point>
+      Trajectory audit logs record capability ID, requested target InstallationId, resolved RuntimeId,
+      and outcome code, without logging request/response payloads.
+    </Point>
+  </SecurityAndPrivacy>
+
+  <DeferredDecisions>
+    <Decision>
+      Persistent preference storage and user default selection mechanisms are deferred to shell and
+      workspace service layers.
+    </Decision>
+  </DeferredDecisions>
+
+  <Scenarios>
+    <Scenario>
+      Two installations of `worldline-browser-search` (A and B) are active. A caller invoking with
+      CapabilityTarget::Installation(B) successfully executes on installation B, even if A has a lower
+      InstallationId.
+    </Scenario>
+    <Scenario>
+      Targeted installation B crashes and is restarted by the runtime supervisor. A subsequent invocation
+      targeted to B resolves to B's new RuntimeId and succeeds without stale authority inheritance.
+    </Scenario>
+    <Scenario>
+      Targeted installation B is quarantined. An invocation targeted to B fails immediately with
+      `TargetUnavailable` and does NOT fallback to installation A.
+    </Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

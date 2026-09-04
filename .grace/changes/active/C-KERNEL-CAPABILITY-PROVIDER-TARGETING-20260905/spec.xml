@@ -1,0 +1,219 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-KERNEL-CAPABILITY-PROVIDER-TARGETING-20260905>
+    <Summary>
+      Deliver a generic platform enhancement to `worldline-kernel` by adding explicit
+      capability provider targeting by `InstallationId`.
+
+      This change addresses the platform gap discovered during the early feasibility
+      gate of C-BROWSER-SEARCH-PROVIDERS-20260904: while capability discovery can
+      observe multiple active installations of the same capability contract, invocation
+      previously always executed the default deterministic resolver (which sorts by
+      highest compatible minor, then lowest installation ID, then runtime ID).
+      Consequently, secondary active installations were unreachable through capability
+      invocations.
+
+      This change introduces an additive `CapabilityTarget` model:
+      `CapabilityTarget::AnyCompatible` (existing deterministic default resolution) and
+      `CapabilityTarget::Installation(InstallationId)` (explicit target routing). The target
+      binds to the durable `InstallationId`, never to ephemeral `RuntimeId`. At
+      invocation time, the broker resolves the target `InstallationId` to its current live
+      `RuntimeId`, enforcing normal admission and authority checks without authority
+      inheritance across restart or replacement.
+
+      The targeting mechanism enforces strict failure semantics: if the targeted
+      installation is absent, incompatible, quarantined, deactivating, or stopped,
+      the broker returns an explicit `TargetUnavailable` error without silent fallback to
+      another provider. Targeting does not grant authority: the caller must independently
+      hold authorization to invoke the capability contract.
+    </Summary>
+
+    <Problem>
+      Worldline is designed as a userland operating environment where product capabilities
+      come from plugins and multiple installations of a single plugin definition can exist
+      with distinct installation-owned configuration (multi-install cardinality).
+
+      In the current kernel implementation:
+      1. `CapabilityRegistry::resolve` and `InvocationBroker::invoke` only accept a
+         `CapabilityId` and unconditionally sort candidates to pick the first deterministic
+         entry.
+      2. When two installations of the same plugin definition are simultaneously active,
+         the candidate with the lexicographically higher `InstallationId` is permanently
+         shadowed and cannot be reached by callers.
+      3. Callers have no way to express an intent to invoke a specific installation without
+         stopping, deactivating, or unregistering other installations.
+      4. Storing product preferences (e.g. default search provider) in `worldline-kernel`
+         would violate the invariant that the kernel contains no domain policy.
+      5. Conversely, introducing an intermediary routing plugin around an incomplete kernel
+         primitive would add unnecessary architectural scaffolding and obscure the platform
+         contract.
+
+      The microkernel must therefore provide a minimal, generic, policy-free addressing
+      primitive: allow callers to invoke a capability targeted to a specific `InstallationId`
+      while keeping selection policy, defaults, and configuration persistence in higher layers.
+    </Problem>
+
+    <Goals>
+      <Goal>
+        Add a generic `CapabilityTarget` enum to `worldline-kernel` distinguishing
+        `CapabilityTarget::AnyCompatible` from `CapabilityTarget::Installation(InstallationId)`.
+      </Goal>
+      <Goal>
+        Provide public convenience API `kernel.capability_for_installation(caller, capability, installation_id)`
+        and preserve existing `kernel.capability_for(caller, capability)` as default untargeted resolution.
+      </Goal>
+      <Goal>
+        Enable `CapabilityHandle` and plugin `ActivationContext` to obtain and invoke targeted
+        capability handles without changing stable contract DTO wire forms.
+      </Goal>
+      <Goal>
+        Ensure targeting binds to durable `InstallationId` rather than ephemeral `RuntimeId`,
+        resolving the live runtime at invocation admission time.
+      </Goal>
+      <Goal>
+        Enforce strict error semantics on targeted invocation failure: return explicit
+        `TargetUnavailable` (or equivalent typed failure) when the target installation is missing,
+        stopped, deactivating, quarantined, or incompatible, with zero silent fallback.
+      </Goal>
+      <Goal>
+        Preserve capability security invariants: targeting an installation conveys zero authority;
+        callers must hold regular capability authorization for the contract and operation.
+      </Goal>
+      <Goal>
+        Prove two simultaneously active installations of the same plugin definition can be
+        independently invoked through explicit targeting without consumer provider-name branching.
+      </Goal>
+      <Goal>
+        Record the architectural decision and evidence in docs/adr/ADR-KERNEL-CAPABILITY-PROVIDER-TARGETING-V1.md.
+      </Goal>
+    </Goals>
+
+    <Constraints>
+      <Constraint>
+        TARGETING BINDS TO DURABLE INSTALLATION_ID, NEVER TO EPHEMERAL RUNTIME_ID.
+      </Constraint>
+      <Constraint>
+        NO PREFERRED-PROVIDER TABLE OR SELECTION POLICY PERSISTENCE IN WORLDLINE-KERNEL.
+      </Constraint>
+      <Constraint>
+        NO SILENT FALLBACK TO ANOTHER PROVIDER WHEN A TARGETED INSTALLATION FAILS OR IS UNAVAILABLE.
+      </Constraint>
+      <Constraint>
+        TARGETING AN INSTALLATION CONFERS NO PRIVILEGE OR AUTHORITY BEYOND THE CALLER'S EXISTING GRANTS.
+      </Constraint>
+      <Constraint>
+        RUNTIME REPLACEMENT OR RESTART NEVER INHERITS LIVE AUTHORITY FROM THE PREVIOUS RUNTIME.
+      </Constraint>
+      <Constraint>
+        EXISTING UNTARGETED INVOCATION PATH MUST REMAIN 100% BACKWARD-COMPATIBLE AND DETERMINISTIC.
+      </Constraint>
+      <Constraint>
+        EVENT BUS IS NOT RPC AND MUST NOT BE USED FOR CAPABILITY TARGETING RESOLUTION.
+      </Constraint>
+      <Constraint>
+        AUDIT TRAJECTORY RECORDS CAPABILITY, TARGET INSTALLATION, RESOLVED RUNTIME, AND OUTCOME WITHOUT PAYLOAD LEAKAGE.
+      </Constraint>
+    </Constraints>
+
+    <NonGoals>
+      <NonGoal>
+        Adding a persistent preference store or "default provider" table into the microkernel.
+      </NonGoal>
+      <NonGoal>
+        Adding search-specific, browser-specific, or UI-specific types to worldline-kernel.
+      </NonGoal>
+      <NonGoal>
+        Modifying stable Browser Contract v1.0 or existing experimental browser service contracts.
+      </NonGoal>
+      <NonGoal>
+        Changing the existing deterministic resolution order for untargeted `AnyCompatible` requests.
+      </NonGoal>
+    </NonGoals>
+
+    <AcceptanceCriteria>
+      <Criterion>
+        `worldline-kernel` exports `CapabilityTarget` representing either `AnyCompatible`
+        or `Installation(InstallationId)`.
+      </Criterion>
+      <Criterion>
+        `Kernel::capability_for_installation` creates a `CapabilityHandle` bound to a specific
+        target `InstallationId`.
+      </Criterion>
+      <Criterion>
+        `CapabilityHandle` retains target identity and routes invocations to the target installation.
+      </Criterion>
+      <Criterion>
+        When two installations of the same `PluginDefinition` are simultaneously active, an untargeted
+        handle routes to the default installation, while targeted handles route independently to
+        installation A and installation B.
+      </Criterion>
+      <Criterion>
+        Targeted invocation of an absent or uninstalled installation fails with an explicit
+        typed error without fallback.
+      </Criterion>
+      <Criterion>
+        Targeted invocation of a stopped, deactivating, or quarantined installation fails with an
+        explicit typed error without fallback.
+      </Criterion>
+      <Criterion>
+        Targeted invocation of an installation providing an incompatible major interface version fails
+        with an explicit version-mismatch error without fallback.
+      </Criterion>
+      <Criterion>
+        Restarting or replacing a targeted installation creates a fresh `RuntimeId`; subsequent targeted
+        invocations resolve to the new runtime, while stale runtime grants/authority are not inherited.
+      </Criterion>
+      <Criterion>
+        Caller authority is verified for targeted invocations under the standard capability authorization
+        model; lack of a matching grant results in `Denied` regardless of targeting.
+      </Criterion>
+      <Criterion>
+        Trajectory security events record the requested target installation, candidate count, resolved
+        runtime ID, and outcome without logging private request/result payloads.
+      </Criterion>
+      <Criterion>
+        All existing unit, integration, property, security, and proving-slice tests pass without regression.
+      </Criterion>
+      <Criterion>
+        `docs/adr/ADR-KERNEL-CAPABILITY-PROVIDER-TARGETING-V1.md` documents the architecture, targeting
+        model, failure semantics, security boundaries, and rejected alternatives.
+      </Criterion>
+    </AcceptanceCriteria>
+
+    <AffectedAreas>
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+
+    <VerificationIntent>
+      <ExpectedCommand>cargo fmt --all -- --check</ExpectedCommand>
+      <ExpectedCommand>cargo check --workspace --all-targets</ExpectedCommand>
+      <ExpectedCommand>cargo clippy --workspace --all-targets --all-features -- -D warnings</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-kernel</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</ExpectedCommand>
+      <ExpectedEvidence>
+        Fresh local test evidence proves two simultaneously active installations of the same capability
+        can be targeted independently, restart/replacement resolves to fresh runtime without stale authority,
+        missing/quarantined/incompatible targets fail closed without silent fallback, and all existing
+        kernel invariants and CI gates remain green.
+      </ExpectedEvidence>
+    </VerificationIntent>
+
+    <Assumptions>
+      <Assumption>
+        `InstallationId` is durable across kernel restarts and uniquely identifies an installation
+        within the local kernel instance.
+      </Assumption>
+      <Assumption>
+        Higher layers (Shell, Workspace, Browser Services) will persist user provider preferences by
+        storing `InstallationId` rather than requiring kernel-level preference storage.
+      </Assumption>
+      <Assumption>
+        The existing untargeted resolution order remains the standard fallback for consumers that do
+        not require explicit provider selection.
+      </Assumption>
+    </Assumptions>
+  </C-KERNEL-CAPABILITY-PROVIDER-TARGETING-20260905>
+</GraceChangeSpec>
