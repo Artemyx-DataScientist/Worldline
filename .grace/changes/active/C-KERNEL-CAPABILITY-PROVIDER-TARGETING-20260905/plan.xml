@@ -1,0 +1,154 @@
+<GraceChangePlan graceVersion="4.0" status="draft">
+  <C-KERNEL-CAPABILITY-PROVIDER-TARGETING-20260905>
+    <IntentSummary>
+      Deliver the approved generic platform capability provider targeting enhancement in
+      `worldline-kernel`. This change enables callers to target a specific `InstallationId`
+      when obtaining and invoking a capability handle, solving the multi-installation shadowing
+      gap identified during C-BROWSER-SEARCH-PROVIDERS-20260904 feasibility analysis.
+
+      Targeting binds to durable `InstallationId`, not ephemeral `RuntimeId`. The broker
+      resolves the live runtime at admission time without authority inheritance across restarts.
+      If a targeted installation is absent, stopped, quarantined, or incompatible, invocation
+      fails closed with an explicit typed error (`TargetUnavailable`) without silent fallback.
+      No preferred-provider tables or selection policy persistence are added to the microkernel.
+      Clean backward compatibility is maintained for untargeted invocations.
+
+      Admission is codex_led on branch codex/kernel-capability-provider-targeting-20260905.
+      The approved spec is the normative change boundary; design-context.xml is non-normative.
+    </IntentSummary>
+
+    <BaselineAssertions>
+      <MustExist>
+        <Value>M-KERNEL-CAPABILITY-RUNTIME</Value>
+        <Value>M-REFERENCE-PROVING-SLICE</Value>
+        <Value>M-CI-BASELINE</Value>
+        <Value>V-M-KERNEL-CAPABILITY-RUNTIME</Value>
+        <Value>V-M-REFERENCE-PROVING-SLICE</Value>
+        <Value>V-M-CI-BASELINE</Value>
+        <Value>crates/worldline-kernel/Cargo.toml</Value>
+        <Value>crates/worldline-kernel/src/lib.rs</Value>
+        <Value>crates/worldline-kernel/src/capability.rs</Value>
+        <Value>crates/worldline-kernel/src/invocation.rs</Value>
+        <Value>crates/worldline-kernel/src/kernel.rs</Value>
+        <Value>crates/worldline-kernel/src/plugin.rs</Value>
+        <Value>crates/worldline-kernel/src/rpc.rs</Value>
+        <Value>crates/worldline-kernel/src/error.rs</Value>
+        <Value>crates/worldline-kernel/tests/runtime_v1_acceptance.rs</Value>
+        <Value>scripts/ci/Invoke-WorldlineCi.ps1</Value>
+        <Value>scripts/ci/Test-WorldlineArchitecture.ps1</Value>
+        <Value>.grace/graph/index.xml</Value>
+        <Value>.grace/verification/index.xml</Value>
+      </MustExist>
+      <MustContain>
+        <File>AGENTS.md</File>
+        <Text>EVENT BUS IS NOT RPC</Text>
+      </MustContain>
+    </BaselineAssertions>
+
+    <TargetAssertions>
+      <MustExist>
+        <Value>docs/adr/ADR-KERNEL-CAPABILITY-PROVIDER-TARGETING-V1.md</Value>
+      </MustExist>
+      <MustPassCommand>
+        <Command>cargo fmt --all -- --check</Command>
+        <Command>cargo check --workspace --all-targets</Command>
+        <Command>cargo clippy --workspace --all-targets --all-features -- -D warnings</Command>
+        <Command>cargo test -p worldline-kernel</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+        <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+
+    <DurableScope>
+      <GraphAnchors>
+        <M-KERNEL-CAPABILITY-RUNTIME />
+        <M-REFERENCE-PROVING-SLICE />
+        <M-CI-BASELINE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-KERNEL-CAPABILITY-RUNTIME />
+        <V-M-REFERENCE-PROVING-SLICE />
+        <V-M-CI-BASELINE />
+      </VerificationAnchors>
+    </DurableScope>
+
+    <ObservedWriteScope>
+      <File>docs/adr/ADR-KERNEL-CAPABILITY-PROVIDER-TARGETING-V1.md</File>
+      <Glob>crates/worldline-kernel/src/*.rs</Glob>
+      <Glob>crates/worldline-kernel/tests/*.rs</Glob>
+      <File>.grace/changes/active/C-KERNEL-CAPABILITY-PROVIDER-TARGETING-20260905/plan.xml</File>
+    </ObservedWriteScope>
+
+    <ImplementationPlan>
+      <T-001>
+        <Title>Define CapabilityTarget model, target-aware registry resolution, and draft the ADR</Title>
+        <DependsOn />
+        <AcceptanceCriteria>
+          <Criterion>Define `CapabilityTarget` enum (`AnyCompatible`, `Installation(InstallationId)`) in `crates/worldline-kernel/src/capability.rs` and re-export in `lib.rs`.</Criterion>
+          <Criterion>Implement target-aware candidate resolution and selection in `CapabilityRegistry` supporting explicit `InstallationId` filtering alongside compatibility matching.</Criterion>
+          <Criterion>Define typed `TargetUnavailable` failure representations in `crates/worldline-kernel/src/error.rs` and `rpc.rs`.</Criterion>
+          <Criterion>Add unit tests in `crates/worldline-kernel/src/capability.rs` verifying targeted filtering selects the exact installation and returns None on absent/incompatible targets.</Criterion>
+          <Criterion>Create draft `docs/adr/ADR-KERNEL-CAPABILITY-PROVIDER-TARGETING-V1.md` documenting targeting principles, failure semantics, and microkernel invariants.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --lib capability</Command>
+        </Verification>
+      </T-001>
+
+      <T-002>
+        <Title>Implement broker targeted invocation, handle constructors, and public kernel APIs</Title>
+        <DependsOn>T-001</DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Add `target: CapabilityTarget` to `CapabilityHandle` and `InvocationRequest`, defaulting untargeted requests to `CapabilityTarget::AnyCompatible`.</Criterion>
+          <Criterion>Implement `CapabilityHandle::targeted`, `handle.target()`, and target-aware `handle.is_available()`.</Criterion>
+          <Criterion>Implement `Kernel::capability_for_installation(caller, capability, installation_id)` in `crates/worldline-kernel/src/kernel.rs`.</Criterion>
+          <Criterion>Implement `ActivationContext::capability_for_installation(capability, installation_id)` in `crates/worldline-kernel/src/plugin.rs`.</Criterion>
+          <Criterion>Update `InvocationBroker::invoke` to resolve target provider via target-aware selection; return `CapabilityError::TargetUnavailable` without silent fallback on target failure.</Criterion>
+          <Criterion>Enforce standard caller capability authorization check regardless of targeting; lack of grant results in `Denied`.</Criterion>
+          <Criterion>Record requested target installation ID, resolved runtime ID, and outcome in trajectory security audit events without leaking invocation payloads.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --lib invocation</Command>
+          <Command>cargo test -p worldline-kernel --lib kernel</Command>
+        </Verification>
+      </T-002>
+
+      <T-003>
+        <Title>Multi-installation provider targeting acceptance tests</Title>
+        <DependsOn>T-002</DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Add acceptance tests in `crates/worldline-kernel/tests/runtime_v1_acceptance.rs` proving two active installations of the same capability can be targeted and invoked independently without provider-name branching in callers.</Criterion>
+          <Criterion>Prove that untargeted `capability_for` retains deterministic default resolution to the lowest InstallationId when multiple installations are active.</Criterion>
+          <Criterion>Prove that restarting a targeted installation creates a new `RuntimeId` and subsequent targeted invocations resolve to the fresh runtime without stale authority inheritance.</Criterion>
+          <Criterion>Prove strict fail-closed semantics: targeted invocation of absent, stopped, quarantined, or incompatible installation returns explicit typed error with zero silent fallback to other active providers.</Criterion>
+          <Criterion>Prove that caller capability authorization is strictly required for targeted handles; unprivileged caller receives `Denied`.</Criterion>
+          <Criterion>Prove trajectory security events record target installation ID, resolved runtime ID, and outcome code.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo test -p worldline-kernel --test runtime_v1_acceptance</Command>
+        </Verification>
+      </T-003>
+
+      <T-004>
+        <Title>Full architectural verification, CI suites, and ADR finalization</Title>
+        <DependsOn>T-003</DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Finalize `docs/adr/ADR-KERNEL-CAPABILITY-PROVIDER-TARGETING-V1.md` with implementation evidence and status accepted.</Criterion>
+          <Criterion>Workspace formatting, check, and clippy pass with zero warnings (`cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`).</Criterion>
+          <Criterion>All `worldline-kernel` tests pass cleanly (`cargo test -p worldline-kernel`).</Criterion>
+          <Criterion>Architecture integrity verification passes (`pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1`).</Criterion>
+          <Criterion>CI Correctness and ArchitectureSecurity suites pass (`pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness` and `-Suite ArchitectureSecurity`).</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>cargo fmt --all -- --check</Command>
+          <Command>cargo clippy --workspace --all-targets --all-features -- -D warnings</Command>
+          <Command>cargo test -p worldline-kernel</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite Correctness</Command>
+          <Command>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</Command>
+        </Verification>
+      </T-004>
+    </ImplementationPlan>
+  </C-KERNEL-CAPABILITY-PROVIDER-TARGETING-20260905>
+</GraceChangePlan>
