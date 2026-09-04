@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-BROWSER-REQUEST-POLICY-INTERCEPTION-SCOPE-CORRECTION-20260902>
     <Summary>
       This superseding bundle is limited to the authorized scope correction for
