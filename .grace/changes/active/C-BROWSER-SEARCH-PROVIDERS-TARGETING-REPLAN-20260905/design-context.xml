@@ -1,0 +1,163 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-BROWSER-SEARCH-PROVIDERS-TARGETING-REPLAN-20260905</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+
+  <Rationale>
+    The predecessor search change did exactly what its feasibility gate was meant
+    to do: it discovered that Worldline's multi-installation model was observable
+    but not explicitly invokable. Instead of hiding that platform gap behind a
+    search-specific router or lifecycle trick, execution stopped and the kernel
+    gained a generic InstallationId-targeting primitive.
+
+    This replan therefore does not redesign search. It resumes the same browser
+    service architecture on top of the now-applied platform primitive. Search is
+    still a target-resolution capability, not navigation; CEF still owns only
+    browser-engine primitives; search preferences remain external product/profile
+    policy; and multiple installations of one provider definition remain ordinary
+    plugin runtime composition.
+  </Rationale>
+
+  <ArchitectureSketch>
+    <![CDATA[
+      shell / command surface / agent
+                 |
+                 | already-classified search text
+                 v
+      browser.search/resolve capability handle
+                 |
+                 | CapabilityTarget::Installation(InstallationId)
+                 v
+      generic InvocationBroker
+                 |
+                 | resolves current live RuntimeId + normal authority admission
+                 v
+      selected worldline-browser-search installation
+                 |
+                 | returns bounded SearchNavigationTarget (data only)
+                 v
+      caller separately invokes browser.navigate
+                 |
+                 v
+      BrowserEngineProvider / CEF
+    ]]>
+  </ArchitectureSketch>
+
+  <KeyDesignDecisions>
+    <Decision>
+      The applied kernel targeting primitive is a mechanism, not preference
+      policy. Search-specific defaults and durable user preference must not be
+      added to worldline-kernel as part of this replan.
+    </Decision>
+    <Decision>
+      Explicit routing is by durable InstallationId. RuntimeId remains ephemeral
+      evidence resolved at invocation time and is never a user/profile selection
+      key.
+    </Decision>
+    <Decision>
+      Target unavailability is fail-closed and never silently falls back to
+      another search installation. This preserves caller intent and avoids
+      confused-deputy/provider-substitution behavior.
+    </Decision>
+    <Decision>
+      `browser.search/0.1` remains a resolve capability returning a navigation
+      target. It does not navigate and does not inherit NavigatePage authority.
+    </Decision>
+    <Decision>
+      The future shell owns address/search/command classification and may store a
+      preferred search InstallationId. The search provider receives only input
+      already classified as search text.
+    </Decision>
+    <Decision>
+      The first provider remains installation-configurable rather than vendor-
+      specific. Two installations of the same definition with different base URL
+      configuration are the proving topology.
+    </Decision>
+    <Decision>
+      Search URL construction remains structural: fixed parsed origin/path, one
+      validated query parameter, bounded static parameters, and user text only as
+      a URL-library-encoded parameter value.
+    </Decision>
+    <Decision>
+      Search query text is sensitive payload. Generic runtime audit may identify
+      capability, InstallationId, resolved RuntimeId, timing and outcome, but not
+      copy the query body by default.
+    </Decision>
+  </KeyDesignDecisions>
+
+  <WhyNotAlternatives>
+    <Alternative>
+      Search-specific router plugin: rejected because the platform now directly
+      supports exact installation targeting and a router would duplicate generic
+      routing semantics.
+    </Alternative>
+    <Alternative>
+      One-active-provider lifecycle cardinality: rejected because it artificially
+      weakens Worldline's multi-installation model and turns selection into process
+      lifecycle manipulation.
+    </Alternative>
+    <Alternative>
+      Kernel preferred-provider table: rejected because preference/default state
+      is product/profile policy rather than microkernel mechanism.
+    </Alternative>
+    <Alternative>
+      RuntimeId targeting: rejected because RuntimeId is destroyed and replaced on
+      restart, crash, update or replacement.
+    </Alternative>
+    <Alternative>
+      Silent fallback to AnyCompatible: rejected because explicit selection would
+      stop being explicit and could disclose a query to a different provider.
+    </Alternative>
+  </WhyNotAlternatives>
+
+  <SecurityAndPrivacy>
+    <Point>InstallationId targeting is routing data, not authority.</Point>
+    <Point>The caller still needs explicit search-resolution authority before query disclosure.</Point>
+    <Point>The returned URL is data and does not bypass normal browser.navigate admission.</Point>
+    <Point>Query-derived bytes cannot influence scheme, credentials, hostname or path in the first provider implementation.</Point>
+    <Point>Search failure or provider quarantine must not affect direct navigation or unrelated browser services.</Point>
+    <Point>Acceptance evidence must verify generic trajectory/runtime records remain payload-free with respect to raw query text.</Point>
+  </SecurityAndPrivacy>
+
+  <ProviderSelectionModel>
+    The proving topology is two simultaneously active installations of
+    `worldline-browser-search`, both exposing the same `browser.search/0.1`
+    capability but owning different loopback provider configuration. The consumer
+    carries or receives an InstallationId chosen by external composition/profile
+    policy and requests that exact installation through the generic kernel
+    targeting primitive. No consumer branch on Google/Yandex/DuckDuckGo or any
+    concrete provider crate is permitted.
+
+    Provider provenance comes from kernel-owned invocation metadata: requested
+    InstallationId plus resolved RuntimeId. The search result does not self-assert
+    an authoritative provider identity.
+  </ProviderSelectionModel>
+
+  <TestingModel>
+    S3E uses two loopback configurations. Resolving through installation A or B
+    must produce distinct expected targets with zero origin hits. The test then
+    separately invokes normal browser navigation with the returned target and
+    verifies exactly one expected origin request and decoded query value.
+
+    The real Windows variant uses staged pinned CEF and the native provider
+    process. Search still executes above CEF; CEF receives only the ordinary
+    navigation target after a separate browser.navigate admission. Reference
+    backend substitution is rejected.
+  </TestingModel>
+
+  <LifecycleReplan>
+    C-BROWSER-SEARCH-PROVIDERS-20260904 remains the stopped predecessor whose
+    T-001 evidence discovered the platform gap. This replacement bundle should be
+    approved before the predecessor is transitioned to superseded/archive state.
+    The replacement exact plan should reuse the original functional tasks where
+    valid but replace the old feasibility gate with a baseline-conformance task
+    proving the already-applied InstallationId targeting primitive in the Search
+    composition.
+  </LifecycleReplan>
+
+  <DeferredDecisions>
+    <Decision>Exact persistent storage for the user's preferred search InstallationId belongs to a later Shell/profile change.</Decision>
+    <Decision>Seed provider presets and product default vendor remain configuration/product policy.</Decision>
+    <Decision>Remote suggestions/autocomplete remain a separate capability with their own privacy and cancellation semantics.</Decision>
+    <Decision>Structured search results, workspace retrieval and AI answers remain separate capability families.</Decision>
+  </DeferredDecisions>
+</GraceChangeDesignContext>
