@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="draft">
+<GraceChangeSpec graceVersion="4.0" status="approved">
   <C-BROWSER-SEARCH-PROVIDERS-TARGETING-REPLAN-20260905>
     <Summary>
       Supersede the stopped execution path of C-BROWSER-SEARCH-PROVIDERS-20260904
