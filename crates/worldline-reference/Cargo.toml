@@ -19,6 +19,7 @@ worldline-browser-history = { path = "../worldline-browser-history" }
 worldline-browser-downloads = { path = "../worldline-browser-downloads" }
 worldline-browser-cookies = { path = "../worldline-browser-cookies" }
 worldline-browser-devtools = { path = "../worldline-browser-devtools" }
+worldline-browser-search = { path = "../worldline-browser-search" }
 worldline-native-host = { path = "../worldline-native-host" }
 worldline-plugin-protocol = { path = "../worldline-plugin-protocol" }
 serde = { version = "1.0", features = ["derive"] }

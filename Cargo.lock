@@ -2895,6 +2895,7 @@ dependencies = [
  "worldline-browser-downloads",
  "worldline-browser-history",
  "worldline-browser-provider",
+ "worldline-browser-search",
  "worldline-browser-services-contract",
  "worldline-browser-tabs",
  "worldline-kernel",
