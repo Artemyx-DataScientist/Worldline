@@ -6,29 +6,31 @@ use worldline_browser_contract::{
 use worldline_browser_services_contract::{
     AUTH_COOKIES_ADMIN, AUTH_COOKIES_METADATA_READ, AUTH_COOKIES_MUTATE, AUTH_COOKIES_VALUE_READ,
     AUTH_DEVTOOLS_CONTROL, AUTH_DEVTOOLS_NATIVE, AUTH_DEVTOOLS_OBSERVE, AUTH_DOWNLOADS_CONTROL,
-    AUTH_DOWNLOADS_READ, AUTH_HISTORY_DELETE, AUTH_HISTORY_READ, AUTH_SITE_DATA_CLEAR,
-    AUTH_TABS_MUTATE, AUTH_TABS_READ, ArtifactRef, CONTRACT_BROWSER_COOKIES,
+    AUTH_DOWNLOADS_READ, AUTH_HISTORY_DELETE, AUTH_HISTORY_READ, AUTH_SEARCH_RESOLVE,
+    AUTH_SITE_DATA_CLEAR, AUTH_TABS_MUTATE, AUTH_TABS_READ, ArtifactRef, CONTRACT_BROWSER_COOKIES,
     CONTRACT_BROWSER_COOKIES_V0_2, CONTRACT_BROWSER_COOKIES_V0_2_VERSION,
     CONTRACT_BROWSER_COOKIES_VERSION, CONTRACT_BROWSER_DEVTOOLS, CONTRACT_BROWSER_DEVTOOLS_VERSION,
     CONTRACT_BROWSER_DOWNLOADS, CONTRACT_BROWSER_DOWNLOADS_VERSION, CONTRACT_BROWSER_HISTORY,
-    CONTRACT_BROWSER_HISTORY_VERSION, CONTRACT_BROWSER_SITE_DATA,
-    CONTRACT_BROWSER_SITE_DATA_VERSION, CONTRACT_BROWSER_TABS, CONTRACT_BROWSER_TABS_VERSION,
-    CancelDownloadRequest, CancelDownloadResponse, ClearDiagnosticsRequest,
-    ClearDiagnosticsResponse, ClearHistoryRequest, ClearSiteDataRequest, ClearSiteDataResponse,
-    CloseTabRequest, CloseTabResponse, ConsoleDiagnosticRecord, ConsoleLogLevel, CookieMetadata,
-    CookieMetadataV0_2, CookieValue, CreateTabRequest, DeleteCookieServiceRequest,
-    DeleteCookieServiceResponse, DiagnosticBufferStats, DownloadLifecycleStatus, DownloadRecord,
-    DownloadRecordId, GetCookieMetadataRequest, GetCookieMetadataResponse,
-    GetCookieMetadataResponseV0_2, GetCookieValueRequest, GetCookieValueResponse,
-    GetDownloadRecordRequest, GetDownloadRecordResponse, GetRuntimeSnapshotRequest,
-    GetRuntimeSnapshotResponse, HistoryEntry, HistoryEntryId, ListDownloadRecordsRequest,
-    ListDownloadRecordsResponse, NetworkDiagnosticRecord, NetworkRequestStatus,
+    CONTRACT_BROWSER_HISTORY_VERSION, CONTRACT_BROWSER_SEARCH, CONTRACT_BROWSER_SEARCH_VERSION,
+    CONTRACT_BROWSER_SITE_DATA, CONTRACT_BROWSER_SITE_DATA_VERSION, CONTRACT_BROWSER_TABS,
+    CONTRACT_BROWSER_TABS_VERSION, CancelDownloadRequest, CancelDownloadResponse,
+    ClearDiagnosticsRequest, ClearDiagnosticsResponse, ClearHistoryRequest, ClearSiteDataRequest,
+    ClearSiteDataResponse, CloseTabRequest, CloseTabResponse, ConsoleDiagnosticRecord,
+    ConsoleLogLevel, CookieMetadata, CookieMetadataV0_2, CookieValue, CreateTabRequest,
+    DeleteCookieServiceRequest, DeleteCookieServiceResponse, DiagnosticBufferStats,
+    DownloadLifecycleStatus, DownloadRecord, DownloadRecordId, GetCookieMetadataRequest,
+    GetCookieMetadataResponse, GetCookieMetadataResponseV0_2, GetCookieValueRequest,
+    GetCookieValueResponse, GetDownloadRecordRequest, GetDownloadRecordResponse,
+    GetRuntimeSnapshotRequest, GetRuntimeSnapshotResponse, HistoryEntry, HistoryEntryId,
+    ListDownloadRecordsRequest, ListDownloadRecordsResponse, MAX_SEARCH_QUERY_LENGTH,
+    MAX_SEARCH_TARGET_URL_LENGTH, NetworkDiagnosticRecord, NetworkRequestStatus, OP_RESOLVE_SEARCH,
     PageRuntimeDiagnosticSnapshot, PauseDownloadRequest, PauseDownloadResponse,
     QueryConsoleRecordsRequest, QueryConsoleRecordsResponse, QueryHistoryRequest,
     QueryNetworkRecordsRequest, QueryNetworkRecordsResponse, ResumeDownloadRequest,
-    ResumeDownloadResponse, SetCookieServiceRequest, SetCookieServiceRequestV0_2,
-    SetCookieServiceResponse, ShowNativeDevToolsRequest, ShowNativeDevToolsResponse,
-    StartDownloadRequest, StartDownloadResponse, StorageType, TabGroupId, TabId, TabState,
+    ResumeDownloadResponse, SearchContractError, SearchNavigationTarget, SearchResolveRequest,
+    SetCookieServiceRequest, SetCookieServiceRequestV0_2, SetCookieServiceResponse,
+    ShowNativeDevToolsRequest, ShowNativeDevToolsResponse, StartDownloadRequest,
+    StartDownloadResponse, StorageType, TabGroupId, TabId, TabState,
 };
 
 #[test]
@@ -658,4 +660,105 @@ fn devtools_contract_wire_fixtures_stability() {
     let json = serde_json::to_string(&show_resp).unwrap();
     let deserialized_show_resp: ShowNativeDevToolsResponse = serde_json::from_str(&json).unwrap();
     assert_eq!(show_resp, deserialized_show_resp);
+}
+
+#[test]
+fn search_contract_wire_fixtures_stability() {
+    assert_eq!(CONTRACT_BROWSER_SEARCH, "browser.search");
+    assert_eq!(CONTRACT_BROWSER_SEARCH_VERSION, "0.1");
+    assert_eq!(OP_RESOLVE_SEARCH, "browser.search.resolve");
+    assert_eq!(AUTH_SEARCH_RESOLVE, "browser.search.resolve");
+
+    let resolve_json = r#"{
+        "query": "worldline kernel architecture"
+    }"#;
+    let req: SearchResolveRequest = serde_json::from_str(resolve_json).unwrap();
+    assert_eq!(req.query(), "worldline kernel architecture");
+
+    // Serialization / deserialization roundtrip
+    let serialized = serde_json::to_string(&req).unwrap();
+    let deserialized: SearchResolveRequest = serde_json::from_str(&serialized).unwrap();
+    assert_eq!(req, deserialized);
+
+    // Target serialization / deserialization roundtrip
+    let target =
+        SearchNavigationTarget::new("https://duckduckgo.com/html/?q=worldline", "q").unwrap();
+    let target_json = serde_json::to_string(&target).unwrap();
+    let deserialized_target: SearchNavigationTarget = serde_json::from_str(&target_json).unwrap();
+    assert_eq!(target, deserialized_target);
+
+    // Privacy checks
+    let secret = "classified-confidential-query";
+    let priv_req = SearchResolveRequest::new(secret).unwrap();
+    let debug_out = format!("{priv_req:?}");
+    let display_out = format!("{priv_req}");
+    assert!(!debug_out.contains(secret), "Debug leaked query text!");
+    assert!(!display_out.contains(secret), "Display leaked query text!");
+    assert!(debug_out.contains("[REDACTED]"));
+    assert!(display_out.contains("[REDACTED"));
+
+    // Bounding checks
+    assert_eq!(
+        SearchResolveRequest::new(""),
+        Err(SearchContractError::EmptyQuery)
+    );
+    assert_eq!(
+        SearchResolveRequest::new("   "),
+        Err(SearchContractError::EmptyQuery)
+    );
+
+    let oversized_query = "q".repeat(MAX_SEARCH_QUERY_LENGTH + 1);
+    match SearchResolveRequest::new(oversized_query) {
+        Err(SearchContractError::QueryTooLong { length, max }) => {
+            assert_eq!(length, MAX_SEARCH_QUERY_LENGTH + 1);
+            assert_eq!(max, MAX_SEARCH_QUERY_LENGTH);
+        }
+        other => panic!("expected QueryTooLong, got {other:?}"),
+    }
+
+    let oversized_url = format!(
+        "https://example.com/?q={}",
+        "u".repeat(MAX_SEARCH_TARGET_URL_LENGTH)
+    );
+    match SearchNavigationTarget::new(oversized_url, "q") {
+        Err(SearchContractError::TargetUrlTooLong { length, max }) => {
+            assert!(length > max);
+            assert_eq!(max, MAX_SEARCH_TARGET_URL_LENGTH);
+        }
+        other => panic!("expected TargetUrlTooLong, got {other:?}"),
+    }
+}
+
+#[test]
+fn search_authority_disjointness() {
+    let authorities = [
+        AUTH_SEARCH_RESOLVE,
+        AUTH_TABS_READ,
+        AUTH_TABS_MUTATE,
+        AUTH_HISTORY_READ,
+        AUTH_HISTORY_DELETE,
+        AUTH_DOWNLOADS_READ,
+        AUTH_DOWNLOADS_CONTROL,
+        AUTH_COOKIES_METADATA_READ,
+        AUTH_COOKIES_VALUE_READ,
+        AUTH_COOKIES_MUTATE,
+        AUTH_COOKIES_ADMIN,
+        AUTH_SITE_DATA_CLEAR,
+        AUTH_DEVTOOLS_OBSERVE,
+        AUTH_DEVTOOLS_CONTROL,
+        AUTH_DEVTOOLS_NATIVE,
+        OP_NAVIGATE,
+        OP_CLICK,
+        OP_OBSERVE,
+        OP_QUERY_DOCUMENT,
+    ];
+
+    let mut set = std::collections::BTreeSet::new();
+    for auth in authorities {
+        assert!(
+            set.insert(auth),
+            "duplicate authority string detected: {auth}"
+        );
+    }
+    assert!(set.contains(AUTH_SEARCH_RESOLVE));
 }

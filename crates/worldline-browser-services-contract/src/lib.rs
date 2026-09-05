@@ -11,6 +11,7 @@ pub mod cookies;
 pub mod devtools;
 pub mod downloads;
 pub mod history;
+pub mod search;
 pub mod site_data;
 pub mod tabs;
 
@@ -51,6 +52,11 @@ pub use history::{
     GetHistoryEntryResponse, HistoryEntry, HistoryEntryId, OP_CLEAR_HISTORY,
     OP_DELETE_HISTORY_ENTRY, OP_GET_HISTORY_ENTRY, OP_QUERY_HISTORY, QueryHistoryRequest,
     QueryHistoryResponse,
+};
+pub use search::{
+    AUTH_SEARCH_RESOLVE, CONTRACT_BROWSER_SEARCH, CONTRACT_BROWSER_SEARCH_VERSION,
+    MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TARGET_URL_LENGTH, OP_RESOLVE_SEARCH, SearchContractError,
+    SearchNavigationTarget, SearchResolveRequest,
 };
 pub use site_data::{
     AUTH_SITE_DATA_CLEAR, CONTRACT_BROWSER_SITE_DATA, CONTRACT_BROWSER_SITE_DATA_VERSION,
