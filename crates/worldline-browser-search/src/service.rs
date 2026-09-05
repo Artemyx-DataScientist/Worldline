@@ -63,7 +63,7 @@ impl SearchProviderService {
 
 impl CapabilityService for SearchProviderService {
     fn invoke(&self, operation: &str, payload: &[u8]) -> Result<Vec<u8>, String> {
-        if operation != OP_RESOLVE_SEARCH {
+        if operation != OP_RESOLVE_SEARCH && operation != "resolve" {
             return Err(format!("unsupported search operation '{operation}'"));
         }
 
@@ -82,7 +82,7 @@ impl CapabilityService for SearchProviderService {
         &self,
         operation: &worldline_kernel::OperationId,
     ) -> RpcOperationContract {
-        if operation.as_str() == OP_RESOLVE_SEARCH {
+        if operation.as_str() == OP_RESOLVE_SEARCH || operation.as_str() == "resolve" {
             RpcOperationContract::safe(operation.clone())
         } else {
             RpcOperationContract::never_retry(operation.clone())

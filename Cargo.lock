@@ -2813,6 +2813,7 @@ dependencies = [
  "serde",
  "serde_json",
  "url",
+ "worldline-browser-contract",
  "worldline-browser-services-contract",
  "worldline-kernel",
 ]
