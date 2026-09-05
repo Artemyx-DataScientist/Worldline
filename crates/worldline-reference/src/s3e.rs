@@ -731,20 +731,21 @@ mod real {
         let deadline = Instant::now() + Duration::from_secs(15);
         let mut loaded = false;
         while Instant::now() < deadline {
-            if let Ok(obs_val) = call_op(
+            let is_loaded = call_op(
                 &connection,
                 OP_OBSERVE,
                 serde_json::to_value(ObservePageRequest {
                     page_id: page.page_id.clone(),
                 })
                 .unwrap(),
-            ) {
-                if let Ok(obs) = decode::<PageObservation>(obs_val) {
-                    if obs.title == target_title {
-                        loaded = true;
-                        break;
-                    }
-                }
+            )
+            .ok()
+            .and_then(|val| decode::<PageObservation>(val).ok())
+            .is_some_and(|obs| obs.title == target_title);
+
+            if is_loaded {
+                loaded = true;
+                break;
             }
             thread::sleep(Duration::from_millis(100));
         }
