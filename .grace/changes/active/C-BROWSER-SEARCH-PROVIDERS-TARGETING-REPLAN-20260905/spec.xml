@@ -1,0 +1,151 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-BROWSER-SEARCH-PROVIDERS-TARGETING-REPLAN-20260905>
+    <Summary>
+      Supersede the stopped execution path of C-BROWSER-SEARCH-PROVIDERS-20260904
+      after its T-001 feasibility gate exposed a missing generic multi-installation
+      invocation primitive in worldline-kernel.
+
+      The functional browser-search scope is unchanged: add an engine-neutral
+      `browser.search/0.1` resolve capability, one ordinary replaceable structured
+      URL-search provider, deterministic S3E proving, and staged Windows real-CEF
+      evidence. The only architectural delta is that explicit provider selection
+      now consumes the applied platform primitive delivered by
+      C-KERNEL-CAPABILITY-PROVIDER-TARGETING-20260905:
+      `CapabilityTarget::Installation(InstallationId)`.
+
+      Search resolution remains data-only and separate from browser navigation.
+      Search-provider preference/default selection remains outside the kernel.
+    </Summary>
+
+    <Problem>
+      The predecessor search plan correctly stopped at T-001 because the generic
+      runtime could discover multiple active installations of one capability but
+      could only invoke the deterministic first compatible provider. That made the
+      second active search-provider installation unreachable without lifecycle
+      manipulation.
+
+      C-KERNEL-CAPABILITY-PROVIDER-TARGETING-20260905 has now been applied and
+      archived. The kernel can explicitly route a capability invocation to a
+      durable InstallationId, resolve the current live RuntimeId at admission time,
+      preserve ordinary capability authorization, and fail closed without silently
+      falling back to another provider.
+
+      Search can therefore resume without introducing a search-specific router,
+      browser-specific provider registry, kernel preference table, CEF policy, or
+      provider-name branching in consumers.
+    </Problem>
+
+    <Goals>
+      <Goal>Preserve the approved functional scope and security model of C-BROWSER-SEARCH-PROVIDERS-20260904.</Goal>
+      <Goal>Consume generic InstallationId-targeted capability invocation as the sole explicit multi-installation routing primitive for search-provider selection.</Goal>
+      <Goal>Define additive experimental `browser.search/0.1` resolve semantics without changing stable Browser Contract v1.0.</Goal>
+      <Goal>Keep address/search/command classification in the future shell or caller, not in the search provider.</Goal>
+      <Goal>Implement one ordinary installation-configurable structured URL-search provider that can be installed multiple times with distinct configuration.</Goal>
+      <Goal>Prove an unchanged consumer can invoke installation A or B through generic targeting without provider-name branching.</Goal>
+      <Goal>Keep search-resolution authority disjoint from NavigatePage and all unrelated browser authorities.</Goal>
+      <Goal>Preserve query privacy and bounded structural URL construction.</Goal>
+      <Goal>Prove deterministic S3E and staged Windows real-CEF S3E with loopback-only acceptance.</Goal>
+    </Goals>
+
+    <Constraints>
+      <Constraint>SPEC APPROVAL AND EXACT PLAN APPROVAL ARE SEPARATE. THIS DRAFT DOES NOT AUTHORIZE IMPLEMENTATION.</Constraint>
+      <Constraint>C-KERNEL-CAPABILITY-PROVIDER-TARGETING-20260905 MUST REMAIN APPLIED AND ARCHIVED. THIS SEARCH CHANGE MUST NOT MODIFY OR REIMPLEMENT ITS KERNEL PRIMITIVE.</Constraint>
+      <Constraint>THE PREDECESSOR C-BROWSER-SEARCH-PROVIDERS-20260904 STOPPED AT ITS T-001 FEASIBILITY GATE. IMPLEMENTATION MUST PROCEED ONLY FROM A SUPERSEDING APPROVED PLAN.</Constraint>
+      <Constraint>EXPLICIT PROVIDER ROUTING MUST USE DURABLE InstallationId TARGETING. DO NOT TARGET RuntimeId DIRECTLY.</Constraint>
+      <Constraint>IF A TARGET SEARCH INSTALLATION IS ABSENT, STOPPED, QUARANTINED, DEACTIVATING OR INCOMPATIBLE, THE INVOCATION MUST FAIL CLOSED. NO SILENT FALLBACK TO ANOTHER SEARCH PROVIDER.</Constraint>
+      <Constraint>THE KERNEL PROVIDES ROUTING MECHANISM ONLY. SEARCH DEFAULTS, USER PREFERENCES AND PERSISTENT PROFILE POLICY MUST NOT ENTER worldline-kernel.</Constraint>
+      <Constraint>SEARCH IS AN ORDINARY REPLACEABLE PLUGIN CAPABILITY. NO SEARCH VENDOR, OMNIBOX, QUERY-TEMPLATE OR DEFAULT-PROVIDER DOMAIN POLICY MAY ENTER worldline-kernel OR CEF.</Constraint>
+      <Constraint>`browser.search/resolve` MUST NOT NAVIGATE, OPEN WINDOWS, EXECUTE SCRIPT, MUTATE DOM, READ COOKIES/STORAGE, START DOWNLOADS OR EXERCISE BROWSER MUTATION AUTHORITY.</Constraint>
+      <Constraint>SEARCH RESOLUTION AND browser.navigate ARE SEPARATE AUTHORIZED CAPABILITY INVOCATIONS.</Constraint>
+      <Constraint>EVENT BUS IS NOT RPC. SEARCH RESOLUTION RETURNS THROUGH NORMAL CAPABILITY REQUEST/RESULT FLOW.</Constraint>
+      <Constraint>THE FIRST PROVIDER MUST BUILD URLS STRUCTURALLY FROM A PARSED FIXED WEB ORIGIN/PATH, ONE VALIDATED QUERY PARAMETER, AND BOUNDED STATIC PARAMETERS. RAW QUERY STRING CONCATENATION IS FORBIDDEN.</Constraint>
+      <Constraint>PRODUCTION TARGETS MUST USE HTTPS. HTTP IS ALLOWED ONLY FOR EXPLICIT LOOPBACK TEST CONFIGURATION. javascript:, data:, file:, about: AND OTHER EXECUTION/LOCAL-RESOURCE SCHEMES ARE FORBIDDEN.</Constraint>
+      <Constraint>QUERY TEXT, STATIC PARAMETER VALUES AND RESULT URLS MUST HAVE FINITE DECLARED BOUNDS. OVERSIZED VALUES FAIL EXPLICITLY WITHOUT BROWSER MUTATION.</Constraint>
+      <Constraint>RAW QUERY TEXT MUST NOT ENTER GENERIC METRICS, TRAJECTORY PAYLOADS, PANIC/DEBUG TEXT OR UNRELATED EVENTS BY DEFAULT.</Constraint>
+      <Constraint>PROVIDER FAILURE MUST DEGRADE SEARCH ONLY. DIRECT URL NAVIGATION AND EXISTING M1.3 SERVICES MUST REMAIN AVAILABLE.</Constraint>
+      <Constraint>NO PUBLIC INTERNET DEPENDENCY IS ALLOWED IN ACCEPTANCE TESTS. REAL CEF EVIDENCE USES LOOPBACK AND THE PINNED/STAGED RUNTIME.</Constraint>
+      <Constraint>NON-WINDOWS WORKSPACE COMPILATION MUST REMAIN GREEN; REAL CEF S3E MAY BE WINDOWS-ONLY WITH EXPLICIT Unsupported/Unavailable ELSEWHERE.</Constraint>
+      <Constraint>GRACE PROJECTIONS ARE NOT APPLIED UNTIL FRESH COMPLETION EVIDENCE AND EXPLICIT OWNER APPLY CONFIRMATION.</Constraint>
+    </Constraints>
+
+    <NonGoals>
+      <NonGoal>Worldline Shell or omnibox UI.</NonGoal>
+      <NonGoal>Address-versus-search-versus-command classification.</NonGoal>
+      <NonGoal>Kernel preferred-provider tables or search-specific routing policy.</NonGoal>
+      <NonGoal>Remote search suggestions/autocomplete.</NonGoal>
+      <NonGoal>Structured SERP/search-results APIs.</NonGoal>
+      <NonGoal>Search-engine scraping.</NonGoal>
+      <NonGoal>Safe-search policy.</NonGoal>
+      <NonGoal>Bang/keyword syntax.</NonGoal>
+      <NonGoal>Workspace/history/semantic retrieval.</NonGoal>
+      <NonGoal>AI-generated search answers.</NonGoal>
+      <NonGoal>Provider-specific paid API/authentication flows.</NonGoal>
+      <NonGoal>Choosing a permanent default search vendor.</NonGoal>
+      <NonGoal>Crypto/trust compatibility work.</NonGoal>
+      <NonGoal>Closing M1.3 as a whole.</NonGoal>
+    </NonGoals>
+
+    <AcceptanceCriteria>
+      <Criterion>The applied kernel targeting primitive is treated as baseline and no search implementation changes worldline-kernel.</Criterion>
+      <Criterion>Two simultaneously active installations exposing the same search capability can be invoked independently through InstallationId targeting by unchanged consumer logic.</Criterion>
+      <Criterion>Target unavailability is typed and fail-closed with zero silent fallback.</Criterion>
+      <Criterion>An experimental engine-neutral `browser.search/0.1` contract exists with one bounded resolve request and bounded SearchNavigationTarget result; navigation is outside the contract.</Criterion>
+      <Criterion>Search-resolution authority is disjoint from NavigatePage, ActOnPage, page observation, cookies, storage, downloads, request policy and DevTools authorities.</Criterion>
+      <Criterion>A search-only principal can resolve a target but receives AccessDenied when attempting normal browser navigation.</Criterion>
+      <Criterion>`worldline-browser-search` supports multiple installations with distinct installation-owned structured URL configuration and no provider-vendor enum in the consumer contract.</Criterion>
+      <Criterion>Search text changes only the designated query-parameter value and cannot alter scheme, credentials, authority, hostname, port, path, fragment or static parameter keys.</Criterion>
+      <Criterion>Unicode, spaces, reserved characters, percent signs and query/fragment-looking text are encoded deterministically without structural escape.</Criterion>
+      <Criterion>Production configuration rejects non-HTTPS remote targets, userinfo, malformed hosts, forbidden schemes, empty query parameter names and oversized configuration/results.</Criterion>
+      <Criterion>Raw query text is absent from generic metrics, trajectory payloads, panic/debug text and unrelated events in acceptance evidence.</Criterion>
+      <Criterion>Deterministic S3E proves provider A and B produce distinct expected loopback targets for the same input with unchanged consumer code.</Criterion>
+      <Criterion>Search resolution alone causes zero loopback origin hits; a later separately authorized browser.navigate causes exactly the expected hit with the decoded query value.</Criterion>
+      <Criterion>Hosted/staged Windows real-CEF S3E uses the normal native provider process, rejects ReferenceBrowserBackend substitution and proves the same resolve-then-navigate composition.</Criterion>
+      <Criterion>Search-provider unload/replacement/crash/quarantine/unavailability does not break direct navigation or existing M1.3 service proving slices.</Criterion>
+      <Criterion>Architecture guards prevent search vendor/configuration policy from entering worldline-kernel/CEF and prevent worldline-browser-search from becoming a dependency of unrelated services.</Criterion>
+      <Criterion>A BrowserSearch CI gate covers contract bounds, generic InstallationId targeting, authority separation, privacy, structured URL safety, deterministic S3E and staged real-CEF S3E.</Criterion>
+      <Criterion>Existing Source, Correctness, ArchitectureSecurity, ProvingSlice, RealChromium, BrowserProvider, BrowserServices, BrowserRequestPolicy, BrowserDevTools, RealS3B and All gates are preserved.</Criterion>
+      <Criterion>Completion evidence distinguishes scaffolded, wired and verified claims and does not apply graph/verification projections before explicit owner confirmation.</Criterion>
+    </AcceptanceCriteria>
+
+    <AffectedAreas>
+      <M-BROWSER-SERVICE-PLUGINS />
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+
+    <VerificationIntent>
+      <ExpectedCommand>cargo fmt --all -- --check</ExpectedCommand>
+      <ExpectedCommand>cargo check --workspace --all-targets</ExpectedCommand>
+      <ExpectedCommand>cargo clippy --workspace --all-targets --all-features -- -D warnings</ExpectedCommand>
+      <ExpectedCommand>cargo test --workspace</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-kernel</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-services-contract</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-search</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-reference --test s3e_acceptance</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-reference --test s3e_real_acceptance</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserSearch</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+      <ExpectedEvidence>
+        Fresh evidence names the applied kernel targeting baseline, selected
+        InstallationId and resolved RuntimeId topology, authority separation,
+        deterministic URL encoding and bounds, provider replacement/failure
+        behavior, query privacy, zero-origin-hit proof before navigation,
+        separately authorized loopback navigation, real staged CEF provider
+        identity and preserved existing browser-service gates.
+      </ExpectedEvidence>
+    </VerificationIntent>
+
+    <Assumptions>
+      <Assumption>C-KERNEL-CAPABILITY-PROVIDER-TARGETING-20260905 remains applied and archived and its acceptance tests stay green.</Assumption>
+      <Assumption>The first useful web-search capability only resolves already-classified text to a navigation target.</Assumption>
+      <Assumption>A structured fixed base URL plus one query parameter and bounded static parameters covers the first proving providers.</Assumption>
+      <Assumption>Existing browser.navigate and real-CEF loopback infrastructure can consume the resolved target without a browser-engine search primitive.</Assumption>
+      <Assumption>Search provider configuration is installation-owned state and does not need to enter stable Browser Contract v1.0.</Assumption>
+    </Assumptions>
+  </C-BROWSER-SEARCH-PROVIDERS-TARGETING-REPLAN-20260905>
+</GraceChangeSpec>
