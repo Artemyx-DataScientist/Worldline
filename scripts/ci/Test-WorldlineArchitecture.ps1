@@ -470,4 +470,41 @@ foreach ($requiredToken in @('AUTH_DEVTOOLS_OBSERVE', 'AUTH_DEVTOOLS_NATIVE', 'S
     Assert-Condition ($devtoolsAdr.Contains($requiredToken)) "DevTools ADR must preserve '${requiredToken}' decision text."
 }
 
+# Browser search provider service boundaries
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-search/Cargo.toml' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-search/src/lib.rs' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-search/src/config.rs' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-search/src/service.rs' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-browser-search/src/plugin.rs' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-reference/src/s3e.rs' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-reference/tests/s3e_acceptance.rs' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'crates/worldline-reference/tests/s3e_real_acceptance.rs' -Kind File)
+[void](Require-RepositoryPath -RelativePath 'docs/adr/ADR-BROWSER-SEARCH-PROVIDERS-V1.md' -Kind File)
+
+$searchManifest = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-search/Cargo.toml') -Raw
+Assert-Condition ($searchManifest.Contains('worldline-browser-services-contract')) 'worldline-browser-search must depend on the browser services contract.'
+Assert-Condition ($searchManifest.Contains('worldline-kernel')) 'worldline-browser-search must depend on the kernel plugin boundary.'
+foreach ($forbiddenToken in @('worldline-browser-cef', 'worldline-browser-provider', 'worldline-browser-adblock', 'cef')) {
+    Assert-Condition (-not $searchManifest.Contains($forbiddenToken)) "worldline-browser-search must not depend on '${forbiddenToken}'."
+}
+
+$searchSource = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-search/src/lib.rs') -Raw
+foreach ($forbiddenToken in @('worldline_browser_cef', 'worldline_browser_provider', 'cef_', 'NavigatePage', 'ActOnPage')) {
+    Assert-Condition (-not $searchSource.Contains($forbiddenToken)) "worldline-browser-search source must not reference '${forbiddenToken}'."
+}
+foreach ($requiredToken in @('SearchProviderConfig', 'SearchProviderService', 'SearchProviderPlugin', 'search_capability')) {
+    Assert-Condition ($searchSource.Contains($requiredToken)) "worldline-browser-search source must contain '${requiredToken}'."
+}
+
+$searchContractSource = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'crates/worldline-browser-services-contract/src/search.rs') -Raw
+foreach ($requiredToken in @('CONTRACT_BROWSER_SEARCH', 'OP_RESOLVE_SEARCH', 'SearchResolveRequest', 'SearchNavigationTarget', 'MAX_SEARCH_QUERY_LENGTH', 'MAX_SEARCH_TARGET_URL_LENGTH')) {
+    Assert-Condition ($searchContractSource.Contains($requiredToken)) "worldline-browser-services-contract search must declare '${requiredToken}'."
+}
+
+$searchAdr = Get-Content -LiteralPath (Get-RepositoryPath -RelativePath 'docs/adr/ADR-BROWSER-SEARCH-PROVIDERS-V1.md') -Raw
+foreach ($requiredToken in @('browser.search/0.1', 'SearchNavigationTarget', 'SearchResolveRequest', 'EVENT BUS IS NOT RPC', 'S3E')) {
+    Assert-Condition ($searchAdr.Contains($requiredToken)) "Browser search ADR must preserve '${requiredToken}' decision text."
+}
+
 Write-Host 'Architecture guard passed: GRACE layout, dependency direction, browser contracts/services, and request-policy interception boundaries are valid.'
+

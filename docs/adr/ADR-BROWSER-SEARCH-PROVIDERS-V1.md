@@ -54,6 +54,9 @@ Furthermore, user search queries represent sensitive personal data. If search pr
 7. **Production HTTPS vs. Test Loopback HTTP**:
    Production configurations require HTTPS. Unencrypted HTTP is rejected unless explicitly operating under loopback test configuration (`127.0.0.1` / `::1`), enabling deterministic local proving (S3E) without Internet access.
 
+8. **EVENT BUS IS NOT RPC**:
+   Search resolution is a synchronous Capability RPC returning a typed `SearchNavigationTarget` data value. Event delivery cannot determine, initiate, or replace an RPC result. Search queries are never broadcast over the event bus.
+
 ## Verification and Proving Slices
 
 - **T-001 Feasibility Evidence**:

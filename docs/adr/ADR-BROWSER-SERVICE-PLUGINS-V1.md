@@ -68,6 +68,7 @@ Change: C-BROWSER-TABS-HISTORY-SERVICES-20260901, C-BROWSER-DOWNLOADS-COOKIES-SE
 | `browser.downloads` | `0.1` | Experimental | `start`, `get`, `list`, `pause`, `resume`, `cancel` | `browser.downloads.read` (чтение/список), `browser.downloads.control` (управление) |
 | `browser.cookies` | `0.1` | Experimental | `get_metadata`, `get_value`, `set`, `delete` | `browser.cookies.metadata_read` (метаданные), `browser.cookies.value_read` (значения), `browser.cookies.mutate` (модификация), `browser.cookies.admin` (политика) |
 | `browser.site-data` | `0.1` | Experimental | `clear` | `browser.site_data.clear` (деструктивная очистка хранилища) |
+| `browser.search` | `0.1` | Experimental | `resolve` | `browser.search.resolve` (разрешение поискового запроса в цель навигации) |
 
 ### 3.1 Правила стабильности
 1. Экспериментальные контракты 0.1 могут уточняться на основе опыта интеграции с пользовательским интерфейсом (M1.4) без нарушения гарантий стабильности ядра.
@@ -87,6 +88,7 @@ Change: C-BROWSER-TABS-HISTORY-SERVICES-20260901, C-BROWSER-DOWNLOADS-COOKIES-SE
 | **Загрузки пользователя** | `DownloadRecordId`, `PageId`, URL, suggested filename, байты, статус, `ArtifactRef` | `DownloadsService` | Транзакционное хранилище установки плагина загрузок |
 | **Политика Cookie** | `CookiePolicy`, правила доступа сервиса к метаданным | `CookiesService` | Транзакционное хранилище установки плагина cookies |
 | **Значения Cookie / Storage** | Реальные значения cookies, localStorage, IndexedDB | CEF Engine Profile | Файловая БД профиля Chromium (`engine.cookies/0.1`, `engine.storage/0.1`) |
+| **Поиск в вебе** | Цель навигации `SearchNavigationTarget`, конфигурация провайдера | `SearchProviderPlugin` | Установочная конфигурация плагина поиска |
 | **Сессионная навигация** | Стек назад/вперед Chromium | CEF Engine | Внутреннее состояние процесса движка |
 | **Транспорт событий** | Очередь доставки `EventEnvelope` | Kernel Event Transport | Оперативная память / логический журнал |
 
