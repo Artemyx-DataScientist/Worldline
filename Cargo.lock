@@ -2807,6 +2807,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "worldline-browser-search"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "url",
+ "worldline-browser-services-contract",
+ "worldline-kernel",
+]
+
+[[package]]
 name = "worldline-browser-services-contract"
 version = "0.1.0"
 dependencies = [
