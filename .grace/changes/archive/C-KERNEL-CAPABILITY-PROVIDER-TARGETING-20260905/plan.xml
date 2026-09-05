@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-KERNEL-CAPABILITY-PROVIDER-TARGETING-20260905>
     <IntentSummary>
       Deliver the approved generic platform capability provider targeting enhancement in

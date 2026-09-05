@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-KERNEL-CAPABILITY-PROVIDER-TARGETING-20260905>
     <Summary>
       Deliver a generic platform enhancement to `worldline-kernel` by adding explicit
