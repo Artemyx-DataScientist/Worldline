@@ -1,0 +1,17 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-KERNEL-EFFECT-FENCE-REVOCATION-20260906</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+  <Rationale>This package closes audit finding F06. Admission-time checks and handle revocation are insufficient when asynchronous work can reach a privileged sink later.</Rationale>
+  <Alternatives>
+    <Alternative>Require each provider to poll cancellation. Rejected because cancellation is cooperative and cannot enforce authority at a commit boundary.</Alternative>
+    <Alternative>Kill the provider process on every revoke. Rejected because in-process and shared providers exist and process death still cannot undo escaped effects.</Alternative>
+  </Alternatives>
+  <DeferredDecisions>
+    <Decision>The concrete token representation and caching strategy are deferred to planning after profiling current broker and sink paths.</Decision>
+    <Decision>Per-domain target validation belongs to later broker packages.</Decision>
+  </DeferredDecisions>
+  <Scenarios>
+    <Scenario>A feature is revoked while waiting for browser input; its resumed call fails before navigation commit.</Scenario>
+    <Scenario>A network request was dispatched before crash and no response was recorded; recovery exposes Incomplete and requires explicit reconciliation.</Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

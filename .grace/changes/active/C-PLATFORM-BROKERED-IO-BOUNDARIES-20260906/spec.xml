@@ -1,0 +1,69 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-PLATFORM-BROKERED-IO-BOUNDARIES-20260906>
+    <Summary>Close ambient I/O paths with separate trusted brokers for network egress, credentials, filesystem portals, downloads, and large artifacts, using capability-scoped resources, engine-specific enforcement where required, streaming transport, and metadata-only observability.</Summary>
+    <Problem>The current request-policy callback does not prove complete network mediation, native same-account processes can reach ambient OS resources, credential handling lacks a non-exportable broker contract, and some download or blob paths can materialize whole files through bounded JSON-style frames. A generated feature could otherwise exfiltrate profile data, bypass browser policy, exhaust memory, or confuse access to metadata with access to bytes.</Problem>
+    <Goals>
+      <Goal>Inventory every egress plane: browser engine, feature host, model and integration providers, updater, browser services, and trusted system processes.</Goal>
+      <Goal>Provide separate network capabilities scoped by destination, protocol, method, redirect policy, origin context, byte budget, and purpose.</Goal>
+      <Goal>Provide non-exportable credential handles scoped to exact provider, account, operation, and destination.</Goal>
+      <Goal>Provide filesystem and artifact portals based on opaque handles rather than host paths.</Goal>
+      <Goal>Stream downloads and large artifacts with chunk, total-size, time, concurrency, digest, and backpressure limits.</Goal>
+      <Goal>Preserve engine-specific request enforcement behind the portable broker contract.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>SPEC APPROVAL DOES NOT APPROVE A PLAN OR IMPLEMENTATION.</Constraint>
+      <Constraint>The architecture decision, effect fence, durable activation, untrusted feature host, and browser gateway changes must define their contracts before this package is planned.</Constraint>
+      <Constraint>Feature-runtime network, browser-engine network, updater network, and model-provider network are distinct authority planes and cannot share one ambient grant.</Constraint>
+      <Constraint>Credential values are never returned to ordinary features when the broker can perform the authorized operation on their behalf.</Constraint>
+      <Constraint>A filesystem path is data, not authority; access requires an opaque portal handle bound to an allowed root, operation, and activation epoch.</Constraint>
+      <Constraint>Download metadata authority does not imply artifact-byte authority, and artifact-byte authority does not imply arbitrary filesystem write authority.</Constraint>
+      <Constraint>Browser request policy must be enforced in the real engine path; an advisory callback or reference fixture is not complete egress evidence.</Constraint>
+      <Constraint>Redirect, DNS rebinding, proxy, service-worker, WebSocket, download, and retry behavior must preserve destination and budget policy.</Constraint>
+      <Constraint>No raw secrets, page bodies, file contents, queries, URLs with sensitive parameters, or credential handles enter generic telemetry.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Implementing a universal engine-independent network stack.</NonGoal>
+      <NonGoal>Giving features raw sockets or host filesystem paths.</NonGoal>
+      <NonGoal>General cloud secret management.</NonGoal>
+      <NonGoal>Automatically retrying non-idempotent external operations.</NonGoal>
+      <NonGoal>UI design for file pickers or permission prompts beyond their broker contract.</NonGoal>
+      <NonGoal>Marketplace supply-chain policy.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>An egress inventory names the authoritative enforcement point and default policy for browser engine, feature host, updater, model, integration, and system-service traffic.</Criterion>
+      <Criterion>An ordinary feature without a network handle cannot create direct or indirect outbound traffic, including through raw WASI sockets, native helpers, browser debug APIs, or unbrokered service calls.</Criterion>
+      <Criterion>Network grants constrain destination, resolved address policy, protocol, method, redirects, request and response bytes, concurrency, deadline, and retry class and are revalidated through an effect fence.</Criterion>
+      <Criterion>Real CEF tests cover navigation and subresource policy, redirects, blocked schemes, service-worker or equivalent mediated paths where supported, and explicit unsupported coverage where interception is unavailable.</Criterion>
+      <Criterion>Credential broker operations use non-exportable handles and bind provider, account, operation, destination, runtime, and activation epoch; cross-runtime reuse and logging are denied.</Criterion>
+      <Criterion>Filesystem access is possible only through bounded portal handles and canonicalized roots, with traversal, alternate streams, UNC, symlink or reparse escape, and stale-handle tests appropriate to the target OS.</Criterion>
+      <Criterion>Downloads use a streaming or chunked data plane with backpressure and total-size quotas and do not buffer an unbounded complete file in one JSON envelope or process heap.</Criterion>
+      <Criterion>Download metadata, artifact bytes, export destination, and overwrite consent remain separate capabilities.</Criterion>
+      <Criterion>Digest verification and crash recovery preserve a single authoritative artifact state and classify uncertain external effects as Incomplete.</Criterion>
+      <Criterion>Metrics record counts, byte budgets, duration, destination class, denial, and outcome without raw secrets or user content.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-BROWSER-SERVICE-PLUGINS />
+      <M-PERSISTENCE-RECOVERY />
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>cargo test -p worldline-browser-adblock</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-downloads</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-storage</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-reference-external --test malicious_wasm_acceptance</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserRequestPolicy</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserServices</ExpectedCommand>
+      <ExpectedEvidence>Fresh negative and real-engine evidence proves separate egress planes, non-exportable credentials, path-free filesystem authority, streaming bounded artifacts, redirect and destination enforcement, and metadata-only diagnostics.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>Some enforcement must remain engine-specific while presenting common grant and outcome semantics to features.</Assumption>
+      <Assumption>Existing blob and download contracts can evolve additively to a streaming data plane without exposing host paths.</Assumption>
+      <Assumption>Updater egress remains system-only and can be independently pinned and audited.</Assumption>
+    </Assumptions>
+  </C-PLATFORM-BROKERED-IO-BOUNDARIES-20260906>
+</GraceChangeSpec>

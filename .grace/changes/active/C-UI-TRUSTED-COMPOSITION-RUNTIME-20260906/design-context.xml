@@ -1,0 +1,17 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-UI-TRUSTED-COMPOSITION-RUNTIME-20260906</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+  <Rationale>This package closes audit finding F07. Security decisions remain trustworthy only when their visual identity, input, and provenance cannot be controlled by page or feature code.</Rationale>
+  <Alternatives>
+    <Alternative>Let features contribute arbitrary web UI to browser chrome. Rejected because CSS, script, focus, and origin confusion make trusted consent spoofable.</Alternative>
+    <Alternative>Make all UI fixed in core. Rejected because it prevents the product-level programmability Worldline is intended to provide.</Alternative>
+  </Alternatives>
+  <DeferredDecisions>
+    <Decision>The rendering toolkit and compositor process topology are selected during planning after accessibility and IME spikes.</Decision>
+    <Decision>The full visual design system remains product-design work after security geometry is proven.</Decision>
+  </DeferredDecisions>
+  <Scenarios>
+    <Scenario>A feature contributes a sidebar list and command but the origin and stop controls remain visually and interactively protected.</Scenario>
+    <Scenario>The feature view crashes while a permission prompt is open; the prompt remains valid or fails closed under trusted shell ownership.</Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

@@ -1,0 +1,70 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-BROWSER-CAPABILITY-GATEWAY-CONFINEMENT-20260906>
+    <Summary>Make one authenticated browser capability gateway the only path from features and browser services to engine and browser-domain effects, with truthful backend operation profiles, exact resource-target validation, real CEF semantics, and no silent no-op degradation.</Summary>
+    <Problem>The Astra audit found that CEF handshake and contract vocabulary advertise query, action, capture, and permission surfaces while the adapter returns Unsupported for important operations; reference S2 can mask the gap. Browser services also remain callable as domain libraries rather than being universally confined behind one production broker. Default or no-op adapters can turn missing enforcement into apparent success.</Problem>
+    <Goals>
+      <Goal>Publish a negotiated operation profile that reflects the selected backend implementation exactly.</Goal>
+      <Goal>Route tabs, windows, navigation, page observation, semantic query, semantic action, capture, permissions, history, bookmarks, and engine extensions through authenticated capability admission.</Goal>
+      <Goal>Validate context, page, frame, document revision, origin, operation, and activation epoch again at the effect sink.</Goal>
+      <Goal>Implement a minimum useful real-CEF programmable-page profile without raw JavaScript or debugger escape hatches.</Goal>
+      <Goal>Make unsupported, unavailable, degraded, stale, denied, incomplete, and backend-crash outcomes explicit and testable.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>SPEC APPROVAL DOES NOT APPROVE A PLAN OR IMPLEMENTATION.</Constraint>
+      <Constraint>The vNext architecture and effect-fence changes must be applied before this change is planned.</Constraint>
+      <Constraint>The gateway may be built for trusted callers before the untrusted feature host, but it cannot be published to untrusted callers until their isolation package is applied.</Constraint>
+      <Constraint>No browser service or feature may call CEF, CDP, native handles, profile storage, or backend internals directly.</Constraint>
+      <Constraint>Backend support negotiation must fail closed and cannot advertise operations implemented only by ReferenceBrowserBackend.</Constraint>
+      <Constraint>Semantic actions use typed operation vocabulary and revision-bound element references; generated JavaScript strings and unrestricted script evaluation are forbidden.</Constraint>
+      <Constraint>Permissions are decided by trusted policy projection and default deny; event subscribers cannot answer synchronous engine permission callbacks.</Constraint>
+      <Constraint>Engine-specific extensions are separately named and separately granted, never smuggled into portable operations.</Constraint>
+      <Constraint>Process-tree cleanup is availability containment, not proof of the CEF or OS sandbox; both claims require separate runtime evidence.</Constraint>
+      <Constraint>Search resolution remains separate from navigation and the approved browser-search plan remains immutable.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Firefox or Gecko implementation.</NonGoal>
+      <NonGoal>Full DevTools Protocol exposure to ordinary features.</NonGoal>
+      <NonGoal>Arbitrary DOM script execution.</NonGoal>
+      <NonGoal>Implementing every browser service or every engine operation.</NonGoal>
+      <NonGoal>Network egress, filesystem, credential, and download-byte brokering, which belong to a separate package.</NonGoal>
+      <NonGoal>Trusted shell UI composition.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The provider handshake and operation profile are derived from the selected backend and never claim support for an unconditional Unsupported implementation.</Criterion>
+      <Criterion>The common portable profile includes real CEF navigation, page observation, bounded semantic query, at least one typed semantic action, and bounded capture; any missing operation is explicit and absent from advertised support.</Criterion>
+      <Criterion>Each request carries authenticated caller, installation, runtime, capability handle, operation, resource selector, deadline, and effect fence across the private IPC boundary.</Criterion>
+      <Criterion>The authoritative gateway revalidates BrowserContextId, PageId, frame, DocumentRevision, origin, operation, grant scope, and activation epoch immediately before an effect.</Criterion>
+      <Criterion>Stale element, cross-context, cross-origin, cross-frame, and replaced-runtime requests fail with distinct typed outcomes and cause no browser mutation.</Criterion>
+      <Criterion>Browser service entrypoints cannot be reached by an untrusted runtime except through the gateway and their own narrower capability contracts.</Criterion>
+      <Criterion>History and bookmarks remain service-owned state with separate read and mutation authority; an absent bookmarks provider is reported as NotPresent rather than simulated by engine state.</Criterion>
+      <Criterion>Architecture checks reject direct feature or service dependencies on worldline-browser-cef, CDP, native provider internals, raw profile paths, or debugger APIs.</Criterion>
+      <Criterion>Default adapter construction cannot silently select a no-op implementation for a required policy or operation.</Criterion>
+      <Criterion>Runtime evidence records CEF sandbox enablement, browser and renderer privilege profiles, process roles, inherited handles, and failure containment separately from Job Object tree cleanup.</Criterion>
+      <Criterion>Real Windows CEF acceptance rejects ReferenceBrowserBackend substitution and records provider, runtime, CEF artifact, operation profile, and OS identity.</Criterion>
+      <Criterion>Provider crash or Unsupported operation degrades only the requested feature and leaves protected browsing, stop, and recovery paths available.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-BROWSER-SERVICE-PLUGINS />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>cargo test -p worldline-browser-contract</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-provider</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-cef</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-provider-process</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-reference --test s2_acceptance</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite BrowserProvider</ExpectedCommand>
+      <ExpectedEvidence>Fresh real-CEF evidence proves truthful operation negotiation, authenticated gateway routing, exact resource and epoch checks, bounded query/action/capture, explicit unsupported behavior, and rejection of direct backend access.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The current CEF adapter can implement a small semantic profile without exposing raw JavaScript or CDP to ordinary features.</Assumption>
+      <Assumption>Existing browser contracts can evolve additively through operation profiles while stable v1 fixtures remain readable.</Assumption>
+      <Assumption>History and bookmarks can remain independent service-owned state while using gateway-mediated engine effects and narrower service capabilities.</Assumption>
+    </Assumptions>
+  </C-BROWSER-CAPABILITY-GATEWAY-CONFINEMENT-20260906>
+</GraceChangeSpec>

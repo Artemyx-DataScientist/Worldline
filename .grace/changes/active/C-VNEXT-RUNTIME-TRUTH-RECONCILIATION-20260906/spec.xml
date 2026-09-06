@@ -1,0 +1,63 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-VNEXT-RUNTIME-TRUTH-RECONCILIATION-20260906>
+    <Summary>Establish an evidence-backed current-state baseline before further vNext implementation by reconciling runtime support, trusted-computing-base ownership, GRACE linkage, verification routing, readiness language, and the composite integration delta.</Summary>
+    <Problem>The Astra audit found that current architecture labels overstate several real paths: CEF advertises operations it returns as Unsupported, reference proving slices are sometimes read as real-engine evidence, all ten GRACE modules lack linked non-test governed files, and existing verification commands do not always point clearly to their evidence. Without a corrected baseline, later agents can optimize against false abstractions and silently enlarge the trusted boundary.</Problem>
+    <Goals>
+      <Goal>Publish a per-backend operation support matrix that distinguishes contract, reference, CEF, native-process, WASM, and future engine profiles.</Goal>
+      <Goal>Publish a TCB and effective-resource map covering kernel, mandatory brokers, engine process, updater and recovery launcher, feature host, storage, UI security surfaces, OS, and third-party runtimes.</Goal>
+      <Goal>Reconcile current GRACE graph and verification linkage to real implementation and test files using repository-approved semantic markup.</Goal>
+      <Goal>Align roadmap, ADR, graph, verification, and CI claims with scaffolded, wired, and verified evidence states.</Goal>
+      <Goal>Record the current active search bundle and the P0 through P3 integration delta without changing their approved contracts.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>SPEC APPROVAL DOES NOT APPROVE A PLAN OR IMPLEMENTATION.</Constraint>
+      <Constraint>This change is current-state reconciliation. It must not change production behavior, public runtime contracts, security policy, or persisted schemas.</Constraint>
+      <Constraint>The approved C-BROWSER-SEARCH-PROVIDERS-20260904 spec and plan are immutable and outside observed write scope.</Constraint>
+      <Constraint>The unrelated untracked scripts/Maintain-CargoCache.ps1 file is external drift and must remain untouched.</Constraint>
+      <Constraint>Reference, model, fixture, local, hosted, device, and manual evidence must remain separately labelled.</Constraint>
+      <Constraint>Do not manufacture fine-grained graph modules before separate ownership and verification exist.</Constraint>
+      <Constraint>Do not mark unsupported CEF operations as available or treat process cleanup as an OS security sandbox.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Implementing missing CEF operations.</NonGoal>
+      <NonGoal>Implementing effect fences, package activation, feature sandboxing, UI composition, or brokered I/O.</NonGoal>
+      <NonGoal>Accepting ADR-WORLDLINE-VNEXT.</NonGoal>
+      <NonGoal>Merging the composite integration branch into master.</NonGoal>
+      <NonGoal>Executing, modifying, applying, or archiving the active browser-search change.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>A versioned operation-support matrix names every currently declared browser operation and reports Reference, CEF, and other runtime support as Implemented, Unsupported, Degraded, or NotPresent with source anchors.</Criterion>
+      <Criterion>A versioned TCB/resource map identifies which component owns identity, policy, authorization, effect commit, credentials, network egress, engine state, UI trust indicators, updates, and recovery.</Criterion>
+      <Criterion>Every current graph module links to at least one real non-test implementation owner through valid GRACE semantic markup, or is explicitly narrowed through an approved graph delta rather than left as an unexplained blocker.</Criterion>
+      <Criterion>Every current verification entry has commands that clearly address its declared test files or documents, with deliberate exceptions documented.</Criterion>
+      <Criterion>grace status reports no unexplained missing-implementation linkage blockers introduced or preserved by this reconciliation.</Criterion>
+      <Criterion>Roadmap and ADR status language distinguishes contract/model-tested, wired, and verified and does not promote ReferenceBrowserBackend evidence to real CEF evidence.</Criterion>
+      <Criterion>The active C-BROWSER-SEARCH-PROVIDERS-20260904 spec and plan remain byte-for-byte unchanged.</Criterion>
+      <Criterion>The integration delta remains decomposed into P0 through P3 with explicit TCB, capability, engine-profile, evidence, and rollback review requirements.</Criterion>
+      <Criterion>A completion packet reports exact files changed, current dirty-tree coexistence, commands, unresolved evidence gaps, and no-runtime-delta confirmation.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-GRACE-CONTROL-LAYER />
+      <M-CI-BASELINE />
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-PERSISTENCE-RECOVERY />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-BROWSER-SERVICE-PLUGINS />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>grace status --path . --with modules --json --fail-on errors</ExpectedCommand>
+      <ExpectedCommand>cargo metadata --no-deps --format-version 1</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</ExpectedCommand>
+      <ExpectedEvidence>A machine-readable current-state report has zero unexplained module-linkage blockers, the support and TCB maps cite real files, architecture guards remain green, and no production behavior changed.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The current ten GRACE blockers primarily reflect absent file-local semantic linkage rather than absent Rust implementation; the plan must verify this per module.</Assumption>
+      <Assumption>Existing coarse module ownership remains sufficient for reconciliation; any module split requires an explicit target graph delta in the later approved plan.</Assumption>
+      <Assumption>The audit snapshot and integration ledger are valid decision inputs but do not replace fresh repository inspection during planning.</Assumption>
+    </Assumptions>
+  </C-VNEXT-RUNTIME-TRUTH-RECONCILIATION-20260906>
+</GraceChangeSpec>

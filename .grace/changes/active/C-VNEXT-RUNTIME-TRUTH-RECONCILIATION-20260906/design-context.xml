@@ -1,0 +1,17 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-VNEXT-RUNTIME-TRUTH-RECONCILIATION-20260906</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+  <Rationale>This is the M0.8 entry gate. It addresses audit finding F12 and prevents later packages from relying on stale readiness claims, missing GRACE linkage, or a composite branch being treated as one verified release.</Rationale>
+  <Alternatives>
+    <Alternative>Continue implementation and fix documentation later. Rejected because agents would compound false support and trust-boundary assumptions.</Alternative>
+    <Alternative>Rewrite the current branch into a perfect history first. Rejected because published history is useful evidence and the problem is semantic integration, not commit aesthetics.</Alternative>
+  </Alternatives>
+  <DeferredDecisions>
+    <Decision>Whether coarse graph modules should split is deferred until the mapping demonstrates independent ownership and verification.</Decision>
+    <Decision>Merge and cherry-pick mechanics for P0 through P3 remain outside this change.</Decision>
+  </DeferredDecisions>
+  <Scenarios>
+    <Scenario>An agent asks whether browser.query works through CEF and receives an exact support-state answer with source and test evidence.</Scenario>
+    <Scenario>A reviewer follows a GRACE module to real implementation files and its named verification without inferring readiness from prose.</Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

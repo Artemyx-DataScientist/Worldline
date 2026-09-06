@@ -1,0 +1,17 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-PLATFORM-UNTRUSTED-FEATURE-HOST-20260906</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+  <Rationale>This package closes audit findings F03 and F04. It combines language-level containment with an operating-system boundary because neither WASM imports nor process supervision alone controls all host resources.</Rationale>
+  <Alternatives>
+    <Alternative>Run generated Rust binaries as ordinary child processes. Rejected because same-account native code has ambient OS authority.</Alternative>
+    <Alternative>Run WASM in the kernel process only. Rejected because a runtime or host-function bug would share the kernel blast radius.</Alternative>
+  </Alternatives>
+  <DeferredDecisions>
+    <Decision>The exact Windows sandbox primitive is selected by a bounded spike and negative tests during planning.</Decision>
+    <Decision>Component signing and marketplace review remain outside this runtime package.</Decision>
+  </DeferredDecisions>
+  <Scenarios>
+    <Scenario>A generated feature requests network without a handle and receives a denial before any socket is opened.</Scenario>
+    <Scenario>A malicious component exhausts fuel; its runtime is terminated while normal browsing and recovery remain available.</Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

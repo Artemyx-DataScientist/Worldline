@@ -1,0 +1,65 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-UI-TRUSTED-COMPOSITION-RUNTIME-20260906>
+    <Summary>Build a trusted browser-shell composition runtime with protected security surfaces and bounded feature-owned slots, commands, and view schemas so user and AI functionality can extend the UI without spoofing origin, consent, permissions, stop, update, or recovery controls.</Summary>
+    <Problem>Current UI evidence is a reference fixture rather than a real protected compositor. If arbitrary feature UI can draw over trusted browser chrome, capture focus, imitate permission prompts, or hide stop and recovery controls, capability security becomes socially bypassable even when backend authorization is correct.</Problem>
+    <Goals>
+      <Goal>Define protected surfaces for origin and context identity, permission and capability consent, active automation, stop, update, quarantine, and recovery.</Goal>
+      <Goal>Define bounded extension slots, typed commands, declarative view schemas, provenance labels, focus rules, and resource budgets for feature UI.</Goal>
+      <Goal>Separate trusted shell rendering and input ownership from page content and untrusted feature views.</Goal>
+      <Goal>Provide accessible keyboard, screen-reader, IME, scaling, localization, and failure behavior for trusted controls.</Goal>
+      <Goal>Allow optional UI features to crash, reload, or be disabled without losing basic browsing and recovery.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>SPEC APPROVAL DOES NOT APPROVE A PLAN OR IMPLEMENTATION.</Constraint>
+      <Constraint>The vNext architecture and browser gateway contracts must be applied before this package is planned.</Constraint>
+      <Constraint>Page DOM, engine content, and untrusted feature views cannot overlap, restyle, intercept, or impersonate protected security surfaces.</Constraint>
+      <Constraint>Trusted prompts identify requesting principal, operation, resource, duration, and consequence from host-owned data rather than feature-provided labels.</Constraint>
+      <Constraint>Feature UI cannot grant itself capability, change policy, suppress denials, close recovery, or hide active automation indicators.</Constraint>
+      <Constraint>UI events cannot become an alternative RPC, authorization, or persistence channel.</Constraint>
+      <Constraint>Raw HTML, CSS, JavaScript, native HWND, or engine view handles are not the ordinary feature UI ABI.</Constraint>
+      <Constraint>A protected stop action must remain available under feature loop, rendering failure, focus capture attempt, or engine crash.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Final visual branding or animation polish.</NonGoal>
+      <NonGoal>Arbitrary native UI plugins.</NonGoal>
+      <NonGoal>Embedding full web content in trusted permission dialogs.</NonGoal>
+      <NonGoal>Implementing browser engine rendering.</NonGoal>
+      <NonGoal>Marketplace review UI.</NonGoal>
+      <NonGoal>Replacing operating-system accessibility services.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>A UI contract classifies every surface as protected system, trusted application, page content, or untrusted feature and defines permitted composition relationships.</Criterion>
+      <Criterion>Origin, context mode, permission, capability grant, active automation, stop, update, quarantine, and recovery indicators are rendered from trusted state outside feature-controlled layout.</Criterion>
+      <Criterion>Feature UI uses versioned slots, typed commands, bounded data models, and declarative views with explicit provenance and cannot submit arbitrary script or native handles.</Criterion>
+      <Criterion>Focus, keyboard, clipboard, drag-and-drop, pointer capture, fullscreen, popup, and modal behavior preserve protected controls and identify the active requesting surface.</Criterion>
+      <Criterion>A malicious feature fixture cannot cover, imitate, relabel, dismiss, or intercept a protected prompt or stop control.</Criterion>
+      <Criterion>Accessibility tree, keyboard navigation, screen reader labels, IME composition, DPI scaling, and localization work for protected surfaces in the supported desktop profile.</Criterion>
+      <Criterion>Feature-view crash, render loop, oversized model, event flood, or invalid schema is contained to its slot and leaves browsing and recovery usable.</Criterion>
+      <Criterion>Safe mode starts a minimal trusted shell without loading optional feature UI or page-provided code.</Criterion>
+      <Criterion>Snapshot and interaction evidence records exact runtime, OS, scale, input mode, and provider identity and is not replaced by reference-only tests.</Criterion>
+      <Criterion>Architecture checks prevent untrusted UI crates from importing updater, credential store, policy database, raw engine UI, or recovery internals.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-REFERENCE-PROVING-SLICE />
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-BROWSER-SERVICE-PLUGINS />
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-CI-BASELINE />
+      <M-GRACE-CONTROL-LAYER />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>cargo test -p worldline-ui-runtime</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-reference --test trusted_ui_composition_acceptance</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ProvingSlice</ExpectedCommand>
+      <ExpectedEvidence>Fresh desktop evidence proves protected surfaces, anti-spoofing and focus rules, accessibility and IME behavior, slot-level failure containment, trusted stop, and safe-mode shell operation.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>A new UI ownership module will be justified during planning because current graph has no production UI runtime owner.</Assumption>
+      <Assumption>Bounded declarative composition covers ordinary feature UI, while rare system-native UI remains separately trusted.</Assumption>
+      <Assumption>The supported first desktop profile is Windows with explicit later platform evidence.</Assumption>
+    </Assumptions>
+  </C-UI-TRUSTED-COMPOSITION-RUNTIME-20260906>
+</GraceChangeSpec>

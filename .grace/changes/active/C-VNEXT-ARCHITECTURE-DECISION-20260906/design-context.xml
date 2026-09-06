@@ -1,0 +1,17 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-VNEXT-ARCHITECTURE-DECISION-20260906</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+  <Rationale>This package converts audit finding F08, the false-abstraction analysis, and the proposed ADR into durable architecture authority. Strategy C preserves portability of scenarios and data without forcing the weakest common engine API.</Rationale>
+  <Alternatives>
+    <Alternative>Chromium-first strategy A remains a fallback if the portable layer repeatedly blocks valuable CEF integration.</Alternative>
+    <Alternative>Full Chromium and Firefox parity strategy B is rejected until a second maintained runtime and demand justify its cost.</Alternative>
+  </Alternatives>
+  <DeferredDecisions>
+    <Decision>Exact engine-extension namespaces and compatibility encodings belong in later contract plans.</Decision>
+    <Decision>The Gecko embedding candidate remains deferred to a bounded future spike.</Decision>
+  </DeferredDecisions>
+  <Scenarios>
+    <Scenario>A portable feature requests page observation and receives an explicit profile response before activation.</Scenario>
+    <Scenario>A CEF-only feature declares an engine extension and is rejected on another runtime rather than silently degraded.</Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

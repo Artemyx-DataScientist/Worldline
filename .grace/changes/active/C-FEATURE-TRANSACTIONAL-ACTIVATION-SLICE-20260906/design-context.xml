@@ -1,0 +1,17 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-FEATURE-TRANSACTIONAL-ACTIVATION-SLICE-20260906</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+  <Rationale>This is the decisive product test rather than another horizontal subsystem. It operationalizes generate, validate, test, activate, monitor, and rollback without granting the builder or feature administrative authority.</Rationale>
+  <Alternatives>
+    <Alternative>Open arbitrary generated features after unit tests of each subsystem. Rejected because composition failures and privilege paths would remain untested.</Alternative>
+    <Alternative>Use a builtin trusted demo feature. Rejected because it would not test the ordinary untrusted package and permission path.</Alternative>
+  </Alternatives>
+  <DeferredDecisions>
+    <Decision>The feature UX wording and visual polish are deferred; the security and recovery journey is normative.</Decision>
+    <Decision>Model generation may use a deterministic fixture initially, but generated output must traverse the same builder and validator boundary.</Decision>
+  </DeferredDecisions>
+  <Scenarios>
+    <Scenario>The user asks for a page-outline sidebar, reviews its narrow page-read and UI-slot permissions, activates it, and optionally grants one typed navigation action.</Scenario>
+    <Scenario>A bad revision loops during startup; monitoring quarantines it, rolls back the full generation, and trusted browsing remains available after restart.</Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

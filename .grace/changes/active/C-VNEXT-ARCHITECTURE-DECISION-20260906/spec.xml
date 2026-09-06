@@ -1,0 +1,64 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-VNEXT-ARCHITECTURE-DECISION-20260906>
+    <Summary>Convert the Astra audit recommendation into an approved Worldline vNext architecture decision: portable product, feature, capability, state, and UI models above substantially engine-specific runtimes, with Chromium and CEF as the first desktop assembly.</Summary>
+    <Problem>The current accepted invariants correctly prevent product policy from entering the kernel, but they do not distinguish ordinary replaceable features from mandatory security-critical system components. Existing engine-neutral contracts can also be misread as a promise of Chromium and Firefox parity even though no Gecko runtime exists. The project needs a durable decision defining the trusted core, the wider TCB, portability boundary, engine profiles, version domains, and authority unavailable to generated code.</Problem>
+    <Goals>
+      <Goal>Accept or explicitly supersede ADR-WORLDLINE-VNEXT with strategy C and CEF-first implementation.</Goal>
+      <Goal>Define the minimal control kernel separately from the full trusted computing base.</Goal>
+      <Goal>Clarify that mandatory system brokers and protected recovery and UI components may be required by boot policy without receiving hidden product-role authority.</Goal>
+      <Goal>Define portable capability, feature, UI, state, and typed-outcome contracts plus negotiated engine-specific operation profiles and extensions.</Goal>
+      <Goal>Define independent version domains for product release, package, manifest schema, feature ABI, capability contract, engine profile, state schema, and native IPC.</Goal>
+      <Goal>Freeze architectural invariants that AI agents and generated features cannot change through ordinary feature authority.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>SPEC APPROVAL DOES NOT APPROVE A PLAN OR IMPLEMENTATION.</Constraint>
+      <Constraint>C-VNEXT-RUNTIME-TRUTH-RECONCILIATION-20260906 must be approved and applied before this change is planned.</Constraint>
+      <Constraint>The kernel remains free of browser, model, provider, workspace, and UI domain policy.</Constraint>
+      <Constraint>Trust class comes from verified installation and boot policy, never from plugin name, product role, signature alone, or AI authorship.</Constraint>
+      <Constraint>Unsupported engine guarantees fail explicitly; security-sensitive downgrade or silent no-op behavior is forbidden.</Constraint>
+      <Constraint>CEF, CDP, Gecko, native pointers, raw profile paths, and engine database schemas must not enter the portable feature ABI.</Constraint>
+      <Constraint>Firefox parity is not a current product commitment and no Gecko implementation is authorized by this change.</Constraint>
+      <Constraint>Ordinary user or AI features cannot replace authorization, credential, updater, consent, origin-indicator, stop, or recovery mechanisms.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Implementing any browser engine adapter.</NonGoal>
+      <NonGoal>Implementing the feature host, sandbox, package loader, brokers, or UI runtime.</NonGoal>
+      <NonGoal>Selecting a desktop Gecko embedding technology.</NonGoal>
+      <NonGoal>Promising identical behavior across engines.</NonGoal>
+      <NonGoal>Opening a plugin marketplace.</NonGoal>
+      <NonGoal>Changing the active browser-search bundle.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>An accepted ADR states that Worldline uses a portable product model with engine-specific runtimes and names Chromium and CEF as the first desktop runtime.</Criterion>
+      <Criterion>The ADR distinguishes the small generic kernel from the complete TCB, including OS, engine privileged process, FFI, Wasmtime host, mandatory brokers, protected UI, updater, and recovery launcher.</Criterion>
+      <Criterion>The kernel invariant is clarified so product role never grants privilege while verified mandatory system components can be required by boot composition.</Criterion>
+      <Criterion>A capability taxonomy distinguishes portable operations, engine-profile operations, engine-specific extensions, system-only capabilities, and explicitly forbidden ordinary-feature capabilities.</Criterion>
+      <Criterion>Operation negotiation returns an explicit support profile and cannot advertise an operation whose selected backend returns unconditional Unsupported.</Criterion>
+      <Criterion>All version domains and their compatibility or fail-closed rules are listed independently.</Criterion>
+      <Criterion>Generated code is explicitly denied raw native execution, arbitrary process spawn, ambient filesystem and network access, credential export, updater control, sandbox control, and direct engine debugging by default.</Criterion>
+      <Criterion>A Gecko decision gate requires demonstrated product demand, supported embedding, update ownership, isolation evidence, and bounded investment before implementation.</Criterion>
+      <Criterion>Follow-on changes have explicit dependency order and do not inherit approval from this architecture decision.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-GRACE-CONTROL-LAYER />
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-BROWSER-CONTRACT-ENGINE-SPIKE />
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-BROWSER-SERVICE-PLUGINS />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>cargo tree -p worldline-kernel</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-contract</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Test-WorldlineArchitecture.ps1</ExpectedCommand>
+      <ExpectedEvidence>The accepted ADR, roadmap, module projections, capability vocabulary, and executable architecture checks agree on strategy C, kernel purity, explicit engine profiles, fail-closed unsupported operations, and protected system authority.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The reconciliation package confirms the audit findings and current CEF-first runtime facts.</Assumption>
+      <Assumption>A narrow portable layer remains valuable even when individual features require an engine-specific profile.</Assumption>
+      <Assumption>Existing accepted ADRs can be retained where compatible and explicitly superseded or narrowed where they overstate current reality.</Assumption>
+    </Assumptions>
+  </C-VNEXT-ARCHITECTURE-DECISION-20260906>
+</GraceChangeSpec>

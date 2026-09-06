@@ -1,0 +1,17 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-BROWSER-CAPABILITY-GATEWAY-CONFINEMENT-20260906</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+  <Rationale>This package closes audit findings F01, F02, and F09. A shared trait is useful only when advertised support and all real effects pass through the same authoritative gateway.</Rationale>
+  <Alternatives>
+    <Alternative>Expose CEF or CDP directly to features. Rejected because it bypasses portable resources, authority, and update compatibility.</Alternative>
+    <Alternative>Return success from unavailable policy adapters. Rejected because silent degradation invalidates security and readiness evidence.</Alternative>
+  </Alternatives>
+  <DeferredDecisions>
+    <Decision>The first exact semantic action set is chosen during planning from the smallest useful generated-feature scenario.</Decision>
+    <Decision>Permission prompt UI belongs to the trusted UI package; the gateway owns only synchronous fail-closed policy projection.</Decision>
+  </DeferredDecisions>
+  <Scenarios>
+    <Scenario>A feature queries a page, navigation changes the document revision, and the subsequent action on the stale element is denied.</Scenario>
+    <Scenario>A backend lacks capture support; negotiation omits capture and invocation returns explicit Unsupported without affecting navigation.</Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

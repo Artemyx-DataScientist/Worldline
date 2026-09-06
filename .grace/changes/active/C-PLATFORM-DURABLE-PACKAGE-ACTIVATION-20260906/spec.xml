@@ -1,0 +1,70 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-PLATFORM-DURABLE-PACKAGE-ACTIVATION-20260906>
+    <Summary>Replace model-only upgrade state with a production-backed immutable package catalog and crash-safe activation of one code, state, policy, and authority generation, including quarantine, LastKnownGood rollback, and independent recovery boot.</Summary>
+    <Problem>The current upgrade, quarantine, safe-mode, and bisect types are useful models but do not form a durable loader that selects executable package bytes and matching state after a fresh process start. Without one atomic generation pointer, AI-generated updates can leave code, state, policy, and authority out of sync or make recovery depend on the broken optional feature.</Problem>
+    <Goals>
+      <Goal>Store immutable package revisions identified by digest and provenance separately from installation and runtime identities.</Goal>
+      <Goal>Implement stage, compatibility check, migration-on-copy, validation, atomic generation selection, observation, quarantine, and rollback.</Goal>
+      <Goal>Bind every activation to a monotonic epoch consumed by effect fences and runtime handles.</Goal>
+      <Goal>Start LastKnownGood and protected recovery composition without loading optional feature code.</Goal>
+      <Goal>Run core and engine updates through a separately trusted updater with authenticated immutable artifacts and a rollback candidate.</Goal>
+      <Goal>Preserve installation-owned data across compatible disable, rollback, and engine or core updates.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>SPEC APPROVAL DOES NOT APPROVE A PLAN OR IMPLEMENTATION.</Constraint>
+      <Constraint>C-VNEXT-ARCHITECTURE-DECISION-20260906 and C-KERNEL-EFFECT-FENCE-REVOCATION-20260906 must be applied before this change is planned.</Constraint>
+      <Constraint>Installing package bytes must never activate code or grant authority.</Constraint>
+      <Constraint>Package revisions are immutable; in-place overwrite of active executable or state is forbidden.</Constraint>
+      <Constraint>Migration runs on a copy and rollback selects a prior compatible generation; reverse migration of the only state copy is forbidden.</Constraint>
+      <Constraint>Exactly one durable Current generation may be visible after recovery.</Constraint>
+      <Constraint>Recovery, updater, and safe-mode launch paths cannot execute optional user features to become operational.</Constraint>
+      <Constraint>Ordinary features cannot invoke, reconfigure, impersonate, or supply trust roots to the system updater.</Constraint>
+      <Constraint>Core and engine candidates require authenticated update metadata, artifact digest verification, compatibility validation, and an independently bootable fallback before selection.</Constraint>
+      <Constraint>Event delivery is not the source of truth for active package selection.</Constraint>
+      <Constraint>Incomplete external effects are reconciled, never blindly retried.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Public marketplace or package discovery.</NonGoal>
+      <NonGoal>General-purpose distributed update consensus.</NonGoal>
+      <NonGoal>Automatic acceptance of AI-generated packages.</NonGoal>
+      <NonGoal>Browser engine implementation.</NonGoal>
+      <NonGoal>Reverse migrations.</NonGoal>
+      <NonGoal>Public release publishing, marketplace distribution, or organization-wide key-management operations.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>A durable catalog stores immutable package revision, artifact digest, manifest version, dependencies, provenance, requested permissions, compatibility metadata, and install state without executing the package.</Criterion>
+      <Criterion>A durable generation record binds exact code revision, state generation, policy generation, granted capability set, activation epoch, and prior LastKnownGood pointer.</Criterion>
+      <Criterion>Activation follows stage, migrate-copy, validate, atomic-select, start, observe, and promote without overwriting the previous generation.</Criterion>
+      <Criterion>Failpoint and fresh-process tests at every durable transition recover to exactly one admissible Current generation or to protected recovery mode.</Criterion>
+      <Criterion>An old runtime and its handles cannot regain authority after a newer activation epoch is selected or rolled back.</Criterion>
+      <Criterion>Health failure during observation quarantines only the candidate revision and restores LastKnownGood without deleting installation data.</Criterion>
+      <Criterion>Safe mode and recovery launcher start from mandatory trusted composition when optional feature manifests, state, or code are corrupt.</Criterion>
+      <Criterion>A distinct trusted updater principal is the only authority permitted to stage core or engine candidates and cannot be invoked or reconfigured by an ordinary feature.</Criterion>
+      <Criterion>Core and engine update tests reject unauthenticated metadata, digest mismatch, wrong platform, incompatible feature ABI, rollback-incompatible state, and missing fallback before switch.</Criterion>
+      <Criterion>Compatibility negotiation independently covers manifest schema, feature ABI, capability contracts, state schema, host version, and engine profile.</Criterion>
+      <Criterion>Engine or core update can disable an incompatible optional feature while preserving its immutable package and user data for later recovery.</Criterion>
+      <Criterion>Operational telemetry records revision, phase, outcome, epoch, timing, and failure class without raw user payload or secrets.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-PERSISTENCE-RECOVERY />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>cargo test -p worldline-kernel --test upgrade_acceptance</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-kernel --test compatibility_acceptance</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-storage --test upgrade_chaos_acceptance</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-reference --test persistence_acceptance</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+      <ExpectedEvidence>Fresh-process failpoint evidence proves one atomic active generation, LastKnownGood rollback, quarantine, protected recovery boot, stale-epoch denial, preserved data, and truthful Incomplete outcomes.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>Current SQLite transactional and migration-on-copy primitives can own the generation pointer without turning the event journal into package state.</Assumption>
+      <Assumption>Executable artifacts can be addressed and verified by immutable digest before a runtime is created.</Assumption>
+      <Assumption>Existing upgrade models can be adapted or replaced without treating their current tests as production loader evidence.</Assumption>
+    </Assumptions>
+  </C-PLATFORM-DURABLE-PACKAGE-ACTIVATION-20260906>
+</GraceChangeSpec>

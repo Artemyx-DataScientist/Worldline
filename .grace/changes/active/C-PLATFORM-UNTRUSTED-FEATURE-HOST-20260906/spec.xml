@@ -1,0 +1,65 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-PLATFORM-UNTRUSTED-FEATURE-HOST-20260906>
+    <Summary>Provide the ordinary execution boundary for user and AI-generated functionality: immutable WASM Components running in an OS-restricted feature-host process with explicit capability invocation imports, opaque handles, finite resources, and no ambient operating-system authority.</Summary>
+    <Problem>The current WASM host proves import denial and resource limits but its WIT world exposes state and event operations rather than the browser-capability invocation model needed by programmable features. Native supervision terminates process trees but does not prevent same-account filesystem, network, process, or credential access. Treating either mechanism as a complete sandbox would make Worldline a local RCE surface.</Problem>
+    <Goals>
+      <Goal>Define a versioned feature ABI that can invoke admitted Worldline capabilities through host-issued opaque handles.</Goal>
+      <Goal>Run ordinary generated features in a separate OS-restricted host with deny-by-default filesystem, network, process, environment, device, and credential access.</Goal>
+      <Goal>Separate build sandbox, package validation, and runtime execution so generated source never executes with user-profile authority during compilation.</Goal>
+      <Goal>Enforce memory, CPU, wall-time, host-call concurrency, payload, rate, and storage quotas per runtime and installation.</Goal>
+      <Goal>Contain trap, panic, protocol violation, infinite loop, and host-call flood to the offending runtime.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>SPEC APPROVAL DOES NOT APPROVE A PLAN OR IMPLEMENTATION.</Constraint>
+      <Constraint>The vNext architecture, effect-fence, and durable package activation changes must be applied before untrusted feature activation is planned.</Constraint>
+      <Constraint>Ordinary user or AI-generated native binaries are not an allowed feature format.</Constraint>
+      <Constraint>WASM is an execution format, not authority; every privileged host import requires a valid runtime-scoped handle and broker admission.</Constraint>
+      <Constraint>No full WASI world, inherited environment, user profile, ambient network, arbitrary filesystem path, raw socket, process spawn, dynamic library load, or device access is exposed by default.</Constraint>
+      <Constraint>Manifest requested permissions are data and never self-grant authority.</Constraint>
+      <Constraint>Raw Grant, Principal, filesystem path, engine pointer, credential, or host object cannot cross the guest boundary.</Constraint>
+      <Constraint>Windows Job Object cleanup alone cannot satisfy the OS isolation criterion.</Constraint>
+      <Constraint>Feature failure must not terminate the kernel, engine, protected UI, updater, or recovery launcher.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Supporting arbitrary native plugins as untrusted code.</NonGoal>
+      <NonGoal>Giving generated code shell, compiler, package-manager, or debugger access at runtime.</NonGoal>
+      <NonGoal>Implementing browser-specific capability policy.</NonGoal>
+      <NonGoal>Marketplace publication.</NonGoal>
+      <NonGoal>Proving every possible WASM component correct.</NonGoal>
+      <NonGoal>Replacing kernel authorization with sandbox policy.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>A versioned feature WIT world exposes bounded capability invocation, state access, event observation, cancellation, and typed outcomes without exposing kernel internals.</Criterion>
+      <Criterion>Capability handles are host-issued, runtime and session scoped, attenuated, non-persistent, revocable, and checked again through the effect fence at privileged sinks.</Criterion>
+      <Criterion>An untrusted feature-host process runs under measured OS restrictions that deny ordinary access to the user profile, arbitrary files, outbound network, process creation, environment secrets, credentials, and privileged device APIs.</Criterion>
+      <Criterion>The build sandbox has no browser profile, credentials, installation authority, or automatic activation right and outputs an immutable package candidate.</Criterion>
+      <Criterion>Malicious fixtures prove denied filesystem, network, environment, process, handle forgery, cross-runtime handle use, oversized payload, memory exhaustion, fuel exhaustion, wall-time, and host-call flood behavior.</Criterion>
+      <Criterion>Trap, panic, protocol violation, or quota exhaustion terminates or resets only the offending runtime and removes its publications, subscriptions, leases, and handles.</Criterion>
+      <Criterion>A feature restart receives a new RuntimeId and handle table while retaining only explicitly installation-owned state.</Criterion>
+      <Criterion>Native system providers require separate provenance and trust admission and are never selected merely because a package asks for NativeProcess mode.</Criterion>
+      <Criterion>Non-Windows builds preserve the logical contract and report explicit unavailable isolation profiles until equivalent OS evidence exists.</Criterion>
+      <Criterion>Metrics and crash reports contain package/runtime identity, quotas, and failure class but exclude guest payloads, page content, secrets, and state values.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-PERSISTENCE-RECOVERY />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>cargo test -p worldline-wasm-host</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-reference-external --test malicious_wasm_acceptance</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-reference-external --test cross_mode_conformance</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-native-host --test containment_acceptance</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</ExpectedCommand>
+      <ExpectedEvidence>Fresh malicious-feature and OS-boundary evidence proves default-deny host resources, capability-only effects, finite quotas, new runtime identity after restart, and survival of trusted browser and recovery processes.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>Wasmtime Component Model remains the selected portable guest runtime and can be hosted inside a separately restricted process.</Assumption>
+      <Assumption>A Windows isolation primitive stronger than Job Object cleanup is available without disabling required Wasmtime execution; the plan must spike and record the chosen profile.</Assumption>
+      <Assumption>Build tooling can run in a separate disposable workspace without access to the active browser profile.</Assumption>
+    </Assumptions>
+  </C-PLATFORM-UNTRUSTED-FEATURE-HOST-20260906>
+</GraceChangeSpec>
