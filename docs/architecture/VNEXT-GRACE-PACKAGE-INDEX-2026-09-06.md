@@ -21,15 +21,15 @@
 
 | Gate | Draft change | Audit coverage | Depends on | Architectural outcome |
 | --- | --- | --- | --- | --- |
-| G0 | C-VNEXT-RUNTIME-TRUTH-RECONCILIATION-20260906 | F12, readiness drift, 10 GRACE linkage blockers | None | Honest support matrix, TCB/resource map, linked graph and verification |
-| G1 | C-VNEXT-ARCHITECTURE-DECISION-20260906 | F08, multi-engine economics, false abstractions | G0 applied | Strategy C accepted or corrected; CEF-first, explicit engine profiles and version domains |
-| G2 | C-KERNEL-EFFECT-FENCE-REVOCATION-20260906 | F06 | G1 applied | Revocation and epoch changes stop future privileged commits |
-| G3 | C-PLATFORM-DURABLE-PACKAGE-ACTIVATION-20260906 | F05 | G2 applied | Immutable package catalog, trusted core/engine updater, atomic generation, LastKnownGood and recovery boot |
-| G4 | C-PLATFORM-UNTRUSTED-FEATURE-HOST-20260906 | F03, F04 | G1, G2, G3 applied | WASM feature ABI in an OS-restricted host with no ambient authority |
-| G5 | C-BROWSER-CAPABILITY-GATEWAY-CONFINEMENT-20260906 | F01, F02, F09 | G1, G2 applied | Truthful operation profile and one mandatory browser effect gateway |
-| G6 | C-PLATFORM-BROKERED-IO-BOUNDARIES-20260906 | F10, F11 and exfiltration threat paths | G2 through G5 contracts | Separate network, credential, filesystem, download and streaming brokers |
-| G7 | C-UI-TRUSTED-COMPOSITION-RUNTIME-20260906 | F07 and UI spoofing threat paths | G1, G5 applied | Protected system chrome with bounded feature slots and trusted stop/recovery |
-| G8 | C-FEATURE-TRANSACTIONAL-ACTIVATION-SLICE-20260906 | Product hypothesis and questions 1 through 18 | G0 through G7 applied | One ordinary generated feature completes generate to rollback on real CEF |
+| G0 | [C-VNEXT-RUNTIME-TRUTH-RECONCILIATION-20260906](../../.grace/changes/active/C-VNEXT-RUNTIME-TRUTH-RECONCILIATION-20260906/spec.xml) | F12, readiness drift, 10 GRACE linkage blockers | None | Honest support matrix, TCB/resource map, linked graph and verification |
+| G1 | [C-VNEXT-ARCHITECTURE-DECISION-20260906](../../.grace/changes/active/C-VNEXT-ARCHITECTURE-DECISION-20260906/spec.xml) | F08, multi-engine economics, false abstractions | G0 applied | Strategy C accepted or corrected; CEF-first, explicit engine profiles and version domains |
+| G2 | [C-KERNEL-EFFECT-FENCE-REVOCATION-20260906](../../.grace/changes/active/C-KERNEL-EFFECT-FENCE-REVOCATION-20260906/spec.xml) | F06 | G1 applied | Revocation and epoch changes stop future privileged commits |
+| G3 | [C-PLATFORM-DURABLE-PACKAGE-ACTIVATION-20260906](../../.grace/changes/active/C-PLATFORM-DURABLE-PACKAGE-ACTIVATION-20260906/spec.xml) | F05 | G2 applied | Immutable package catalog, trusted core/engine updater, atomic generation, LastKnownGood and recovery boot |
+| G4 | [C-PLATFORM-UNTRUSTED-FEATURE-HOST-20260906](../../.grace/changes/active/C-PLATFORM-UNTRUSTED-FEATURE-HOST-20260906/spec.xml) | F03, F04 | G1, G2, G3 applied | WASM feature ABI in an OS-restricted host with no ambient authority |
+| G5 | [C-BROWSER-CAPABILITY-GATEWAY-CONFINEMENT-20260906](../../.grace/changes/active/C-BROWSER-CAPABILITY-GATEWAY-CONFINEMENT-20260906/spec.xml) | F01, F02, F09 | G1, G2 applied | Truthful operation profile and one mandatory browser effect gateway |
+| G6 | [C-PLATFORM-BROKERED-IO-BOUNDARIES-20260906](../../.grace/changes/active/C-PLATFORM-BROKERED-IO-BOUNDARIES-20260906/spec.xml) | F10, F11 and exfiltration threat paths | G2 through G5 contracts | Separate network, credential, filesystem, download and streaming brokers |
+| G7 | [C-UI-TRUSTED-COMPOSITION-RUNTIME-20260906](../../.grace/changes/active/C-UI-TRUSTED-COMPOSITION-RUNTIME-20260906/spec.xml) | F07 and UI spoofing threat paths | G1, G5 applied | Protected system chrome with bounded feature slots and trusted stop/recovery |
+| G8 | [C-FEATURE-TRANSACTIONAL-ACTIVATION-SLICE-20260906](../../.grace/changes/active/C-FEATURE-TRANSACTIONAL-ACTIVATION-SLICE-20260906/spec.xml) | Product hypothesis and questions 1 through 18 | G0 through G7 applied | One ordinary generated feature completes generate to rollback on real CEF |
 
 ## Dependency trajectory
 
