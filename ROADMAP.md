@@ -35,9 +35,12 @@ runs не являются milestone evidence.
   quarantine, safe-mode и observability state machines/model tests существуют,
   но production loader, durable active-package pointer и fresh-process recovery
   composition ещё не доказаны как один путь.
+- **M0.8 — Proposed.** Integration delta reconciliation: composite branch
+  changes are split into bounded packages with explicit TCB/capability delta,
+  engine profile, fresh evidence and rollback boundary before new M1 breadth.
 - **M0 — Foundation under reconciliation.** M0.1–M0.6 остаются принятыми
-  контрактными foundations; M0.7 и их product-level integration нельзя
-  называть полностью завершёнными до M1.7 evidence.
+  контрактными foundations; M0.7, M0.8 и их product-level integration нельзя
+  называть полностью завершёнными до соответствующего fresh evidence.
 - **M1.0 — Next.** Runtime-truth and trust-boundary reconciliation:
   operation-support matrix, TCB inventory, GRACE linkage и corrected readiness
   claims.
@@ -294,7 +297,7 @@ cleanup mechanism, но не подменяет filesystem/network containment.
 | Рубеж | Результат для пользователя | Статус |
 | --- | --- | --- |
 | **S0–S4 — Proving Slice** | Самый тонкий реальный end-to-end путь всегда runnable | Непрерывный track |
-| **M0 — Kernel** | Безопасная и заменяемая plugin-платформа | Foundations built; M0.7 reopened |
+| **M0 — Kernel** | Безопасная и заменяемая plugin-платформа | Foundations built; M0.7 reopened; M0.8 proposed |
 | **M1 — Browser** | Workspace-first браузер, пригодный для обычного browsing и bounded programmable features | Active; M1.2 reopened |
 | **M2 — Agentic Workspace** | Агент работает внутри среды и сохраняет контекст деятельности | Запланирован после M1.6/M1.7 |
 | **M3 — Internet Activity OS** | Фоновые события и persistent activities работают без открытой страницы | Горизонт |
@@ -302,7 +305,7 @@ cleanup mechanism, но не подменяет filesystem/network containment.
 Зависимость рубежей:
 
 ```text
-M0 foundations + durable activation/recovery
+M0 foundations + durable activation/recovery + delta reconciliation
   -> M1.0 runtime truth
        -> M1.2 real engine gateway
             -> M1.6 bounded programmable feature
@@ -621,9 +624,35 @@ Exit criterion: намеренно несовместимый package отвер
 revision; сломанная optional feature локализуется без ручного удаления профиля;
 обычный browsing и trusted recovery остаются доступны.
 
+### M0.8 — Integration delta reconciliation — Proposed
+
+До reconciliation ledger ветка накопила composite delta из 27 коммитов и
+нескольких bounded changes. Размер diff сам по себе не является дефектом, но смешение kernel
+targeting, browser service slices, CEF proving, GRACE control artifacts и
+архитектурного решения повышает риск принять незакрытый boundary как единый
+production baseline. Фактическая декомпозиция зафиксирована в [integration
+delta ledger](docs/architecture/INTEGRATION-DELTA-LEDGER-2026-09-06.md).
+
+M0.8 не добавляет runtime authority. Он требует перед продолжением M1:
+
+- разложить composite delta на bounded packages и проверить каждый package на
+  чистом основании;
+- для каждого package назвать TCB delta, capability delta, engine profile,
+  fresh consumer/failure evidence и rollback boundary;
+- явно разделить contract/model-tested, wired и verified claims;
+- проверить, что active GRACE change, archived changes и audit proposal не
+  объявляются одним production release;
+- не допустить нового user/AI-generated runtime, marketplace или второго
+  engine до прохождения соответствующих M0.7/M1.2 isolation gates.
+
+Exit criterion: существует reviewed package ledger; каждый пакет имеет
+dependency order, test owner, named evidence и recoverable integration boundary;
+нет неизвестного TCB/capability drift между branch snapshot и следующим M1
+package.
+
 ### M0 exit criterion
 
-M0 остаётся закрываемым только после повторного прохождения M0.7; кроме
+M0 остаётся закрываемым только после повторного прохождения M0.7 и M0.8; кроме
 сохранённых критериев ниже нужны durable activation/recovery и доказанная
 изоляция untrusted feature host. M0 закрыт, когда:
 
