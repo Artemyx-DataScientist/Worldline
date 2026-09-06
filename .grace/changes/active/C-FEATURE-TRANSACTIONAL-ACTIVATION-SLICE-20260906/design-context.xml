@@ -8,7 +8,7 @@
   </Alternatives>
   <DeferredDecisions>
     <Decision>The feature UX wording and visual polish are deferred; the security and recovery journey is normative.</Decision>
-    <Decision>Model generation may use a deterministic fixture initially, but generated output must traverse the same builder and validator boundary.</Decision>
+    <Decision>CI may use a deterministic generation fixture, but the product-hypothesis decision also records a real AI generation attempt through the same builder and validator boundary; model quality evidence remains distinct from runtime security evidence.</Decision>
   </DeferredDecisions>
   <Scenarios>
     <Scenario>The user asks for a page-outline sidebar, reviews its narrow page-read and UI-slot permissions, activates it, and optionally grants one typed navigation action.</Scenario>

@@ -1,0 +1,54 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-PLATFORM-NETWORK-EGRESS-CONFINEMENT-20260907>
+    <Summary>Close ambient network paths with distinct capability-governed enforcement for feature-host, browser-engine, updater, model, integration, and trusted-service traffic after the first safe programmable-browser slice is proven.</Summary>
+    <Problem>The current request-policy callback does not prove complete egress mediation, and native same-account processes can reach the network directly. A generated feature could otherwise exfiltrate observed data through raw sockets, redirects, browser debug APIs, native helpers, or confused-deputy service calls.</Problem>
+    <Goals>
+      <Goal>Inventory every outbound traffic plane and name its authoritative enforcement point and default policy.</Goal>
+      <Goal>Provide feature network capabilities scoped by destination, protocol, method, redirects, origin context, byte budget, purpose, deadline, and retry class.</Goal>
+      <Goal>Enforce destination policy across resolution, redirects, proxies, service workers, WebSockets, and supported engine request paths.</Goal>
+      <Goal>Keep browser navigation authority, direct feature fetch authority, updater traffic, and provider traffic as separate grants and enforcement planes.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>SPEC APPROVAL DOES NOT APPROVE A PLAN OR IMPLEMENTATION.</Constraint>
+      <Constraint>C-FEATURE-TRANSACTIONAL-ACTIVATION-SLICE-20260906 must be applied before this change is planned.</Constraint>
+      <Constraint>The effect-fence, feature-host, and browser-gateway boundaries remain authoritative and cannot be bypassed by this broker.</Constraint>
+      <Constraint>A browser navigation capability may authorize engine-owned traffic to a scoped destination but never implies a direct feature network capability.</Constraint>
+      <Constraint>Feature-runtime, browser-engine, updater, model-provider, integration-provider, and system-service traffic cannot share one ambient grant.</Constraint>
+      <Constraint>Browser request policy must be enforced in the real engine path; an advisory callback or reference fixture is not complete egress evidence.</Constraint>
+      <Constraint>No raw secrets, page bodies, request bodies, or URLs with sensitive parameters enter generic telemetry.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Implementing a universal engine-independent network stack.</NonGoal>
+      <NonGoal>Credential storage or credential delegation.</NonGoal>
+      <NonGoal>Filesystem portals, download-byte transport, or artifact export.</NonGoal>
+      <NonGoal>Implementing the core or engine updater.</NonGoal>
+      <NonGoal>Giving ordinary features raw sockets.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>An egress inventory names the owner, physical enforcement point, default policy, and residual bypass risk for every known traffic plane.</Criterion>
+      <Criterion>An ordinary feature without a network handle cannot create direct outbound traffic through WASI sockets, native helpers, browser debug APIs, provider calls, or unbrokered services.</Criterion>
+      <Criterion>Network grants constrain destination and resolved-address policy, protocol, method, redirects, request and response bytes, concurrency, deadline, purpose, and retry class and are revalidated at a linearized dispatch boundary.</Criterion>
+      <Criterion>DNS rebinding, redirect-to-private-address, proxy, WebSocket, service-worker, cancellation, and non-idempotent retry fixtures fail closed or report explicit unsupported coverage.</Criterion>
+      <Criterion>Real CEF tests distinguish navigation and subresource enforcement from direct feature fetch and record any engine path that cannot be mediated.</Criterion>
+      <Criterion>Revocation ordered before dispatch prevents network activity; dispatch ordered first remains truthfully Succeeded, Failed, or Incomplete and is never retried blindly.</Criterion>
+      <Criterion>Metrics record destination class, counts, byte budgets, duration, denial, and outcome without raw user content or secrets.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-BROWSER-SERVICE-PLUGINS />
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>cargo test -p worldline-browser-provider</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-wasm-host</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</ExpectedCommand>
+      <ExpectedEvidence>Fresh reference, hostile-feature, and real CEF evidence shows that each egress plane is separately governed, direct feature traffic is denied by default, destination policy survives redirects and resolution, and uncertain dispatch is reported truthfully.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The first proving feature requires scoped browser navigation but no direct feature network grant.</Assumption>
+      <Assumption>Some CEF traffic classes may require engine-specific enforcement and explicit profile limitations rather than a universal interceptor.</Assumption>
+    </Assumptions>
+  </C-PLATFORM-NETWORK-EGRESS-CONFINEMENT-20260907>
+</GraceChangeSpec>

@@ -1,17 +1,18 @@
 <GraceChangeDesignContext graceVersion="4.0">
   <Change>C-PLATFORM-DURABLE-PACKAGE-ACTIVATION-20260906</Change>
   <NormativeStatus>non-normative</NormativeStatus>
-  <Rationale>This package closes audit finding F05 and the reopened M0.7 gap. The durable unit of rollback is a complete generation, not independent code and database switches.</Rationale>
+  <Rationale>This package closes the feature-activation part of audit finding F05 and the reopened M0.7 gap. The durable unit of rollback is a complete generation, but acknowledged writes after activation need an explicit preservation or recovery policy.</Rationale>
   <Alternatives>
     <Alternative>Overwrite active files and restore backups on failure. Rejected because crash windows can destroy both active and rollback states.</Alternative>
     <Alternative>Keep only an in-memory current revision map. Rejected because fresh-process recovery would reconstruct authority from incomplete state.</Alternative>
   </Alternatives>
   <DeferredDecisions>
-    <Decision>Public signing infrastructure, trust-root rotation, and transparency-log policy remain a later supply-chain change; authenticated system-update metadata is required here.</Decision>
+    <Decision>Core and engine updater transport, signing infrastructure, trust-root rotation, and platform fallback are owned by a later system-update change.</Decision>
     <Decision>Storage layout and retention limits are selected during planning from measured package sizes.</Decision>
   </DeferredDecisions>
   <Scenarios>
     <Scenario>Power loss occurs after migrated state is written but before selection; restart keeps the prior generation current.</Scenario>
     <Scenario>A candidate starts and crashes repeatedly; it is quarantined and recovery launches without executing it.</Scenario>
+    <Scenario>A candidate acknowledges a user write and then crashes; automatic rollback proceeds only through its declared lossless policy, otherwise recovery asks for an explicit recovery point.</Scenario>
   </Scenarios>
 </GraceChangeDesignContext>

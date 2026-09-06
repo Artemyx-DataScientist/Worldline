@@ -1,0 +1,53 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-PLATFORM-CREDENTIAL-BROKER-20260907>
+    <Summary>Introduce a trusted non-exportable credential broker so ordinary features can request narrowly authorized authenticated operations without receiving reusable secret material.</Summary>
+    <Problem>A permission model that returns API keys, cookies, tokens, passwords, or reusable session material to generated code turns one approved action into durable ambient authority and makes exfiltration prevention depend on the generated program.</Problem>
+    <Goals>
+      <Goal>Represent credential authority as opaque handles bound to provider, account, operation, destination, runtime, installation, and activation epoch.</Goal>
+      <Goal>Perform supported authenticated operations inside a trusted broker without returning credential values to ordinary features.</Goal>
+      <Goal>Separate credential selection, operation consent, network dispatch, renewal, revocation, and audit authority.</Goal>
+      <Goal>Prevent cross-runtime reuse, confused-deputy widening, logging, persistence, and UI-label spoofing of credential handles.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>SPEC APPROVAL DOES NOT APPROVE A PLAN OR IMPLEMENTATION.</Constraint>
+      <Constraint>C-FEATURE-TRANSACTIONAL-ACTIVATION-SLICE-20260906 and C-PLATFORM-NETWORK-EGRESS-CONFINEMENT-20260907 must be applied before this change is planned.</Constraint>
+      <Constraint>Credential values are never returned to ordinary features when the broker can perform the authorized operation on their behalf.</Constraint>
+      <Constraint>A credential handle is non-persistent, non-transferable, attenuated, revocable, and useless outside its exact broker operation.</Constraint>
+      <Constraint>Possession of network authority does not grant credential authority, and credential selection does not grant network destination authority.</Constraint>
+      <Constraint>Trusted consent renders provider, account, operation, destination, duration, and consequence from host-owned data.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>General cloud secret management.</NonGoal>
+      <NonGoal>Exporting raw credentials to generated code.</NonGoal>
+      <NonGoal>Automating all browser password-manager or passkey flows.</NonGoal>
+      <NonGoal>Defining every third-party provider API.</NonGoal>
+      <NonGoal>Marketplace publisher identity.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The broker contract separates credential selection, authenticated operation, destination dispatch, renewal, revocation, and result authority.</Criterion>
+      <Criterion>Each handle binds the exact provider, account pseudonym, operation, destination, runtime, installation, capability lineage, activation epoch, and expiry.</Criterion>
+      <Criterion>Ordinary feature memory, state, logs, events, crash reports, and IPC never contain raw credential values for brokered operations.</Criterion>
+      <Criterion>Cross-runtime, stale-epoch, wrong-provider, wrong-destination, widened-operation, replay, and forged-handle fixtures fail before dispatch.</Criterion>
+      <Criterion>Revocation and dispatch obey the effect-fence linearization contract and uncertain authenticated operations are never retried automatically.</Criterion>
+      <Criterion>Credential-store unavailability or broker crash denies the requested operation while leaving browsing, stop, and recovery available.</Criterion>
+      <Criterion>Telemetry identifies the broker operation and outcome without secret values, credential handles, raw account identifiers, or user payloads.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-PERSISTENCE-RECOVERY />
+      <M-REFERENCE-PROVING-SLICE />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>cargo test -p worldline-kernel --test security_acceptance</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-wasm-host</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</ExpectedCommand>
+      <ExpectedEvidence>Fresh hostile-feature and broker evidence proves that generated code can request one scoped authenticated operation without observing, retaining, replaying, widening, or exporting the credential.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The first provider integration can prove non-exportable semantics without standardizing all credential-store backends.</Assumption>
+      <Assumption>Some browser-managed credentials remain engine-owned and require separately profiled engine operations rather than generic export.</Assumption>
+    </Assumptions>
+  </C-PLATFORM-CREDENTIAL-BROKER-20260907>
+</GraceChangeSpec>

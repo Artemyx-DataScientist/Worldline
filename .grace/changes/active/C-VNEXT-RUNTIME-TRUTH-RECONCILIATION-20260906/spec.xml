@@ -28,7 +28,7 @@
     <AcceptanceCriteria>
       <Criterion>A versioned operation-support matrix names every currently declared browser operation and reports Reference, CEF, and other runtime support as Implemented, Unsupported, Degraded, or NotPresent with source anchors.</Criterion>
       <Criterion>A versioned TCB/resource map identifies which component owns identity, policy, authorization, effect commit, credentials, network egress, engine state, UI trust indicators, updates, and recovery.</Criterion>
-      <Criterion>Every current graph module links to at least one real non-test implementation owner through valid GRACE semantic markup, or is explicitly narrowed through an approved graph delta rather than left as an unexplained blocker.</Criterion>
+      <Criterion>Every runtime graph module links to at least one real non-test implementation owner through valid GRACE semantic markup; documentation, CI, and control-plane modules link to their actual governed artifacts without fabricating a runtime implementation owner, or are explicitly narrowed through an approved graph delta.</Criterion>
       <Criterion>Every current verification entry has commands that clearly address its declared test files or documents, with deliberate exceptions documented.</Criterion>
       <Criterion>grace status reports no unexplained missing-implementation linkage blockers introduced or preserved by this reconciliation.</Criterion>
       <Criterion>Roadmap and ADR status language distinguishes contract/model-tested, wired, and verified and does not promote ReferenceBrowserBackend evidence to real CEF evidence.</Criterion>
@@ -55,7 +55,7 @@
       <ExpectedEvidence>A machine-readable current-state report has zero unexplained module-linkage blockers, the support and TCB maps cite real files, architecture guards remain green, and no production behavior changed.</ExpectedEvidence>
     </VerificationIntent>
     <Assumptions>
-      <Assumption>The current ten GRACE blockers primarily reflect absent file-local semantic linkage rather than absent Rust implementation; the plan must verify this per module.</Assumption>
+      <Assumption>The current ten GRACE blockers may reflect absent file-local linkage, an incorrect module kind, or a real implementation gap; the plan must classify each module from repository evidence rather than assuming Rust already exists.</Assumption>
       <Assumption>Existing coarse module ownership remains sufficient for reconciliation; any module split requires an explicit target graph delta in the later approved plan.</Assumption>
       <Assumption>The audit snapshot and integration ledger are valid decision inputs but do not replace fresh repository inspection during planning.</Assumption>
     </Assumptions>

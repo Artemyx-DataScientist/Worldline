@@ -1,0 +1,16 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-PLATFORM-CREDENTIAL-BROKER-20260907</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+  <Rationale>Credential authority is separated from networking because possession, use, renewal, and disclosure have different security consequences and owners.</Rationale>
+  <Alternatives>
+    <Alternative>Return a secret after a permission prompt. Rejected because the feature can retain and exfiltrate it after the intended operation or consent window.</Alternative>
+    <Alternative>Use one account-wide provider token handle. Rejected because it cannot express operation and destination attenuation.</Alternative>
+  </Alternatives>
+  <DeferredDecisions>
+    <Decision>The first operating-system credential-store backend and provider protocol are selected during planning; non-exportability and handle binding remain normative.</Decision>
+  </DeferredDecisions>
+  <Scenarios>
+    <Scenario>A feature may ask the broker to execute one read-only provider query but cannot obtain the token or reuse the handle for a write.</Scenario>
+    <Scenario>A runtime restart invalidates all prior handles while installation-owned account selection remains durable under trusted ownership.</Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

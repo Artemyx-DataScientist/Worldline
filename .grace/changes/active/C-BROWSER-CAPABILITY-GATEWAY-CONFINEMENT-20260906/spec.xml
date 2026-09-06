@@ -31,7 +31,8 @@
     </NonGoals>
     <AcceptanceCriteria>
       <Criterion>The provider handshake and operation profile are derived from the selected backend and never claim support for an unconditional Unsupported implementation.</Criterion>
-      <Criterion>The common portable profile includes real CEF navigation, page observation, bounded semantic query, at least one typed semantic action, and bounded capture; any missing operation is explicit and absent from advertised support.</Criterion>
+      <Criterion>The required CEF proving profile implements real navigation, committed-page observation, bounded semantic query, and at least one typed semantic action; acceptance fails if any required operation returns Unsupported, Degraded, ReferenceOnly, or a successful no-op.</Criterion>
+      <Criterion>Capture, permissions, and every operation outside the required proving profile are negotiated independently and are absent from advertised support whenever their selected CEF implementation is missing.</Criterion>
       <Criterion>Each request carries authenticated caller, installation, runtime, capability handle, operation, resource selector, deadline, and effect fence across the private IPC boundary.</Criterion>
       <Criterion>The authoritative gateway revalidates BrowserContextId, PageId, frame, DocumentRevision, origin, operation, grant scope, and activation epoch immediately before an effect.</Criterion>
       <Criterion>Stale element, cross-context, cross-origin, cross-frame, and replaced-runtime requests fail with distinct typed outcomes and cause no browser mutation.</Criterion>
@@ -41,7 +42,7 @@
       <Criterion>Default adapter construction cannot silently select a no-op implementation for a required policy or operation.</Criterion>
       <Criterion>Runtime evidence records CEF sandbox enablement, browser and renderer privilege profiles, process roles, inherited handles, and failure containment separately from Job Object tree cleanup.</Criterion>
       <Criterion>Real Windows CEF acceptance rejects ReferenceBrowserBackend substitution and records provider, runtime, CEF artifact, operation profile, and OS identity.</Criterion>
-      <Criterion>Provider crash or Unsupported operation degrades only the requested feature and leaves protected browsing, stop, and recovery paths available.</Criterion>
+      <Criterion>Provider crash or Unsupported operation produces a typed failure, closes affected contexts and stale handles, and leaves the kernel recovery control plane responsive; proof of protected browsing and stop UI belongs to the vertical integration slice.</Criterion>
     </AcceptanceCriteria>
     <AffectedAreas>
       <M-BROWSER-CONTRACT-ENGINE-SPIKE />

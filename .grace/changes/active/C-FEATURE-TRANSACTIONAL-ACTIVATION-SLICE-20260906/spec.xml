@@ -1,25 +1,26 @@
 <GraceChangeSpec graceVersion="4.0" status="draft">
   <C-FEATURE-TRANSACTIONAL-ACTIVATION-SLICE-20260906>
     <Summary>Prove the Worldline product hypothesis with one useful AI-generated browser feature that follows generate, validate, test, permission review, stage, activate, monitor, quarantine, and rollback through the real feature host, browser gateway, trusted UI, and durable package generation.</Summary>
-    <Problem>The platform has many isolated models and proving fixtures but no single user or AI-generated feature traverses the complete security and recovery architecture. Without a transactional end-to-end slice, individual green subsystems can still compose into an unsafe activation path, hidden authority escalation, unrecoverable update, or browser-wide failure.</Problem>
+    <Problem>The platform has many isolated models and proving fixtures but no single user or AI-generated feature traverses the complete security and recovery architecture. Without a transactional end-to-end slice, individual green subsystems can still compose into an unsafe activation path, hidden authority escalation, unrecoverable feature revision, or browser-wide failure.</Problem>
     <Goals>
       <Goal>Generate one bounded feature candidate in an isolated builder from a human-readable feature request.</Goal>
       <Goal>Validate source, manifest, imports, capabilities, limits, provenance, and compatibility before any activation authority exists.</Goal>
       <Goal>Run deterministic contract, malicious-input, and failure tests against a disposable profile.</Goal>
       <Goal>Show a trusted permission diff and require explicit activation authorization distinct from code generation and package installation.</Goal>
-      <Goal>Activate one immutable generation atomically, monitor it, and recover from crash, loop, denial, incompatible update, and bad revision.</Goal>
+      <Goal>Activate one immutable generation atomically, monitor it, and recover from crash, loop, denial, incompatible profile, and bad revision.</Goal>
       <Goal>Demonstrate useful page observation, bounded UI composition, and a separately authorized browser action on real CEF.</Goal>
     </Goals>
     <Constraints>
       <Constraint>SPEC APPROVAL DOES NOT APPROVE A PLAN OR IMPLEMENTATION.</Constraint>
-      <Constraint>All preceding vNext packages in the package index must be applied before this change is planned.</Constraint>
+      <Constraint>The vNext architecture, effect fence, durable feature activation, untrusted feature host, required CEF gateway profile, and minimum trusted UI packages must be applied before this change is executed; later I/O and system-update packages are not prerequisites.</Constraint>
       <Constraint>The AI builder has no installation, runtime, browser profile, credentials, network, activation, grant, updater, or recovery authority.</Constraint>
       <Constraint>Generated source, package installation, permission grant, and activation are separate recorded operations.</Constraint>
       <Constraint>The proving feature runs as an ordinary untrusted WASM feature and receives no test-only privilege or native escape hatch.</Constraint>
-      <Constraint>All browser and I/O effects use the same production brokers and real CEF path used outside the test.</Constraint>
+      <Constraint>All browser effects use the production gateway and real CEF path used outside the test; the proving feature receives no direct network, credential, filesystem, download-byte, process, or updater authority.</Constraint>
+      <Constraint>A separately authorized browser navigation may cause engine-owned network traffic within its destination scope, but does not grant the feature a general network capability.</Constraint>
       <Constraint>Automatic rollback may restore local code, state, policy, and UI composition but cannot claim to undo external effects already dispatched.</Constraint>
       <Constraint>Reference fixtures supplement but cannot replace the required real desktop and fresh-process evidence.</Constraint>
-      <Constraint>Failure of the feature cannot prevent trusted stop, disable, quarantine, normal browsing, updater, or recovery boot.</Constraint>
+      <Constraint>Failure of the feature cannot prevent trusted stop, disable, quarantine, normal browsing, or recovery boot.</Constraint>
     </Constraints>
     <NonGoals>
       <NonGoal>General autonomous agent runtime.</NonGoal>
@@ -32,17 +33,18 @@
     </NonGoals>
     <AcceptanceCriteria>
       <Criterion>A fixed feature request produces source and an immutable package candidate inside a disposable build sandbox with recorded toolchain and input provenance.</Criterion>
+      <Criterion>Final product-hypothesis evidence includes at least one recorded real AI-generated candidate that passes the same builder and validator boundary and reaches activation; rejected attempts remain recorded but do not satisfy this criterion, while deterministic generation fixtures provide separately labelled reproducible CI evidence.</Criterion>
       <Criterion>Static and dynamic validation rejects forbidden imports, undeclared capabilities, native artifacts, path escape, unbounded views, unsupported engine profiles, and incompatible ABI or state schemas.</Criterion>
       <Criterion>The candidate passes deterministic tests against a disposable installation and cannot access the active user profile, credentials, arbitrary network, filesystem, or process APIs.</Criterion>
       <Criterion>Trusted UI shows exact added and removed capabilities, resources, duration, engine requirements, and data-access implications before activation.</Criterion>
       <Criterion>Installation does not activate the feature; an explicit activation operation atomically selects one code, state, policy, authority, and UI generation.</Criterion>
       <Criterion>The feature observes a real CEF page through bounded semantic query, renders a declarative sidebar summary, and performs one separately authorized typed navigation or page action without raw script access.</Criterion>
       <Criterion>Fault injection at generate, build, validate, test, migration, select, start, observe, and promote leaves either the prior generation current or the candidate quarantined with protected recovery available.</Criterion>
-      <Criterion>Revocation or stop during an in-flight action prevents any later privileged commit through the effect fence.</Criterion>
+      <Criterion>Revocation or stop ordered before the effect-fence linearization point prevents dispatch or commit; an effect ordered first retains its truthful Succeeded, Failed, or Incomplete outcome.</Criterion>
       <Criterion>Trap, loop, memory growth, host-call flood, invalid UI model, and backend crash remain confined and do not terminate normal browsing or recovery.</Criterion>
-      <Criterion>An incompatible core or engine profile update disables the optional feature while preserving its package and data and leaves trusted browsing available.</Criterion>
+      <Criterion>A simulated incompatible host or engine profile is rejected before activation while preserving the package and data; real core and engine update behavior belongs to the later system-update package.</Criterion>
       <Criterion>Monitoring records activation epoch, capability use counts, denials, resource limits, health, rollback reason, and causality without raw page content or secrets.</Criterion>
-      <Criterion>The completion packet labels contract, reference, real CEF, OS isolation, fresh-process, UI accessibility, local, and hosted evidence separately.</Criterion>
+      <Criterion>The completion packet labels deterministic fixture, real AI generation, contract, reference, real CEF, OS isolation, fresh-process, UI accessibility, local, hosted, and manual-product evidence separately.</Criterion>
     </AcceptanceCriteria>
     <AffectedAreas>
       <M-KERNEL-CAPABILITY-RUNTIME />
@@ -62,7 +64,7 @@
       <ExpectedCommand>cargo test -p worldline-reference-external --test malicious_wasm_acceptance</ExpectedCommand>
       <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</ExpectedCommand>
       <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
-      <ExpectedEvidence>One ordinary generated feature completes the full transaction on real CEF and trusted UI while fault injection, revocation, resource abuse, incompatible update, quarantine, and fresh-process recovery preserve the trusted browser baseline.</ExpectedEvidence>
+      <ExpectedEvidence>One ordinary feature produced by a recorded real AI generation completes the same transaction exercised on real CEF and trusted UI, while deterministic CI, fault injection, revocation ordering, resource abuse, profile incompatibility, quarantine, and fresh-process recovery preserve the trusted browser baseline.</ExpectedEvidence>
     </VerificationIntent>
     <Assumptions>
       <Assumption>A page-outline sidebar with one separately authorized typed action is useful enough to test the hypothesis without adding model-provider or external-service dependencies.</Assumption>

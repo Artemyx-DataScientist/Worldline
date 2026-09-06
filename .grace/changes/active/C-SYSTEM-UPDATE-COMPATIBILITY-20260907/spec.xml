@@ -1,0 +1,57 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-SYSTEM-UPDATE-COMPATIBILITY-20260907>
+    <Summary>Implement a separately trusted, crash-safe core and engine update lane with authenticated immutable artifacts, compatibility negotiation, independently bootable fallback, optional-feature quarantine, and preserved user data.</Summary>
+    <Problem>Feature activation and core or engine replacement have different trust, distribution, boot, and rollback risks. Combining them makes the first programmable-feature proof depend on release infrastructure while leaving privileged updater authority insufficiently isolated.</Problem>
+    <Goals>
+      <Goal>Give one verified system updater principal exclusive authority to stage core and engine candidates without making it callable or configurable by ordinary features.</Goal>
+      <Goal>Authenticate update metadata and artifacts, validate platform and compatibility, and stage an independently bootable fallback before selection.</Goal>
+      <Goal>Negotiate feature ABI, capability contract, state schema, native IPC, engine profile, and rollback compatibility independently.</Goal>
+      <Goal>Disable or quarantine incompatible optional features while preserving their immutable packages and installation-owned data.</Goal>
+      <Goal>Project update identity, phase, compatibility, failure, and recovery actions through protected host-owned UI state.</Goal>
+      <Goal>Recover deterministically from crash or power loss at every durable update transition.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>SPEC APPROVAL DOES NOT APPROVE A PLAN OR IMPLEMENTATION.</Constraint>
+      <Constraint>C-PLATFORM-DURABLE-PACKAGE-ACTIVATION-20260906, C-FEATURE-TRANSACTIONAL-ACTIVATION-SLICE-20260906, and C-PLATFORM-NETWORK-EGRESS-CONFINEMENT-20260907 must be applied before this change is planned.</Constraint>
+      <Constraint>Ordinary features cannot invoke, reconfigure, impersonate, supply trust roots to, or draw consent UI for the updater.</Constraint>
+      <Constraint>Updater traffic uses a dedicated egress authority and cannot reuse ordinary feature, model-provider, integration, or browser-navigation grants.</Constraint>
+      <Constraint>No update is selected without authenticated metadata, artifact digest, correct platform, compatibility decision, and an independently bootable fallback.</Constraint>
+      <Constraint>An old engine cannot automatically open a profile after an irreversible schema migration; rollback compatibility is explicit and fail closed.</Constraint>
+      <Constraint>Protected updater and recovery state cannot depend on optional feature code or feature-owned storage.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Public release publishing or organization-wide release operations.</NonGoal>
+      <NonGoal>Marketplace package distribution.</NonGoal>
+      <NonGoal>Universal transparency-log or trust-root-rotation policy.</NonGoal>
+      <NonGoal>Hot-swapping engines inside a live browsing session.</NonGoal>
+      <NonGoal>Automatic downgrade across incompatible persistent schemas.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>A distinct trusted updater principal is the only authority permitted to stage core or engine candidates and is unreachable through ordinary feature capability invocation.</Criterion>
+      <Criterion>Tests reject unauthenticated metadata, digest mismatch, wrong platform, downgrade attack, incompatible feature ABI, incompatible native IPC, rollback-incompatible state, and missing fallback before switch.</Criterion>
+      <Criterion>Failpoints and fresh-process restart at every durable transition recover to exactly one bootable current candidate or the independently verified fallback.</Criterion>
+      <Criterion>An engine profile change disables or quarantines only incompatible optional features while preserving their packages and installation-owned data.</Criterion>
+      <Criterion>Mandatory browsing, stop, update, quarantine, and recovery composition boots without executing optional user code after a bad candidate.</Criterion>
+      <Criterion>Updater egress, metadata verification, artifact staging, selection, boot health, promotion, and rollback have separate recorded outcomes and no blind retry after an uncertain external effect.</Criterion>
+      <Criterion>Operational telemetry records release and artifact identifiers, phase, compatibility outcome, timing, and failure class without credentials, page content, profile data, or raw user payloads.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-OPERABILITY-COMPATIBILITY-UPGRADE />
+      <M-PERSISTENCE-RECOVERY />
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>cargo test -p worldline-kernel --test upgrade_acceptance</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-kernel --test compatibility_acceptance</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-storage --test upgrade_chaos_acceptance</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite All</ExpectedCommand>
+      <ExpectedEvidence>Fresh artifact-tamper, compatibility, kill-and-restart, bad-engine, optional-feature-quarantine, fallback-boot, and real updater-egress evidence proves that system update is isolated from ordinary feature authority and cannot strand the product without a trusted boot path.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The feature package catalog supplies reusable immutable artifact and compatibility primitives without granting its activation authority to the updater.</Assumption>
+      <Assumption>The first update lane can use a bounded release trust model before public transparency and key-rotation policy are designed.</Assumption>
+    </Assumptions>
+  </C-SYSTEM-UPDATE-COMPATIBILITY-20260907>
+</GraceChangeSpec>

@@ -1,0 +1,16 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-PLATFORM-NETWORK-EGRESS-CONFINEMENT-20260907</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+  <Rationale>This package isolates the network portion of audit finding F10 and the exfiltration threat paths. It follows the first vertical slice so a speculative universal network layer does not delay validation of the product architecture.</Rationale>
+  <Alternatives>
+    <Alternative>Route every byte through one generic proxy. Rejected because engine navigation, updater, service-worker, model-provider, and feature-fetch paths have different owners and failure modes.</Alternative>
+    <Alternative>Treat browser navigation as a general network grant. Rejected because it would let a page-oriented feature become an arbitrary HTTP client.</Alternative>
+  </Alternatives>
+  <DeferredDecisions>
+    <Decision>The exact CEF interception mechanisms are selected from measured coverage of navigation, subresources, workers, WebSockets, downloads, and proxy behavior.</Decision>
+  </DeferredDecisions>
+  <Scenarios>
+    <Scenario>A feature may fetch one approved API origin, but a redirect or DNS change to a private address is denied before dispatch.</Scenario>
+    <Scenario>A feature may navigate a tab to an allowed origin without receiving a reusable socket or direct-fetch capability.</Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

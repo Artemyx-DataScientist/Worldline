@@ -1,12 +1,12 @@
 <GraceChangeSpec graceVersion="4.0" status="draft">
   <C-UI-TRUSTED-COMPOSITION-RUNTIME-20260906>
-    <Summary>Build a trusted browser-shell composition runtime with protected security surfaces and bounded feature-owned slots, commands, and view schemas so user and AI functionality can extend the UI without spoofing origin, consent, permissions, stop, update, or recovery controls.</Summary>
+    <Summary>Build the minimum trusted browser-shell composition path needed to prove safe programmability: protected origin, consent, active-automation, stop, and recovery surfaces plus one bounded feature-owned sidebar slot.</Summary>
     <Problem>Current UI evidence is a reference fixture rather than a real protected compositor. If arbitrary feature UI can draw over trusted browser chrome, capture focus, imitate permission prompts, or hide stop and recovery controls, capability security becomes socially bypassable even when backend authorization is correct.</Problem>
     <Goals>
-      <Goal>Define protected surfaces for origin and context identity, permission and capability consent, active automation, stop, update, quarantine, and recovery.</Goal>
-      <Goal>Define bounded extension slots, typed commands, declarative view schemas, provenance labels, focus rules, and resource budgets for feature UI.</Goal>
+      <Goal>Define protected surfaces for origin and context identity, permission and capability consent, active automation, stop, quarantine, and recovery.</Goal>
+      <Goal>Define one bounded sidebar slot, typed commands, a declarative view schema, provenance labels, focus rules, and resource budgets for the first proving feature.</Goal>
       <Goal>Separate trusted shell rendering and input ownership from page content and untrusted feature views.</Goal>
-      <Goal>Provide accessible keyboard, screen-reader, IME, scaling, localization, and failure behavior for trusted controls.</Goal>
+      <Goal>Measure and prove keyboard, screen-reader, IME, and DPI behavior for the protected controls and exact proving slot before committing to a wider composition toolkit.</Goal>
       <Goal>Allow optional UI features to crash, reload, or be disabled without losing basic browsing and recovery.</Goal>
     </Goals>
     <Constraints>
@@ -26,14 +26,15 @@
       <NonGoal>Implementing browser engine rendering.</NonGoal>
       <NonGoal>Marketplace review UI.</NonGoal>
       <NonGoal>Replacing operating-system accessibility services.</NonGoal>
+      <NonGoal>A complete slot catalog, arbitrary layout persistence, fullscreen and drag-and-drop composition, or final localization coverage.</NonGoal>
     </NonGoals>
     <AcceptanceCriteria>
       <Criterion>A UI contract classifies every surface as protected system, trusted application, page content, or untrusted feature and defines permitted composition relationships.</Criterion>
-      <Criterion>Origin, context mode, permission, capability grant, active automation, stop, update, quarantine, and recovery indicators are rendered from trusted state outside feature-controlled layout.</Criterion>
-      <Criterion>Feature UI uses versioned slots, typed commands, bounded data models, and declarative views with explicit provenance and cannot submit arbitrary script or native handles.</Criterion>
-      <Criterion>Focus, keyboard, clipboard, drag-and-drop, pointer capture, fullscreen, popup, and modal behavior preserve protected controls and identify the active requesting surface.</Criterion>
+      <Criterion>Origin, context mode, permission, capability grant, active automation, stop, quarantine, and recovery indicators are rendered from trusted state outside feature-controlled layout.</Criterion>
+      <Criterion>The proving feature UI uses one versioned sidebar slot, typed commands, a bounded data model, and a declarative view with explicit provenance and cannot submit arbitrary script or native handles.</Criterion>
+      <Criterion>Focus, keyboard, clipboard, pointer capture, popup, and modal behavior exercised by the proving surface preserve protected controls and identify the active requesting surface.</Criterion>
       <Criterion>A malicious feature fixture cannot cover, imitate, relabel, dismiss, or intercept a protected prompt or stop control.</Criterion>
-      <Criterion>Accessibility tree, keyboard navigation, screen reader labels, IME composition, DPI scaling, and localization work for protected surfaces in the supported desktop profile.</Criterion>
+      <Criterion>Accessibility tree, keyboard navigation, screen-reader labels, IME composition, and DPI scaling work for the protected surfaces and proving sidebar on the supported desktop profile; broader composition coverage remains a later change.</Criterion>
       <Criterion>Feature-view crash, render loop, oversized model, event flood, or invalid schema is contained to its slot and leaves browsing and recovery usable.</Criterion>
       <Criterion>Safe mode starts a minimal trusted shell without loading optional feature UI or page-provided code.</Criterion>
       <Criterion>Snapshot and interaction evidence records exact runtime, OS, scale, input mode, and provider identity and is not replaced by reference-only tests.</Criterion>

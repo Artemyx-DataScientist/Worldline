@@ -1,0 +1,55 @@
+<GraceChangeSpec graceVersion="4.0" status="draft">
+  <C-PLATFORM-FILESYSTEM-ARTIFACT-BOUNDARY-20260907>
+    <Summary>Provide opaque filesystem portals and a bounded streaming artifact plane so ordinary features can inspect, create, download, and export approved artifacts without receiving host paths or unbounded byte authority.</Summary>
+    <Problem>Path strings are not authority, metadata access does not justify reading bytes, and the current bounded JSON-style paths cannot safely transport large downloads. Without separate handles and streaming limits, generated features can escape selected roots, overwrite files, exhaust memory, or turn download access into ambient filesystem authority.</Problem>
+    <Goals>
+      <Goal>Represent selected files, directories, temporary artifacts, download metadata, artifact bytes, and export destinations as separate opaque resources.</Goal>
+      <Goal>Canonicalize and enforce portal roots at the authoritative filesystem sink across target-platform alias and reparse behavior.</Goal>
+      <Goal>Stream large artifacts with chunk, total-size, time, concurrency, digest, cancellation, and backpressure limits.</Goal>
+      <Goal>Recover one authoritative artifact state after crash and expose uncertain external writes explicitly.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>SPEC APPROVAL DOES NOT APPROVE A PLAN OR IMPLEMENTATION.</Constraint>
+      <Constraint>C-FEATURE-TRANSACTIONAL-ACTIVATION-SLICE-20260906 and C-PLATFORM-NETWORK-EGRESS-CONFINEMENT-20260907 must be applied before this change is planned.</Constraint>
+      <Constraint>A host path is data, not authority; ordinary features receive only opaque portal and artifact handles.</Constraint>
+      <Constraint>Download metadata authority, artifact-byte authority, export destination, overwrite consent, and arbitrary filesystem write authority are distinct.</Constraint>
+      <Constraint>No complete unbounded file is materialized in one JSON envelope, event, IPC frame, or process heap.</Constraint>
+      <Constraint>Portal and artifact handles are bound to installation, runtime, operation, root or object identity, activation epoch, expiry, and byte budget.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Exposing the user profile or arbitrary host paths to ordinary features.</NonGoal>
+      <NonGoal>A virtual filesystem compatible with all WASI applications.</NonGoal>
+      <NonGoal>Cloud-drive synchronization.</NonGoal>
+      <NonGoal>Network egress policy or credential storage.</NonGoal>
+      <NonGoal>Automatic overwrite consent.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>Filesystem access is possible only through bounded portal handles whose effective root and operation are revalidated at a linearized sink.</Criterion>
+      <Criterion>Traversal, alternate stream, UNC, device path, symlink or reparse escape, stale handle, cross-runtime reuse, and race-to-replace fixtures fail on the supported OS profile.</Criterion>
+      <Criterion>Downloads and large artifacts use a streaming or chunked data plane with backpressure and total-size, memory, time, and concurrency quotas.</Criterion>
+      <Criterion>Metadata, bytes, temporary storage, digest verification, export destination, filename choice, and overwrite are independently authorized.</Criterion>
+      <Criterion>Cancellation or crash leaves one durable artifact state and classifies a possibly completed external write as Incomplete rather than retrying or overwriting automatically.</Criterion>
+      <Criterion>A malicious feature cannot infer a host path from a handle or use an artifact handle as a general directory capability.</Criterion>
+      <Criterion>Metrics record object class, byte budgets, duration, denial, and outcome without paths, file contents, page content, or handle values.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-EXTERNAL-PLUGIN-BOUNDARY />
+      <M-BROWSER-ENGINE-PROVIDER-PROCESS />
+      <M-BROWSER-SERVICE-PLUGINS />
+      <M-PERSISTENCE-RECOVERY />
+      <M-KERNEL-CAPABILITY-RUNTIME />
+      <M-CI-BASELINE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>cargo test -p worldline-wasm-host</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-browser-downloads</ExpectedCommand>
+      <ExpectedCommand>cargo test -p worldline-storage</ExpectedCommand>
+      <ExpectedCommand>pwsh -NoProfile -File scripts/ci/Invoke-WorldlineCi.ps1 -Suite ArchitectureSecurity</ExpectedCommand>
+      <ExpectedEvidence>Fresh hostile-path, large-artifact, backpressure, cancellation, crash, and real download evidence proves that metadata, bytes, and export remain separate bounded authorities with no ambient path access.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The first implementation can use copied chunks before any zero-copy transport is justified by benchmarks.</Assumption>
+      <Assumption>Engine download interception remains engine-specific behind the portable artifact contract.</Assumption>
+    </Assumptions>
+  </C-PLATFORM-FILESYSTEM-ARTIFACT-BOUNDARY-20260907>
+</GraceChangeSpec>

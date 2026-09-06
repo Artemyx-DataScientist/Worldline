@@ -4,7 +4,7 @@
     <Problem>The current broker authorizes at admission and revokes handles and runtime authority, but the Astra audit found no general guarantee that an in-flight operation rechecks authority at the actual effect sink. A caller can therefore be admitted, lose authority, and still commit a later state, browser, filesystem, network, or credential effect unless every provider independently closes that race.</Problem>
     <Goals>
       <Goal>Define an opaque host-issued effect fence bound to invocation, principal, runtime, installation, grant lineage, resource target, and activation epoch.</Goal>
-      <Goal>Require fence validation immediately before every privileged commit point.</Goal>
+      <Goal>Define a trusted sink-side linearization point that orders revocation against commit authorization without a validation-to-effect race.</Goal>
       <Goal>Make cancellation, grant revocation, runtime death, replacement, and activation change invalidate future commits from stale work.</Goal>
       <Goal>Preserve truthful Incomplete outcomes when an external effect may already have escaped before invalidation.</Goal>
       <Goal>Provide a reusable sink-admission contract for later browser, network, filesystem, credential, and UI brokers.</Goal>
@@ -16,6 +16,8 @@
       <Constraint>EVENT BUS IS NOT RPC and event delivery cannot validate, approve, cancel, or complete an effect.</Constraint>
       <Constraint>The generic kernel mechanism must not contain browser, filesystem, network, credential, UI, or provider-specific policy.</Constraint>
       <Constraint>Revocation cannot claim to undo a remote effect that was already dispatched; such outcomes remain Succeeded, Failed, or Incomplete according to evidence.</Constraint>
+      <Constraint>A check followed by an independently scheduled effect is insufficient: revocation and commit authorization must be serialized by the authoritative effect owner.</Constraint>
+      <Constraint>If a provider cannot atomically order its commit with host revocation, it cannot be the authority boundary and must dispatch through a broker that can.</Constraint>
       <Constraint>Trace and correlation identifiers are evidence only and confer no authority.</Constraint>
       <Constraint>The approved browser-search spec and plan remain unchanged.</Constraint>
     </Constraints>
@@ -29,10 +31,11 @@
     <AcceptanceCriteria>
       <Criterion>A versioned generic EffectFence or equivalent opaque contract is issued only by trusted host authority and cannot be forged or widened by a provider.</Criterion>
       <Criterion>The fence binds the exact runtime, installation, invocation, resource scope, operation, grant lineage, and activation epoch required by the selected sink.</Criterion>
-      <Criterion>A sink validates the fence immediately before commit and returns a typed denial when the grant, runtime, lifecycle scope, cancellation token, or activation epoch is stale.</Criterion>
-      <Criterion>A deterministic race test pauses after admission, revokes authority, resumes, and proves no state or owned-effect commit occurs.</Criterion>
-      <Criterion>A replacement race proves the old runtime cannot commit after a new activation epoch is selected.</Criterion>
-      <Criterion>A cancellation race proves cooperative work cannot publish a successful result after its final permitted commit point has been invalidated.</Criterion>
+      <Criterion>For an owned local effect, fence validation and commit authorization share one atomic transaction, lock, compare-and-commit operation, or equivalent linearizable mechanism at the authoritative sink.</Criterion>
+      <Criterion>For an external effect, consuming the one-shot dispatch authorization is the linearization point: invalidation ordered first prevents dispatch, while dispatch ordered first remains Succeeded, Failed, or Incomplete according to evidence.</Criterion>
+      <Criterion>A deterministic race matrix pauses before and after the linearization point and proves both legal orderings without a window in which stale authority can initiate a new effect.</Criterion>
+      <Criterion>A replacement race proves the old runtime cannot receive commit authorization after a new activation epoch is selected.</Criterion>
+      <Criterion>A cancellation race never reports Denied for an effect whose dispatch or commit already linearized, and never reports success for an effect whose invalidation linearized first.</Criterion>
       <Criterion>An external-effect fixture distinguishes invalidation before dispatch from Incomplete after uncertain dispatch and never retries the latter automatically.</Criterion>
       <Criterion>Effect-fence metadata and denial telemetry exclude raw payload, credentials, page content, and persisted values.</Criterion>
       <Criterion>Existing ProviderSelf, delegation attenuation, bounded RPC, state leases, and event/RPC separation remain compatible.</Criterion>
@@ -56,7 +59,7 @@
     </VerificationIntent>
     <Assumptions>
       <Assumption>Current invocation, grant, lifecycle, and state-lease identities can supply a compact host-side fence without exposing authority-bearing internals across IPC.</Assumption>
-      <Assumption>Each later privileged broker can identify a final commit point at which it validates the generic fence plus its domain target.</Assumption>
+      <Assumption>Each later privileged broker can identify and own a linearization point at which it atomically orders domain validation and commit or dispatch authorization.</Assumption>
       <Assumption>Compatibility can be introduced additively before older providers are removed.</Assumption>
     </Assumptions>
   </C-KERNEL-EFFECT-FENCE-REVOCATION-20260906>

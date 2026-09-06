@@ -11,7 +11,8 @@
     <Decision>Per-domain target validation belongs to later broker packages.</Decision>
   </DeferredDecisions>
   <Scenarios>
-    <Scenario>A feature is revoked while waiting for browser input; its resumed call fails before navigation commit.</Scenario>
+    <Scenario>A feature is revoked before the browser broker consumes its dispatch authorization; its resumed call is denied and no navigation begins.</Scenario>
+    <Scenario>A browser broker consumes dispatch authorization before revocation; the later response remains a truthful success, failure, or incomplete outcome rather than being rewritten as a denial.</Scenario>
     <Scenario>A network request was dispatched before crash and no response was recorded; recovery exposes Incomplete and requires explicit reconciliation.</Scenario>
   </Scenarios>
 </GraceChangeDesignContext>

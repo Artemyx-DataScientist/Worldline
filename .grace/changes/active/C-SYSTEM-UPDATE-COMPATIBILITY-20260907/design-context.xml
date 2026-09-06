@@ -1,0 +1,16 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-SYSTEM-UPDATE-COMPATIBILITY-20260907</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+  <Rationale>System update is split from feature activation because it owns release authenticity, platform bootability, engine profiles, and fallback installation. Those responsibilities enlarge the TCB and should not delay the first useful untrusted feature.</Rationale>
+  <Alternatives>
+    <Alternative>Use the ordinary package activation principal for core and engine updates. Rejected because compromise of a feature-management path would then become code execution in the system TCB.</Alternative>
+    <Alternative>Replace active engine files in place. Rejected because a crash or incompatible profile can destroy both current and rollback boot paths.</Alternative>
+  </Alternatives>
+  <DeferredDecisions>
+    <Decision>Public signing hierarchy, trust-root rotation, transparency logs, staged rollout, and release-channel policy remain later supply-chain decisions.</Decision>
+  </DeferredDecisions>
+  <Scenarios>
+    <Scenario>A valid engine update changes its operation profile; incompatible optional features are disabled while their code and data remain available for a later compatible version.</Scenario>
+    <Scenario>Power loss occurs after staging but before boot-health promotion; restart selects the last independently bootable generation.</Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

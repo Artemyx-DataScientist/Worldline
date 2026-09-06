@@ -1,0 +1,16 @@
+<GraceChangeDesignContext graceVersion="4.0">
+  <Change>C-PLATFORM-FILESYSTEM-ARTIFACT-BOUNDARY-20260907</Change>
+  <NormativeStatus>non-normative</NormativeStatus>
+  <Rationale>This package isolates audit finding F11 and filesystem escape paths from network and credential policy. File selection, artifact bytes, and export are related data-plane operations but remain distinct capabilities.</Rationale>
+  <Alternatives>
+    <Alternative>Pass an approved root path to the feature. Rejected because path reuse, aliases, and later filesystem changes can widen authority outside the broker.</Alternative>
+    <Alternative>Optimize immediately for shared memory. Rejected because bounded copied chunks are simpler evidence until measured throughput requires a different transport.</Alternative>
+  </Alternatives>
+  <DeferredDecisions>
+    <Decision>The streaming transport and chunk size are selected from memory, throughput, cancellation, and implementation-complexity measurements.</Decision>
+  </DeferredDecisions>
+  <Scenarios>
+    <Scenario>A feature can inspect selected download bytes but cannot export them until a separate destination and overwrite decision are authorized.</Scenario>
+    <Scenario>A file is replaced through a reparse point between selection and write; sink-side identity validation denies the stale portal.</Scenario>
+  </Scenarios>
+</GraceChangeDesignContext>

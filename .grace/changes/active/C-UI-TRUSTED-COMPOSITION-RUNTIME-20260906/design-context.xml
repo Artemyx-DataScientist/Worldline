@@ -8,7 +8,7 @@
   </Alternatives>
   <DeferredDecisions>
     <Decision>The rendering toolkit and compositor process topology are selected during planning after accessibility and IME spikes.</Decision>
-    <Decision>The full visual design system remains product-design work after security geometry is proven.</Decision>
+    <Decision>The full visual design system, wider slot catalog, layout persistence, drag-and-drop, fullscreen, and localization matrix remain later work after the security geometry and one useful slot are proven.</Decision>
   </DeferredDecisions>
   <Scenarios>
     <Scenario>A feature contributes a sidebar list and command but the origin and stop controls remain visually and interactively protected.</Scenario>

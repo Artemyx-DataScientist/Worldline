@@ -11,7 +11,7 @@
     </Goals>
     <Constraints>
       <Constraint>SPEC APPROVAL DOES NOT APPROVE A PLAN OR IMPLEMENTATION.</Constraint>
-      <Constraint>The vNext architecture, effect-fence, and durable package activation changes must be applied before untrusted feature activation is planned.</Constraint>
+      <Constraint>The vNext architecture and effect-fence changes must be applied, and the durable package activation contract must be approved, before this change is planned; no untrusted feature may be activated until durable package activation is applied.</Constraint>
       <Constraint>Ordinary user or AI-generated native binaries are not an allowed feature format.</Constraint>
       <Constraint>WASM is an execution format, not authority; every privileged host import requires a valid runtime-scoped handle and broker admission.</Constraint>
       <Constraint>No full WASI world, inherited environment, user profile, ambient network, arbitrary filesystem path, raw socket, process spawn, dynamic library load, or device access is exposed by default.</Constraint>
