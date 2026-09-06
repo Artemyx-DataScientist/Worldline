@@ -1,61 +1,59 @@
 # Worldline Roadmap v0.1
 
 Статус документа: рабочий roadmap  
-Зафиксирован: 28 августа 2026 года  
+Зафиксирован: 6 сентября 2026 года; скорректирован после архитектурного
+аудита AI-native browser platform
 Единица планирования: проверяемый архитектурный или продуктовый рубеж, а не
 календарная дата
 
+### Как читать статусы
+
+`Done` закрывает только явно названный scope и evidence. Он не превращает
+reference backend, contract suite или отдельный engine spike в доказательство
+production пути другого backend. Для каждого следующего рубежа различаются:
+
+- **contract/model-tested** — типы, state machine или reference composition
+  существуют и имеют тесты;
+- **wired** — реальный consumer достигает авторитетного provider/broker;
+- **verified** — wired путь подтверждён свежим named evidence на требуемом
+  engine, OS и failure scenario.
+
+AI-агенты могут резко сократить время реализации, но не получают особой
+authority и не сокращают доказательную цепочку. План строится короткими
+agent-first циклами: bounded package → независимая проверка → real-path
+evidence → следующий package. Количество сгенерированного кода и число agent
+runs не являются milestone evidence.
+
 ## Текущий статус рубежей
 
-- **M0.1 — Done.** State hardening закрыт revision/CAS, runtime leases,
-  recovery errors и installation authority retirement.
-- **M0.2 — Done.** Это был active gate текущего boundary review; он закрыт
-  [ADR-KERNEL-BOUNDARY-V1](docs/adr/ADR-KERNEL-BOUNDARY-V1.md), тремя
-  reference families и постоянным S0 proving slice.
-- **M0.3 — Done.** Plugin Runtime v1 закрыт явным runtime identity,
-  multi-install cardinality, split-phase lifecycle, recovery policy,
-  discovery и deterministic provider selection.
-- **M0.4 — Done.** Capability RPC and typed event transport закрыты bounded
-  RPC, default-deny event authority, runtime-scoped subscriptions, logical
-  durable delivery и S1 proving slice.
-- **M0.5 — Done.** Persistence and Recovery Model закрыт production SQLite
-  state/outbox/journal, selective audit, CAS blobs, persistent jobs,
-  backup/restore, hard-kill recovery tests и production-backed S1.
-- **M0.6 — Done.** Stable IPC and WASM Component Boundary закрыт
-  `worldline-plugin-protocol`, WIT/IPC envelopes, opaque handles,
-  least-authority WASI/quotas, supervised native host, sandboxed WASM host,
-  malicious WASM containment, protocol robustness, 3-mode cross-conformance
-  и external S1 proving paths.
-- **M0.7 — Done.** Operability, compatibility and upgrade закрыт machine-checkable
-  compatibility matrix (SDK N/N-1/N-2), staged updates, migration-on-copy,
-  LastKnownGood rollback, persistent quarantine, safe mode, automated bisect,
-  payload-free operational telemetry, causality diagnostics, property tests,
-  negative security tests, fuzzing smoke tests, process-kill chaos matrix и
-  explicit incomplete side-effects.
-- **M0 — Complete.** Базовая архитектура платформы Worldline (M0.1–M0.7)
-  полностью построена, проверена сквозными CI-гейтами и готова к разработке
-  первого прикладного плагина — браузерного движка (Milestone M1).
-- **M1.1 — Done.** Browser Contract v1 and engine spike закрыты
-  [ADR-BROWSER-ENGINE-V1](docs/adr/ADR-BROWSER-ENGINE-V1.md),
-  8 engine-neutral capability contracts (`worldline-browser-contract`),
-  строгим разделением authority (observation vs mutation),
-  защитой от confused-deputy привязкой `InvocationContext` к целевым `PageId`/`ContextId`,
-  бюджетированными запросами (`QueryBounds` с флагами `is_truncated`),
-  логическими идентификаторами профилей без утечки путей хоста,
-  публикацией типизированных событий через M0.4 транспорт,
-  реальным out-of-process спайком Chromium на Windows с навигацией по локальным HTML,
-  извлечением дерева доступности Blink, действиями в DOM и изоляцией сбоя рендерера,
-  а также детерминированным контрактным эталоном со всеми 8 рабочими контрактами
-  и обоснованным выбором Chromium/CEF для M1.2.
-- **M1.2 — Done.** Browser engine provider process закрыт
-  [ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1](docs/adr/ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1.md),
-  реализацией supervised native child process `worldline-browser-provider-process`,
-  CEF/Chromium C FFI и потокобезопасным UI message loop runner (`worldline-browser-cef`),
-  Windows Job Object containment (`worldline-native-host`),
-  CAS-валидацией генераций и строгой проверкой устаревания `ElementRef`,
-  бюджетированной проекцией деревьев доступности, контентно-адресуемым visual capture,
-  полной изоляцией cookies/storage по контекстам и сквозным proving slice S2.
-- **M1.3 — Active.** Browser service plugins.
+- **M0.1–M0.6 — Done в заявленном фундаментальном scope.** Сохранены
+  state/lifecycle/RPC/event/storage/WIT foundations, reference slices и
+  ограниченный WASM import surface. Это не равнозначно безопасному
+  browser-programming runtime: текущий WASM host не даёт browser capability
+  import, а native supervision не является OS sandbox для user code.
+- **M0.7 — Reopened.** Compatibility, migration-on-copy, rollback,
+  quarantine, safe-mode и observability state machines/model tests существуют,
+  но production loader, durable active-package pointer и fresh-process recovery
+  composition ещё не доказаны как один путь.
+- **M0 — Foundation under reconciliation.** M0.1–M0.6 остаются принятыми
+  контрактными foundations; M0.7 и их product-level integration нельзя
+  называть полностью завершёнными до M1.7 evidence.
+- **M1.0 — Next.** Runtime-truth and trust-boundary reconciliation:
+  operation-support matrix, TCB inventory, GRACE linkage и corrected readiness
+  claims.
+- **M1.1 — Done в ограниченном scope.** Engine-neutral browser contracts,
+  reference implementation и самостоятельный Chromium/CDP spike существуют.
+  Этот status не утверждает, что production CEF adapter реализует все эти
+  операции.
+- **M1.2 — Reopened.** Native CEF process/FFI/loop infrastructure существует,
+  но `query`, `act`, capture и permission operations в CEF adapter сейчас
+  explicit `Unsupported`; S2 использует reference backend. Windows Job Object
+  завершает дерево процессов, но не создаёт filesystem/network sandbox для
+  ordinary generated native code.
+- **M1.3 — Active, re-scoped.** Browser services остаются domain libraries и
+  bounded plugins; их publication к untrusted callers зависит от единого
+  authenticated browser gateway и resource-target validation. Активный search
+  bundle остаётся отдельным bounded change и не закрывает M1.2.
 
 ## 1. Куда идёт Worldline
 
@@ -95,6 +93,8 @@ floating commands, agent actions и временные contextual surfaces мо�
 - поручить системе многошаговую работу и видеть ход каждого действия;
 - позволить агенту подготовить внешнее действие, сохранив за человеком право
   окончательного подтверждения;
+- создать или изменить browser feature вместе с AI и получить полезный
+  результат без предоставления этому коду доступа к механизмам доверия;
 - получать важные изменения из интернета без постоянного ручного обновления
   страниц.
 
@@ -106,32 +106,30 @@ component topology. Она нужна, чтобы декомпозировать
 форма event transport должны быть подтверждены ADR и работающими spikes.
 
 ```text
-                         Rust microkernel
-                                  │
-             identity / lifecycle / registry / authority
-              ┌──────────────┼──────────────┐
-       capability RPC     event transport    storage primitives
-       request / result   publish / observe  state / log / blob
-                         UI composition host
-                                  │
-          ┌───────────────────────┼───────────────────────┐
-          │                       │                       │
-    Browser plugins         Agent plugins            UI plugins
-          │                       │                       │
-    Chromium / CEF          GLM / OpenAI / local      wgpu renderer
-    tabs / history          agent loop / planner      tab bar
-    downloads / cookies     memory / search           command palette
-    DevTools / adblock      GitHub / MCP              workspaces / overlays
-          │                       │                       │
-          └───────────────────────┴───────────────────────┘
-                                  │
-                    versioned capability contracts
+User / AI builder
+  -> isolated build sandbox -> immutable package catalog
+                                      │
+                         trusted control core
+      identity / grants / admission / runtime epochs / activation selection
+                  ┌───────────────────┼────────────────────┐
+                  │                   │                    │
+     mandatory security brokers   protected UI       updater / recovery
+  browser / credential / egress  origin/consent/       independent boot
+    filesystem / effect sinks     stop/recovery
+                  │                   │
+                  └─────── engine gateway ──────────┐
+                                                    │
+    OS-restricted feature host                  CEF runtime
+  WASM user/AI features + UI slots        future engine runtime
+             │                                      │
+      tabs/history/search/agent/UI are feature families over versioned contracts
 ```
 
-В этой гипотезе Browser, Agent и UI — не три подсистемы, зашитые в kernel, а три
-первые семьи plugins, с помощью которых проверяется общая платформа. В
-дальнейшем рядом с ними могут появляться другие families и `whatever.wasm` без
-нового привилегированного пути.
+Это target topology, а не заявление, что все указанные boundaries уже
+реализованы. Browser, Agent и UI остаются первыми семьями features, а не тремя
+подсистемами в kernel. Mandatory security brokers и protected UI могут быть
+отдельными system components, но ordinary feature не выбирает их вместо
+проверенной boot composition.
 
 Более устойчивые продуктовые и security-инварианты:
 
@@ -149,6 +147,30 @@ plugins, — отдельный design gate M0. Policy может расширя
 обязательность enforcement capability checks не должна зависеть от случайной
 composition профиля.
 
+### Направление vNext: portable product model, engine-specific runtime
+
+Рабочее направление после аудита — **C**, а не обещание полного common runtime:
+общими остаются capability/feature/UI contracts, portable domain state и
+сценарии пользователя; engine adapter вправе иметь существенно разные
+реализации, support profiles и explicit engine-specific extensions.
+
+Chromium/CEF остаётся первым desktop runtime. Firefox/Gecko не исключается, но
+не является parity commitment: второй engine начинается отдельным spike только
+при доказанной product value, владельце update/security train и evidence по
+embedding, input/IME/accessibility, profile isolation и recovery. Общий API не
+маскирует unsupported security guarantee default no-op ответом.
+
+Это направление не меняет молча действующий kernel invariant. Его уточнение
+нужно отдельным ADR: product role, package name и AI provenance не дают скрытой
+authority; при этом boot composition обязана содержать проверяемые mandatory
+security components — capability brokers, updater/recovery и protected
+consent/origin/stop surface. Ordinary feature не может их заменить.
+
+AI-generated package — тот же ordinary package, что и пользовательский. Его
+generation/build проходит отдельно от user profile, credentials, signing keys
+и ambient network; activation не может расширить запрошенные права без нового
+user consent.
+
 ### Реестр ключевых гипотез
 
 | Гипотеза | Текущий статус | Как принимается или отвергается |
@@ -158,7 +180,7 @@ composition профиля.
 | Typed event transport нужен в kernel | Подтверждено в M0.4 | Acceptance/S1 доказывают bounded publish/subscribe и isolation; transport не получает RPC или storage semantics |
 | Scheduler и persistence являются kernel primitives | Открытый вопрос | Crash/restart и authority tests определяют минимально необходимую часть |
 | UI composition host относится к kernel | Открытый вопрос | UI spike проверяет, можно ли оставить в host только bootstrap/window handles, а composition вынести в plugins |
-| CEF — первый browser engine provider | Кандидат | Engine spike по embedding, isolation, semantics, packaging, licensing и upgrade cost |
+| CEF — первый browser engine provider | First runtime | Отдельная operation matrix подтверждает реальные CEF guarantees; Chromium/CDP spike не переносит их автоматически в CEF |
 | wgpu — первый renderer/compositor provider | Кандидат | UI/OSR spike по latency, accessibility и cross-platform fallback |
 | Optical system glass — визуальный язык управляющего слоя | Направление | M1 UI spike доказывает hierarchy, readability, bounded backdrop sampling, degraded fallback и frame-time budget на opaque web/workspace content |
 | WIT Components — внешний third-party ABI | Сильный кандидат | ABI compatibility и sandbox prototype против альтернативного out-of-process IPC |
@@ -238,19 +260,19 @@ plugin**. Это концептуальное родство, а не требо
 
 | Область | Решение |
 | --- | --- |
-| External ABI | Версионированные WIT Component interfaces или stable IPC; никакого public Rust `dylib` ABI |
-| Authority | Default deny и capability broker между каждым principal и ресурсом; process isolation не считается authority isolation |
-| Native providers | Высокопроизводительные trusted providers работают в отдельных restartable processes за versioned IPC |
+| External ABI | Версионированные WIT Component interfaces или stable IPC; никакого public Rust `dylib` ABI, raw CEF/CDP/RDP handles или engine profile paths |
+| Authority | Default deny и capability broker между каждым principal и ресурсом; process isolation не считается authority isolation; sink повторно сверяет актуальный target/epoch перед effect |
+| Native providers | System/trusted class, а не обычный формат generated feature. Отдельный restartable process за versioned IPC сам по себе не даёт filesystem/network sandbox |
 | Platform portability | Windows-first implementations остаются за platform-neutral contracts. Win32, Job Object, CEF bootstrap/DLL loading и PowerShell — текущие platform adapters, а не публичная архитектурная граница; неподдерживаемая платформа должна давать explicit `Unsupported`/`Unavailable`, не ломая workspace compilation |
-| Browser engine | CEF/Chromium скрыт за `BrowserEngine` contract; CEF types никогда не пересекают provider boundary |
+| Browser engine | Portable product contracts + operation support profiles; CEF types никогда не пересекают external feature boundary. Каждый adapter явно сообщает implemented/unsupported/experimental semantics |
 | Chromium strategy | Не форкать Chromium, пока физически невозможно решить задачу через upstream CEF/provider layer |
 | State | Один authoritative source, entity revisions и CAS; stale операции всегда отвергаются |
 | Capability RPC | Point-to-point request/result через broker с admission, deadline, cancellation, authority и явным provider |
 | Events | Отдельный typed publish/subscribe plane: versioned envelopes, bounded mailboxes, backpressure/QoS и causation/correlation IDs |
 | Persistence | Явный выбор per bounded domain: transactional state, selective audit log, blob store или derived index; event sourcing не является default |
-| Agent writes | `prepare -> authorize -> commit`; approval связан с exact action digest, target revision и TTL |
-| Failure model | Partial activation, degraded mode, quarantine и safe mode являются штатными состояниями |
-| Upgrade | `stage -> migrate copy -> validate -> switch -> rollback`; новая версия не портит единственную рабочую копию state |
+| Agent writes | `prepare -> authorize -> commit`; approval связан с exact action digest, target revision и TTL; page/model output не создаёт authority, а egress в model — отдельное право |
+| Failure model | Partial activation, degraded mode, quarantine и safe mode являются штатными состояниями; crash feature не прекращает ordinary browsing или protected recovery |
+| Upgrade | `stage -> migrate copy -> validate -> switch -> observe -> rollback`; immutable package/state/policy generation имеет один durable active pointer |
 | Diagnostics | Replay только для явно event-sourced domains; plugin telemetry и plugin bisect проектируются до публичной ecosystem |
 | Visual layering | Web/workspace content в основном opaque; glass зарезервирован для system chrome, controls over content, agent/action overlays и temporary context UI |
 
@@ -259,30 +281,34 @@ plugin**. Это концептуальное родство, а не требо
 | Тип plugin | Boundary | Назначение |
 | --- | --- | --- |
 | Builtin Rust | Statically linked, но тот же logical capability contract | Малые доверенные platform adapters |
-| Trusted native | Отдельный process + stable IPC + OS sandbox по возможности | CEF, GPU, media и другие тяжёлые providers |
-| Untrusted third-party | WASM Component + ограниченный WIT world + quotas + OS-level defense in depth | Ecosystem plugins |
+| System/trusted native | Отдельный process + stable IPC; trust admission и platform containment проверяются отдельно | CEF, GPU, media и другие тяжёлые providers; не ordinary generated code |
+| Untrusted user/AI package | WASM Component + ограниченный WIT world + quotas; target — OS-restricted feature host | Ecosystem features; текущий in-process WASM host — foundation, не доказательство полной OS isolation |
 
-Если эта модель будет принята, WASM останется одной границей защиты, а не всей
-sandbox model. Runtime, host functions, capability broker и OS sandbox входят в
-trusted computing base.
+WASM остаётся одной границей защиты, а не всей sandbox model. Runtime, host
+functions, capability broker, engine, protected UI, updater/recovery и OS
+sandbox входят в trusted computing base. Windows Job Object сохраняется как
+cleanup mechanism, но не подменяет filesystem/network containment.
 
 ## 4. Карта крупных рубежей
 
 | Рубеж | Результат для пользователя | Статус |
 | --- | --- | --- |
 | **S0–S4 — Proving Slice** | Самый тонкий реальный end-to-end путь всегда runnable | Непрерывный track |
-| **M0 — Kernel** | Безопасная и заменяемая plugin-платформа | В работе |
-| **M1 — Browser** | Workspace-first браузер, пригодный для обычного browsing | Запланирован |
-| **M2 — Agentic Workspace** | Агент работает внутри среды и сохраняет контекст деятельности | Запланирован |
+| **M0 — Kernel** | Безопасная и заменяемая plugin-платформа | Foundations built; M0.7 reopened |
+| **M1 — Browser** | Workspace-first браузер, пригодный для обычного browsing и bounded programmable features | Active; M1.2 reopened |
+| **M2 — Agentic Workspace** | Агент работает внутри среды и сохраняет контекст деятельности | Запланирован после M1.6/M1.7 |
 | **M3 — Internet Activity OS** | Фоновые события и persistent activities работают без открытой страницы | Горизонт |
 
 Зависимость рубежей:
 
 ```text
-M0 Kernel
-  -> M1 Browser
-       -> M2 Agentic Workspace
-            -> M3 Internet Activity OS
+M0 foundations + durable activation/recovery
+  -> M1.0 runtime truth
+       -> M1.2 real engine gateway
+            -> M1.6 bounded programmable feature
+                 -> M1.7 transactional activation
+                      -> M2 Agentic Workspace
+                           -> M3 Internet Activity OS
 ```
 
 Эта стрелка задаёт gates для product claims, но не разрешает горизонтально
@@ -300,8 +326,9 @@ M0 Kernel
 | --- | --- |
 | **S0 — Kernel** | user command -> host -> capability RPC/broker -> replaceable demo provider -> result/error -> diagnostic observation |
 | **S1 — Durable runtime** | boot profile -> installation/runtime -> RPC -> state commit -> independent event observation -> restart/restore |
-| **S2 — Browser** | shell command -> browser provider process -> navigation -> opaque rendered page under Worldline system chrome -> history/state restore |
-| **S3 — Agentic** | selection/intent -> agent plugin -> inference provider -> browser observation/action -> visible result or exact approval |
+| **S2r — Browser reference** | contract consumer -> `ReferenceBrowserBackend` -> deterministic navigation/query/action regression; не production CEF evidence |
+| **S2c — Browser CEF** | authenticated gateway -> real CEF provider process -> implemented operation profile -> typed result/degraded failure; отдельный OS/build label |
+| **S3 — Agentic** | selection/intent -> agent plugin -> inference provider -> scoped browser observation/action -> visible result or exact approval; требует M1.6/M1.7 |
 | **S4 — Background** | internet event source -> subscriber -> persistent task wakeup -> semantic filter -> notification |
 
 Правила track:
@@ -310,6 +337,8 @@ M0 Kernel
   subsystem mocks;
 - fake provider допустим только за тем же contract/IPC boundary, что и будущий
   real provider;
+- slice всегда несёт backend/OS/build evidence label; S2r не может закрыть
+  operation claim S2c, а Chromium/CDP spike не может закрыть CEF claim;
 - event subscriber в S1 наблюдает RPC outcome, но не возвращает сам outcome;
 - каждый следующий milestone сначала делает slice тоньше сквозным, и только
   затем расширяет capability breadth;
@@ -353,19 +382,26 @@ observation и state continuity после host restart. M0.5 расширяет
 proving path production-backed persistence/recovery evidence, не заменяя его
 новым изолированным subsystem demo.
 
-M0.1–M0.5 закрыты своими acceptance gates. Текущий активный gate — M0.6:
-stable IPC and WASM Component Boundary. Логический `InMemoryEventJournal` из
-M0.4 намеренно не является crash-safe persistence; production persistence
-теперь принадлежит M0.5 и реализован в `worldline-storage`.
+M0.1–M0.6 сохраняют свои закрытые фундаментальные contracts. Текущие
+системные gates — reopened M0.7 и M1.0: они должны соединить package activation,
+recovery и browser authority с настоящими consumers. Логический
+`InMemoryEventJournal` из M0.4 намеренно не является crash-safe persistence;
+production persistence M0.5 не доказывает автоматически durable package loader
+или recovery shell.
 
 Статус **Done** разрешено ставить только когда соответствующий exit criterion
-покрыт acceptance-тестами и весь workspace проходит:
+имеет и contract evidence, и требуемый real consumer/failure evidence. Полный
+workspace verification остаётся необходимым baseline:
 
 ```text
 cargo fmt --all -- --check
 cargo test --workspace
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```
+
+Reference/mock acceptance, green compilation или спайк на другом engine не
+подменяют этот критерий. Для security-sensitive capability обязательны named
+broker, payload-target validation и проверка на фактическом sink.
 
 ## 6. M0 — Kernel
 
@@ -532,6 +568,11 @@ GitHub Actions результата.
 
 ### M0.6 — Stable IPC and WASM Component Boundary — Done
 
+**Scope correction.** Закрыт restricted generic WIT/IPC boundary: component
+имеет state/event imports, deny-by-default WASI и resource limits. Это ещё не
+browser-programming ABI: `capability-invoke` не подключён к exported world, а
+in-process Wasmtime не заменяет OS-contained untrusted feature host.
+
 - выбрать и закрепить поддерживаемую версию WASM Component Model/WASI;
 - определить единый logical contract и adapters для builtin Rust, native IPC и
   WASM providers;
@@ -552,34 +593,43 @@ GitHub Actions результата.
 сохранить ничего, что ему явно не делегировано, и не может повредить работу
 других runtimes.
 
-### M0.7 — Operability, compatibility and upgrade — Done
+### M0.7 — Operability, compatibility and upgrade — Reopened
 
-- stable/experimental capability lifecycle и правила major-version change;
-- compatibility matrix: current kernel с SDK `N`, `N-1`, `N-2` и current SDK с
-  поддерживаемыми kernels;
-- staged install/update с migration на копии, health validation, atomic switch
-  и rollback;
-- safe mode, plugin quarantine и автоматизированный bisect;
-- per-plugin activation time, CPU, memory, mailbox depth, crashes и denials;
-- time-travel diagnostics по correlation/causation chain;
-- resolver property tests, host-function negative security tests, fuzzing и
-  process-kill chaos suite;
-- deterministic replay для domains, явно выбравших event sourcing; state/outbox
-  recovery для остальных;
-- explicit `incomplete` для side effects, исход которых после crash невозможно
-  доказать.
+Существующие compatibility/upgrade/quarantine/bisect types и model tests
+сохраняются как foundation. Они не закрывают product-level update, пока нет
+реального package catalog, durable active-revision pointer, code loader и boot
+composition, которые используют одну и ту же запись состояния после нового
+process start.
 
-Exit criterion: намеренно несовместимый внутренний upgrade обнаруживается до
-switch либо откатывается; один сломанный plugin локализуется без ручного
-удаления всего профиля; пользователь видит degraded, но работающий shell.
+Для повторного закрытия нужны:
+
+- immutable package revision с digest, dependency/provenance record и distinct
+  installation/runtime identity;
+- stage → migration-on-copy → validate → durable atomic select of
+  code/state/policy generation → observe → rollback;
+- activation epoch, который инвалидирует старые handles и не позволяет уже
+  admitted effect совершить новый commit после revoke/replace;
+- durable quarantine и safe mode с independent recovery launcher, не требующим
+  запуска optional feature composition;
+- fresh-process kill/restart tests на каждом durable transition, включая
+  отсутствие двух Current revisions;
+- external effect journal с `Incomplete` и запретом blind retry;
+- metadata-only observability и watchdog вне feature process.
+
+Exit criterion: намеренно несовместимый package отвергается до switch; crash
+на каждом переходе после нового host process приводит к единственной допустимой
+revision; сломанная optional feature локализуется без ручного удаления профиля;
+обычный browsing и trusted recovery остаются доступны.
 
 ### M0 exit criterion
 
-M0 закрыт, когда:
+M0 остаётся закрываемым только после повторного прохождения M0.7; кроме
+сохранённых критериев ниже нужны durable activation/recovery и доказанная
+изоляция untrusted feature host. M0 закрыт, когда:
 
 - один host одновременно запускает несколько installations и providers;
-- trusted native и sandboxed WASM plugins используют одинаковую capability
-  model;
+- system/trusted native и untrusted WASM packages используют одинаковую logical
+  capability model, но не получают одинаковую ambient authority;
 - provider можно заменить и runtime можно безопасно перезапустить;
 - state, authority и effects корректно переживают lifecycle и crash paths;
 - capability RPC и event transport имеют раздельные contracts и failure modes;
@@ -591,6 +641,10 @@ M0 закрыт, когда:
 - proving slice S1 проходит boot, RPC, independent observation и restart;
 - по одному reference plugin проходит builtin, native-process и WASM paths без
   изменения consumer;
+- generated feature проходит отдельный OS-contained runtime и не получает
+  filesystem/network/process authority вне broker grants;
+- activation/replacement/recovery имеет durable pointer и fresh-process
+  evidence, а protected recovery surface стартует без optional feature;
 - kernel всё ещё не импортирует browser, UI, inference или agent types.
 
 ## 7. M1 — Browser
@@ -602,7 +656,30 @@ workspace plugin внутри одного runtime. На этом этапе age
 отсутствовать; никакой browser component при этом не получает особого пути в
 kernel.
 
-### M1.1 — Browser contract and engine spike — Done
+### M1.0 — Runtime truth and trust-boundary reconciliation — Next
+
+Перед расширением browser breadth вернуть roadmap и GRACE projections к
+проверяемым runtime facts:
+
+- завести machine-readable operation-support matrix для каждого
+  `engine × OS × adapter build`: implemented, unsupported или experimental;
+- связать каждый public claim с production entrypoint, owner, failure semantics
+  и fresh evidence; reference-only path маркируется отдельно;
+- инвентаризировать TCB и resource owners: engine profiles, SQLite/blob state,
+  downloads, credentials, networking, package catalog, protected UI и updater;
+- убрать из handshakes/API обещания операций, которые backend не реализует;
+- устранить GRACE linkage blockers, не выдавая lint за доказательство runtime
+  path.
+
+Exit criterion: consumer машинно отличает реальную CEF operation от reference
+model; каждый sensitive sink имеет named owner; status документа совпадает с
+named fresh evidence.
+
+### M1.1 — Browser contract and engine spike — Done в ограниченном scope
+
+**Scope correction.** Закрыты engine-neutral contracts, reference semantics и
+отдельный Chromium/CDP feasibility spike. Этот рубеж не закрывает CEF adapter,
+browser service gateway или user-programmable browser feature.
 
 Рубеж закрыт:
 - Разработан `worldline-browser-contract`: 8 versioned capability contracts
@@ -610,19 +687,20 @@ kernel.
   `browser.query`, `browser.act`, `browser.download`, `browser.permission`).
 - Строго разделены права: `ObservePage`, `QueryDocument`, `NavigatePage`,
   `ActOnPage`, `ControlDownload`, `ManagePermission`.
-- Предотвращены confused-deputy атаки: провайдер строго проверяет совпадение
-  admitted `ResourceId` из `InvocationContext` с целевым ресурсом полезной нагрузки.
+- Contract/reference providers проверяют совпадение admitted `ResourceId` из
+  `InvocationContext` с target payload. Эта гарантия должна быть повторно
+  замкнута на production browser gateway и каждом effect sink.
 - Введены бюджетные ограничения `QueryBounds` с флагами `is_truncated` и подсчетом отсеченных узлов.
 - Ссылки `ElementRef` привязаны к `(PageId, DocumentRevision)`; устаревшие
   ссылки отклоняются с явной ошибкой.
-- Логические идентификаторы профилей (`profile_id`) изолируют пользовательские данные
-  без утечки путей файловой системы хоста в ABI.
+- Логические идентификаторы профилей (`profile_id`) не раскрывают host paths в
+  ABI; они сами по себе не доказывают process/profile isolation.
 - Реализована публикация типизированных событий через `InvocationContext::publish_event` в M0.4 транспорт ядра
   (`browser.page.created`, `browser.navigation.committed`, `browser.page.closed`, `browser.download.started`),
   проверенная через авторизованные pull-подписки `SubscriptionHandle`.
 - Иерархические контекстные полномочия строго проверяют принадлежность страницы (`get_page_context`)
   без строковых префиксных байпассов.
-- Реализован настоящий out-of-process спайк Chromium на Windows (`worldline-browser-spike/src/chromium.rs`):
+- Реализован отдельный out-of-process спайк Chromium на Windows (`worldline-browser-spike/src/chromium.rs`):
   автоматическое обнаружение браузера, запуск headless-процесса (с политикой fail-closed в CI),
   управление по CDP через WebSocket, навигация по локальным HTML-фикстурам, извлечение дерева доступности Blink,
   точная адресация семантических элементов через `ElementRef.node_key` и исполнение действий в DOM,
@@ -633,48 +711,48 @@ kernel.
   в котором четко разделены измеренные эмпирические факты (холодный старт ~580 ms, RAM ~135 MB)
   и качественный анализ кандидатов, обосновавший выбор Chromium/CEF для M1.2.
 
-Exit criterion: browser contracts компилируются без зависимостей от движков;
-kernel не содержит типов браузера; спайк доказывает реальную изоляцию процессов и навигацию без
-публичной сети; ADR обосновывает выбор движка на основе прямых измерений. Evidence: `worldline-browser-contract`
-acceptance suite, `worldline-browser-spike` real Chromium and reference acceptance and measurement suites,
-сохраненные M0 CI gates.
+Exit criterion: browser contracts компилируются без engine dependency; kernel не
+содержит browser types; отдельный Chromium spike имеет named evidence по своим
+сценариям. Он не меняет статус CEF operation matrix.
 
-### M1.2 — Browser engine provider process — Done
+### M1.2 — Browser engine provider process and gateway — Reopened
 
-- [ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1](docs/adr/ADR-BROWSER-ENGINE-PROVIDER-PROCESS-V1.md)
-  зафиксировал топологию native provider process, FFI-границу, thread-affinity UI message loop,
-  Windows Job Object containment и модель безопасности.
-- `worldline-browser-contract` расширен experimental v0.1 контрактами (`browser.capture`,
-  `browser.engine.cookies`, `browser.engine.storage`, `browser.engine.download-hook`)
-  и аддитивными событиями с полной обратной совместимостью v1.0.
-- `worldline-native-host` получил Job Object containment на Windows (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`)
-  для автоматического завершения многопроцессных деревьев Chromium/CEF при выходе хоста,
-  а также bounded blob streaming protocol (`BlobRequest`/`BlobResult`).
-- `worldline-browser-provider` реализовал `BrowserProviderCore`, CAS-резервацию генераций страниц,
-  строгую валидацию устаревания `ElementRef` и детерминированный `ReferenceBrowserBackend`.
-- `worldline-browser-cef` реализовал C FFI-адаптер, ранний subprocess dispatch helper (`early_subprocess_dispatch`),
-  потокобезопасный `CefLoopRunner` и Windows headful windowing.
-- `worldline-browser-provider-process` скомпоновал автономный native бинарник для работы по `worldline-plugin-protocol`.
-- Добавлен и подтвержден сквозной proving slice S2 (`worldline-reference/src/s2.rs`),
-  доказывающий полный цикл создания контекста, страницы, навигации, семантических запросов,
-  действий, визуального захвата и изоляции данных.
+Существуют native CEF process/FFI/message-loop infrastructure, basic navigation,
+cookies/downloads/request-policy callbacks и Windows process-tree cleanup.
+Они остаются полезным foundation, но не являются доказательством полного
+semantic browser provider: CEF `query`, `act`, capture и permission operations
+сейчас explicit `Unsupported`, а текущий S2 использует `ReferenceBrowserBackend`.
 
-Exit criterion: CEF/reference provider исполняется в изолированном supervised process за stable IPC;
-процессное дерево CEF гарантированно сворачивается при выходе хоста; действия со старыми `ElementRef`
-отклоняются; visual capture стримится через контентно-адресуемые блобы; proving slice S2 постоянно зелёный.
+Для закрытия нужны:
+
+- authenticated private IPC и один browser gateway:
+  `runtime principal → operation/resource admission → domain target validation → engine sink`;
+- CEF support matrix, согласованная с handshake: никаких advertised operations,
+  которые фактически возвращают Unsupported;
+- named real-CEF proving slice для implemented operations; reference S2 остаётся
+  contract regression, но не засчитывается как CEF evidence;
+- explicit semantics для origin/frame/document/profile/epoch и stale handles;
+- bounded streaming data plane для downloads/capture/blob, а не whole-file
+  allocation и single JSON frame;
+- разделение CEF upstream renderer sandbox и host-native containment: Job Object
+  — cleanup, не permission boundary для ordinary generated native code.
+
+Exit criterion: real CEF path реализует и тестирует заявленный минимальный
+operation profile; unsupported operations не рекламируются; untrusted caller
+доходит до engine только через gateway; failure/degradation не ломает browser
+boot или protected recovery.
 
 #### Browser engine contingency gate
 
-CEF является первым production browser-engine provider, но не необратимой
-архитектурной зависимостью Worldline. Его дальнейшее использование регулярно
-проверяется по maintenance cost, packaging/upgrade burden, crash isolation,
-security posture и portability. Если эти затраты становятся непропорциональными
-или CEF блокирует поддерживаемую платформу/product journey, запускается spike
-второго provider (например, WebView2 на Windows) за тем же `BrowserEngine`
-contract. Такой переход не должен требовать browser-specific изменений в kernel
-или переписывания shell/workspace consumers.
+CEF является первым desktop engine runtime, но не необратимой архитектурной
+зависимостью Worldline. Portable остаются product capabilities, workflows,
+portable domain data и UI intent; adapter profiles и engine-specific extensions
+могут различаться. Если CEF блокирует product journey или security/update train,
+проводится bounded spike второго engine. Он проверяет embedding, input/IME,
+accessibility, profile isolation, crash containment и update rehearsal. Успех
+spike не обещает Chromium/Firefox parity; failure не требует немедленного fork.
 
-### M1.3 — Browser service plugins
+### M1.3 — Browser service plugins — Active, re-scoped
 
 CEF provider предоставляет engine primitives, а не монолитный браузер. Поверх
 контрактов отдельно подключаются:
@@ -690,6 +768,13 @@ CEF provider предоставляет engine primitives, а не моноли�
   signing/verification и legacy-web bridges для enterprise/state web applications;
 - позднее любые дополнительные browser capabilities без изменения CEF plugin.
 
+Наличие service crate или DTO не делает его API доступным untrusted package.
+Каждая операция tabs/history/downloads/cookies/devtools проходит тот же browser
+gateway, принимает authenticated `InvocationContext` и сопоставляет admitted
+resource с фактическим target. Cookie value, profile paths, raw DevTools и
+credential material не публикуются ordinary feature ABI. Discovery, package
+signature или модельная уверенность не являются authority.
+
 Криптографическая compatibility family должна позволять подключать НУЦ,
 корпоративные CA, client certificates через Windows CNG/CSP, PKCS#11 или
 КриптоПро, а также CMS/CAdES/XML-signing и аналогичные операции как отдельные
@@ -698,10 +783,10 @@ plugins/capabilities, а не как policy в kernel. Private key material не
 surface получает только типизированный результат разрешённой операции.
 
 Если совместимость требует ГОСТ непосредственно в TLS/network stack, это не
-обычный service plugin, а отдельный browser-engine provider/profile за тем же
-`BrowserEngine` contract (например, `cef.gost`). Стандартный CEF provider остаётся
-обычным default; установка криптографического профиля не должна загрязнять или
-ослаблять его security model.
+обычный service plugin, а отдельный engine provider/profile с explicit support
+profile (например, `cef.gost`). Стандартный CEF provider остаётся обычным
+default; установка криптографического профиля не должна загрязнять или ослаблять
+его security model.
 
 WebApp/origin compatibility profile может выбирать trust/client-cert/crypto и
 engine providers для конкретного приложения или origin, но такая UX/config
@@ -713,16 +798,22 @@ capability authority. Legacy Native Messaging/CryptoPro-style bridges допус
 Failure history или adblock plugin не должен мешать navigation. Удаление tabs
 plugin не удаляет underlying workspace/page facts без отдельной операции.
 
-### M1.4 — UI composition and Worldline Shell
+### M1.4 — Trusted UI composition and Worldline Shell
 
-Desktop host лишь загружает bootstrap composition; продуктовые UI surfaces
-поставляются plugins.
+Desktop host загружает bootstrap composition. Product shell остаётся
+расширяемым, но UI имеет три enforced пространства: protected security surface,
+product shell slots и page content. CSS/theme convention для этого недостаточна.
 
-- renderer/compositor provider; wgpu является начальным кандидатом для spike;
+- protected surface показывает origin/identity, permission and action approval,
+  active agent capture, stop и recovery; ordinary feature не может её заменить,
+  перекрыть или перехватить её input;
+- renderer/compositor provider; wgpu является кандидатом для spike, а native/dense
+  fallback остаётся допустимым до evidence по IME, accessibility и failure mode;
 - workspace switcher и workspace home вместо пустого окна с адресной строкой;
 - `ui.page-surface` и `ui.tab-bar` как заменяемые presentation plugins;
 - `ui.command-palette`, omnibox и extensible commands;
-- downloads, history и permission prompts;
+- downloads и history surfaces; permission/action prompts принадлежат protected
+  surface;
 - plugin trust/permission surface показывает isolation/runtime class,
   publisher/provenance, requested capabilities и их scope понятными пользователю
   терминами; native plugin требует заметно более сильного доверия, чем sandboxed
@@ -732,6 +823,11 @@ Desktop host лишь загружает bootstrap composition; продукто
 - task/activity timeline surface, пока ещё без обязательного agent runtime;
 - restore последнего workspace после restart;
 - accessibility, keyboard navigation и базовая диагностика renderer/engine.
+
+Composition change валидируется и применяется как generation: конфликтующие
+shortcuts, циклическая dependency или crash panel не разрушают прежнюю shell.
+Focus, IME, keyboard routing, clipping, z-order и accessibility tree — часть
+security contract, а не декоративная деталь renderer.
 
 #### Visual DNA — system glass over content
 
@@ -818,11 +914,62 @@ Kill tests визуального направления:
 - сохранение layout и открытых/закрытых page references;
 - activity facts: open, close, navigate, cite, download, annotate;
 - ручное добавление и удаление объектов;
-- экспорт/удаление workspace и понятная data ownership policy.
+- экспорт/удаление workspace и понятная data ownership policy;
+- отдельные portable workspace records и engine-owned profile state; raw engine
+  profile/database не становится portable workspace schema;
+- incognito/sensitive data не попадают автоматически в workspace history,
+  agent memory, telemetry, test snapshot или export.
 
 На M1 workspace ещё не обязан понимать смысл исследования. Он уже обязан
 переживать закрытие приложения и быть лучшей единицей восстановления, чем
 глобальная browser history.
+
+### M1.6 — Bounded programmable browser feature — Planned
+
+Это первый проверяемый ответ на продуктовую гипотезу. Пользователь или AI
+создаёт immutable package, который в untrusted runtime выполняет полезный
+browser scenario через public contracts, не меняя TCB.
+
+- initial vertical: явно выбранная page/document scope → bounded observation or
+  transform → feature panel/artifact; отдельный scoped grant для navigation,
+  download export или model egress;
+- package runs as WASM Component in an OS-restricted feature host; build/generate
+  environment не имеет user profile, credentials, signing keys или ambient
+  network;
+- capability invocation использует host-minted handles и `InvocationContext`,
+  а browser gateway повторно проверяет origin/frame/document/epoch at sink;
+- generated runtime не получает shell, process execution, raw filesystem,
+  native FFI, raw DevTools, profile paths, grant issuance, updater или secret
+  export;
+- user sees requested rights, target and data recipient; consent delta required
+  on rights expansion; model egress is separate from DOM read.
+
+Exit criterion: intentionally malicious loop/memory/crash/prompt-injection
+package cannot access another resource, bypass approval or stop ordinary
+browsing/recovery. One useful generated feature runs, is replaced and reports
+real engine evidence through the same ordinary feature ABI.
+
+### M1.7 — Transactional feature activation and recovery — Planned
+
+Implement local transactional modification model:
+
+`generate → validate → disposable test → stage → activate → monitor → rollback`.
+
+- code, dependencies, requested-rights diff and package provenance are immutable;
+- state migration uses a copy; each state generation has one writer;
+- activation switches durable code/state/policy generation and revokes old
+  runtime handles before new calls start;
+- independent watchdog observes crash, resource exhaustion, denied calls and
+  missing progress; success report from feature is not sole health signal;
+- rollback restores LastKnownGood local generation and durable quarantine;
+  already dispatched remote effects become `Incomplete`, not automatic retry;
+- updater/recovery boot independently from optional feature composition;
+  engine security update may disable an incompatible optional package.
+
+Exit criterion: fault injection at each stage and fresh process restart produce
+exactly one active generation; old authority cannot act after replacement;
+broken feature can be quarantined/recovered without data-loss claim beyond the
+explicitly retained state generation.
 
 ### M1 exit criterion
 
@@ -832,12 +979,17 @@ Kill tests визуального направления:
 - engine работает как plugin provider, а kernel не знает browser types;
 - один диагностический экран показывает active plugins, selected providers,
   permissions и failures;
-- смена browser или renderer provider не меняет shell/workspace consumer
-  contracts;
+- смена browser или renderer provider не меняет portable shell/workspace
+  contracts; feature, требующая неподдерживаемого engine profile, явно
+  отключается или использует declared engine-specific extension;
 - opaque page/content layer и glass system layer визуально различимы, при этом
   shell сохраняет читаемость, keyboard/accessibility semantics и dense fallback;
 - failure необязательного browser/UI plugin приводит к degraded mode, а не к
   bootstrap deadlock.
+- real engine support matrix, protected consent/origin/stop/recovery surface и
+  one bounded user/AI-generated feature прошли named fresh evidence;
+- package replacement/recovery works after a new host process and does not
+  require pinning vulnerable engine indefinitely.
 
 ## 8. M2 — Agentic Workspace
 
@@ -863,6 +1015,10 @@ inference.tools
 - credentials как references, а не значения в trajectory;
 - model routing, budgets, timeouts и cancellation;
 - agent loop, planner и memory как независимые заменяемые plugins;
+- model output и page instructions являются untrusted data: они не выдают
+  grants, approvals, package trust или engine/UI authority;
+- передача page/workspace data в remote model — отдельная egress capability с
+  provider, recipient, data category, budget и retention intent;
 - GitHub и MCP как обычные capability/integration plugins, а не встроенные
   привилегии агента;
 - цикл plan -> action -> observation над capability graph;
@@ -873,7 +1029,8 @@ inference.tools
 
 Exit criterion: provider и agent loop можно заменить независимо; длинная
 multitab-задача переживает interruption/restart и не теряет причинную связь
-действий.
+действий; agent не получает raw engine/debugger channel или privilege только
+потому, что сгенерировал план.
 
 ### M2.2 — Human control and visible agency
 
@@ -888,7 +1045,10 @@ multitab-задача переживает interruption/restart и не теря
 - agent/action overlays используют system glass как видимую границу agency, но
   exact approval payload остаётся на dense readable substrate и не скрывается
   за refraction;
-- stop отменяет pending work и отзывает task-scoped authority;
+- stop прекращает новые admissions, отменяет pending work и отзывает
+  task-scoped authority; effect sink повторно проверяет epoch перед commit;
+  уже dispatched/unknown external effect остаётся typed `Incomplete`, а не
+  обещанным rollback;
 - rollback/undo там, где provider способен его гарантировать.
 
 Kill test: после подтверждения черновика агент не может незаметно изменить
@@ -1021,31 +1181,41 @@ restart, не превышает budget, не получает лишних perm
 После этого Worldline перестаёт быть только браузером: он хранит и продолжает
 деятельность пользователя в информационной среде.
 
-## 10. Planning envelope
+## 10. Agent-first planning envelope
 
-Оценка ниже — способ проверить порядок и параллельность, а не обещание даты.
-Предпосылки: два опытных Rust-разработчика, Windows-first architectural MVP,
-существующий kernel bootstrap, отсутствие Chromium fork и сознательный отказ
-от product polish на этом этапе.
+Roadmap не содержит оценок в неделях, месяцах или «через 1–2 года». Реальная
+пропускная способность определяется количеством независимых agent packages и
+скоростью независимой проверки, а не числом людей, пишущих Rust вручную.
+Агенты ускоряют реализацию, exploration и test generation; они не отменяют
+необходимость проверить consumer, privilege boundary, crash path и rollback.
 
-| Относительный период | Основной critical path | Допустимая параллельная работа |
+| Evidence cycle | Последовательный outcome | Что можно делать параллельно |
 | --- | --- | --- |
-| Каждая неделя | Proving slice остаётся runnable и получает следующий самый тонкий end-to-end outcome | Subsystem work не считается интегрированным до попадания в slice |
-| Недели 1–2 | Завершить M0.1, вернуть green baseline, довести S0 до host boot/RPC/result | Boundary review, CEF и UI feasibility spikes без production coupling |
-| Недели 3–5 | Runtime identity, async lifecycle, partial activation; S1 с restart | Раздельные event-transport и persistence prototypes, versioned IPC |
-| Недели 6–9 | WIT/Wasmtime boundary, domain storage/recovery decisions | S2: CEF provider process и минимальная UI composition |
-| Недели 10–12 | Upgrade/rollback, safe mode, compatibility/chaos gates | S3: tabs/workspace, один model provider и один видимый agent action |
-| Недели 13–14 | Сквозной security, recovery и failure acceptance S0–S3 | Расширение breadth только при зелёном slice |
+| A — M1.0 | Runtime truth: CEF/reference support matrix, TCB/resource map, GRACE reconciliation | Read-only code mapping, contract-test inventory, independent negative review |
+| B — M1.2 | Один real CEF gateway с authenticated caller и bounded base operation profile | Streaming/data-plane design, adapter test fixtures, UI shell prototype без security claim |
+| C — M1.4 | Protected consent/origin/stop/recovery surface и composable shell slots | Renderer/IME/accessibility spikes, themes and non-security panels |
+| D — M1.6 | Один useful generated WASM feature через scoped browser capability | Package validator, build sandbox, hostile-component/fuzz fixtures |
+| E — M1.7 | Durable activation generation, fresh-process recovery и rollback | Observability dashboards, update metadata checks, bounded compatibility fixtures |
+| F — operation breadth | Engine update rehearsal; затем только при value — второй-engine spike | Engine-specific extensions, supported platform research |
 
-Результат этого окна — **architectural MVP**, а не завершённые M1 или M2:
-один reference provider каждой основной family, один sandboxed plugin, один
-browser page, один UI surface и один agent action проходят общие contracts.
+Каждый cycle — набор маленьких изолированных change packages. Package допускается
+к следующему cycle только после того, как независимый verifier подтвердил его
+named acceptance evidence. Implementation agent не ослабляет protected tests и
+не принимает собственный security claim.
 
-При тех же предпосылках product-grade M1 + первый цельный M2 journey следует
-считать работой масштаба как минимум 4–6 месяцев от старта, пока engine/UI
-spikes не дадут более точные данные. Cross-platform polish, public plugin ABI,
-ecosystem и M3 в эту оценку не входят. После каждого двухнедельного gate
-диапазон пересчитывается по фактической скорости и обнаруженным рискам.
+Параллелизм разрешён для непересекающихся write scopes и contracts. Изменения
+в grant semantics, browser gateway, protected UI, package activation pointer и
+durable schemas проходят последовательно: следующий package зависит от
+проверенного предыдущего invariant, а не от обещания, что агенты «потом
+синхронизируют» их. Рабочая метрика — lead time до independently verified
+vertical outcome и доля повторной работы после failed gate, а не число созданных
+файлов или agent runs.
+
+Первый architectural MVP — не reference provider каждой family, а один
+непрерывный путь: untrusted generated package → scoped authority → useful real
+browser operation → replace → fresh-process recover. После него можно
+рационально измерять скорость последующих пакетов и решать, нужен ли второй
+engine.
 
 ## 11. После M3: ecosystem и network userland
 
@@ -1095,7 +1265,11 @@ acceptance journeys.
 - **Resume success:** доля persistent tasks, корректно продолженных после
   restart без дублирования side effects.
 - **Plugin replaceability:** conformance suite проходит минимум на двух
-  providers ключевого capability без изменения consumer.
+  providers ключевого capability без изменения consumer; переносимость не
+  обещает одинаковые internal engine semantics.
+- **Verified delivery velocity:** время от начала bounded agent package до
+  independently verified vertical outcome и доля packages, возвращённых с gate
+  на переработку. Метрика не уменьшает security acceptance.
 - **Notification precision:** доля фоновых уведомлений, которые пользователь
   считает соответствующими заданному условию.
 - **Visual control clarity:** пользователь отличает content от Worldline
@@ -1120,13 +1294,27 @@ acceptance journeys.
    отдельного архитектурного решения и по умолчанию отклоняется.
 8. Product spike может быть выброшен. Production code не опирается на spike,
    пока системный gate не закрыт.
-9. Календарные обещания добавляются только после декомпозиции milestone на
-   changes, определения владельцев и измерения фактической скорости.
+9. Календарные оценки, если вообще нужны, строятся на фактической пропускной
+    способности independently verified agent packages. Они не являются
+    milestone, не заменяют evidence и не оправдывают ослабление gates.
 10. Если новый feature улучшает чат, но не улучшает деятельность внутри
     workspace, он не является приоритетом Worldline.
 11. Glass обозначает system control plane над контентом. Он не применяется к
     каждому panel, не расширяет kernel и не принимается без readable fallback,
     accessibility semantics, performance evidence и nested-composition tests.
+12. Статус milestone всегда называет scope evidence: contract/model-tested,
+    wired или verified. Reference backend, standalone spike и production adapter
+    не подменяют друг друга.
+13. AI-generated/user-generated package получает тот же ordinary feature ABI,
+    что и любой third-party package. Он не выдаёт grants, не меняет policy floor,
+    sandbox, updater или protected UI.
+14. Engine-neutral product contract не гарантирует одинаковую engine semantics.
+    Security-sensitive unsupported operation возвращается явно и не получает
+    default no-op или silent downgrade.
+15. До отдельного ADR capability broker, protected consent/origin/stop/recovery
+    surface и independent updater/recovery рассматриваются как protected boot
+    candidates; ordinary feature не может заменять или понижать их trust
+    contract.
 
 Короткая формула roadmap:
 
